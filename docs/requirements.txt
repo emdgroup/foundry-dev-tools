@@ -1,0 +1,5 @@
+myst-parser[linkify]
+sphinx>=3.2.1
+furo
+pyspark>=3.0.0
+sphinx-autobuild
