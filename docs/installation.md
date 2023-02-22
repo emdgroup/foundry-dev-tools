@@ -74,7 +74,7 @@ foundry-dev-tools comes with built-in support for Single-Sign-On (SSO) with Foun
 using
 the [Third Party Applications](https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/)
 feature of Foundry.
-Internally, this uses the Palantir provided library `pyfoundry-auth` to handle the authentication flows.
+Internally, this uses the Palantir provided library `palantir-oauth-client` to handle the authentication flows.
 
 It is recommended to set up foundry-dev-tools with the dependency, using `foundry-libs`:
 
