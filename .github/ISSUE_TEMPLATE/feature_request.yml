@@ -1,0 +1,69 @@
+name: "Feature request"
+description: "Request a feature in Foundry DevTools"
+title: '[Feature Request]: '
+labels: ["feature-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # ⚠️  PLEASE KEEP IN MIND THAT GITHUB IS PUBLIC! DON'T SHARE ANY SENSITIVE OR INTERNAL INFORMATION! ⚠️
+        ## IF YOU POST YOUR CONFIGURATION REMOVE **AT LEAST** `jwt`,`client_id`,`client_secret` and `foundry_url`
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Issue checklist"
+      description: "To open an issue, all conditions below **need** to be met."
+      options:
+        - label: "This is a **feature request**/**enhancement**. And not a bug."
+          required: true
+        - label: "I searched through the GitHub issues and this feature/enhancement has not been requested before."
+          required: true
+        - label: "I have installed the latest version of Foundry DevTools and don't use an unsupported python version."
+          required: true
+        - label: "Others could also benefit from this feature or enhancement and it is **not** a very specific use case."
+          required: true
+  - type: textarea
+    id: feature-request-use-case
+    attributes:
+      label: Feature use case
+      description: |
+        Describe the use case for the feature.
+        Why do you want this feature?
+        What problem does this solve? (If any)
+      placeholder: |
+        These are some examples (You don't need to use them, but as long as you include precise information, we are happy):
+        When people want to [...] they currently need to use [...].
+        This exists on Foundry and Foundry DevTools could benefit because [...].
+    validations:
+      required: true
+  - type: textarea
+    id: feature-request-description
+    attributes:
+      label: Description of the Feature
+      description: |
+        Please provide a short and concise description of the feature.
+        What do you want the feature to do?
+        If you already have ideas **how** it could be implemented, describe them too.
+      placeholder: |
+        These are some examples (You don't need to use them, but as long as you include precise information, we are happy):
+        FoundryRestClient should have a method [...] that does [...].
+        The feature should behave like [...].
+        We would expect that [...].
+
+        This enhancement extends feature [...] with [...].
+        Currently the feature only [...]
+    validations:
+      required: true
+  - type: textarea
+    id: feature-request-alternatives
+    attributes:
+      label: Alternatives you considered
+      description: |
+        Are there alternatives, that you considered?
+        Could this be achieved by doing something else?
+        Provide details! (if any)
+  - type: textarea
+    id: feature-request-context
+    attributes:
+      label: Additional Context
+      description: Context that may help us, but doesn't fit in any other categories.
