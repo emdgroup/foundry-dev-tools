@@ -8,6 +8,8 @@
   <a href="https://github.com/emdgroup/foundry-dev-tools/pulls"><img src="https://img.shields.io/github/issues-pr/emdgroup/foundry-dev-tools?color=blueviolet&style=flat-square"/></a>
 
   <br/>
+    <img width="55%" src="https://github.com/emdgroup/foundry-dev-tools/raw/main/docs/pictures/foundry-dev-tools_connections.drawio.svg" alt="DrawIO Diagram with connection possibilities for Foundry DevTools"/>
+  <br/>
 
   <p><a href="https://emdgroup.github.io/foundry-dev-tools">Documentation</a></p>
 
@@ -18,7 +20,6 @@
   <a href="https://emdgroup.github.io/foundry-dev-tools/develop.html">Development<a/>
 
 </div>
-
 
 # Foundry DevTools
 
@@ -35,10 +36,19 @@ high level entrypoints to Foundry DevTools:
   * An implementation of `fsspec` for Foundry. Useful to interact with Foundry from popular data science libraries such as
   `pandas` or `dask`.
 
-* A transforms implementation
+* A [transforms](https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/) implementation
 
   * An implementation of the Foundry `transforms` package that internally uses the `CachedFoundryClient`.
-  This allows you to seamlessly run your Palantir Foundry Code Repository transforms code on your local machine.
+    This allows you to seamlessly run your Palantir Foundry Code Repository transforms code on your local machine.
+    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/architecture.html#known-limitations).
+
+## Quickstart
+
+```shell
+pip install foundry-dev-tools
+```
+
+[Further instructions](https://emdgroup.github.io/foundry-dev-tools/installation.html) are in the documentation.
 
 ## Why did we build this?
 
@@ -48,29 +58,6 @@ high level entrypoints to Foundry DevTools:
     * Debug, change code and run in a matter of seconds instead of minutes
 * No accidental or auto commits
     * Keep your git history clean
-
-## How does the local transforms implementation work?
-
-* Input datasets < 500MB are retrieved with the Foundry Dataproxy File Download API
-* Input datasets > 500MB are retrieved as partial subsets with the Foundry Dataproxy SQL API (SELECT * FROM .. LIMIT
-  
-* Both of these limits can be changed with the corresponding config option
-  * `transforms_sql_dataset_size_threshold` size in MB, default 500
-  * `transforms_sql_sample_row_limit`, default 5000
-* Datasets are cached locally in a folder (`~/.foundry-dev-tools/.cache`)
-* Datasets are automatically passed to transform functions
-* Output datasets can be visualized using IDE or Notebook functionality
-* Output dataset files can be stored to a local folder for inspection
-* Foundry `transforms` library is stubbed
-* Dataset branch is detected automatically from the local git branch
-
-
-## Known limitations
-
-* CSV format settings are not taken over from the Foundry Schema. Advised to use datasets in parquet format.
-* transforms Output not written back to foundry
-* @incremental not implemented
-* @configure not implemented
 
 # License
 Copyright (c) 2023 Merck KGaA, Darmstadt, Germany
