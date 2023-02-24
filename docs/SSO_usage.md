@@ -1,10 +1,12 @@
 # SSO Authentication
 
-You can create a [Third Party Application in Foundry] which is used for authenticating users.
-It works in conjunction with the Python library `pyfoundry-auth`.
+You can create a [Third Party Application in Foundry](https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/) which is used for authenticating users.
+It works in conjunction with the Python library `palantir-oauth-client`.
 Once a function of `foundry-dev-tools` is run to access data sitting in Foundry, the auth process is started.
 
 Example:
+
+![page that shows the third party application configuration webui of foundry](pictures/tpa_config.png)
 
 ```python
 from foundry_dev_tools import FoundryRestClient
