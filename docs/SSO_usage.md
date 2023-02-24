@@ -6,6 +6,8 @@ Once a function of `foundry-dev-tools` is run to access data sitting in Foundry,
 
 Example:
 
+![page that shows the third party application configuration webui of foundry](pictures/tpa_config.png)
+
 ```python
 from foundry_dev_tools import FoundryRestClient
 
