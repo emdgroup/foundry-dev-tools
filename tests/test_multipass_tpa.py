@@ -4,7 +4,6 @@ Rotate Secret rotate_third_party_application_secret
 
 """
 import json
-import warnings
 
 import pytest
 from requests.exceptions import HTTPError
