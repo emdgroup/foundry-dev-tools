@@ -37,6 +37,7 @@ These environment variables should point to an empty folder on palantir foundry 
 the tests will create the datasets automatically.
 
 ```shell
+pip install -e [integration-testing]
 pytest --integration
 ```
 

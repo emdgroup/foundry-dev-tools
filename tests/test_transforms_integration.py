@@ -1,3 +1,6 @@
+import io
+import pickle
+import random
 import warnings
 from unittest import mock
 from unittest.mock import MagicMock
@@ -6,8 +9,11 @@ import pyspark.sql.functions as F
 import pytest
 from pyspark.sql import SparkSession
 from transforms.api import Input, Output, transform, transform_df, TransformContext
+from transforms.api._transform import TransformInput
 
 import foundry_dev_tools
+
+import tests.utils
 from foundry_dev_tools import FoundryRestClient
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
@@ -159,7 +165,24 @@ def test_file_download(mocker, input_dataset_fixture, request, client):
 
 @pytest.mark.integration
 def test_binary_dataset(mocker):
-    input_dataset = "ri.foundry.main.dataset.9118d2de-d41b-4c67-8cb4-2ae456f9295c"
+    upload_client = FoundryRestClient()
+    dataset_path = str(
+        (tests.utils.INTEGRATION_TEST_COMPASS_ROOT_PATH / "binary_dataset").as_posix()
+    )
+    try:
+        input_dataset = upload_client.get_dataset_rid(dataset_path)
+        upload_client.delete_dataset(input_dataset)
+    except foundry_dev_tools.foundry_api_client.DatasetNotFoundError:
+        pass
+
+    input_dataset = upload_client.create_dataset(dataset_path)["rid"]
+    upload_client.create_branch(input_dataset, "master")
+    transaction_rid = upload_client.open_transaction(input_dataset)
+    rand_binary_data = random.randbytes(4096)
+    upload_client.upload_dataset_file(
+        input_dataset, transaction_rid, io.BytesIO(rand_binary_data), "bin"
+    )
+    upload_client.commit_transaction(input_dataset, transaction_rid)
     online = mocker.spy(Input, "_online")
     offline = mocker.spy(Input, "_offline")
 
@@ -170,9 +193,11 @@ def test_binary_dataset(mocker):
         output=Output("/path/to/output1"),
         input1=Input(input_dataset, branch="master"),
     )
-    def transform_me_online(output, input1):
+    def transform_me_online(output, input1: TransformInput):
         assert input1.filesystem() is not None
         assert input1.dataframe() is None
+        with input1.filesystem().open("bin", "rb") as bin_fd:
+            assert rand_binary_data == bin_fd.read()
 
     result = transform_me_online.compute()
     assert "output" in result
@@ -197,6 +222,8 @@ def test_binary_dataset(mocker):
         def transform_me_from_offline_cache(output, input1):
             assert input1.filesystem() is not None
             assert input1.dataframe() is None
+            with input1.filesystem().open("bin", "rb") as bin_fd:
+                assert rand_binary_data == bin_fd.read()
 
         result = transform_me_from_offline_cache.compute()
         assert "output" in result
