@@ -1918,14 +1918,25 @@ def _assert_pandas_packages_available():
         ) from err
 
 
-def _is_pyfoundry_auth_installed():
+def _is_palantir_oauth_client_installed():
     try:
-        # pylint: disable=import-outside-toplevel,unused-import
-        import pyfoundry_auth
+        # pylint: disable=import-outside-toplevel,unused-import,import-error
+        import palantir_oauth_client
 
-        return True
+        return palantir_oauth_client
     except ImportError:
-        return False
+        try:
+            # pylint: disable=import-outside-toplevel,import-error
+            import pyfoundry_auth
+
+            warnings.warn(
+                "\nPyFoundry Auth has been renamed to Palantir Oauth Client\n"
+                "Please uninstall pyfoundry-auth and install palantir-oauth-client\n",
+                DeprecationWarning,
+            )
+            return pyfoundry_auth
+        except ImportError:
+            return False
 
 
 def _raise_for_status_verbose(response: requests.Response):
@@ -1993,7 +2004,7 @@ def _get_auth_token(config) -> str:
     if "jwt" in config and config["jwt"] is not None:
         return config["jwt"]
     if "client_id" in config and config["grant_type"] != "client_credentials":
-        return _get_pyfoundry_auth_token(
+        return _get_palantir_oauth_token(
             foundry_url=config["foundry_url"],
             client_id=config["client_id"],
             client_secret=config["client_secret"]
@@ -2080,31 +2091,32 @@ def _get_oauth2_client_credentials_token(
 
 
 @lru_with_ttl(ttl_seconds=3600)
-def _get_pyfoundry_auth_token(
+def _get_palantir_oauth_token(
     foundry_url: str, client_id: str, client_secret: str = None
 ) -> str:
-    if not _is_pyfoundry_auth_installed():
+    if oauth_provider := _is_palantir_oauth_client_installed():
+
+        credentials = oauth_provider.get_user_credentials(
+            scopes=[
+                "offline_access",
+                "compass:view",
+                "compass:edit",
+                "compass:discover",
+                "api:write-data",
+                "api:read-data",
+            ],
+            hostname=foundry_url,
+            client_id=client_id,
+            client_secret=client_secret,
+            use_local_webserver=False,
+        )
+
+    else:
         raise ValueError(
             "You provided a 'client_id' for Foundry SSO but "
-            "pyfoundry-auth is not installed.\n"
+            "palantir-oauth-client is not installed.\n"
         )
-    # pylint: disable=import-outside-toplevel,import-error
-    from pyfoundry_auth import get_user_credentials
 
-    credentials = get_user_credentials(
-        scopes=[
-            "offline_access",
-            "compass:view",
-            "compass:edit",
-            "compass:discover",
-            "api:write-data",
-            "api:read-data",
-        ],
-        hostname=foundry_url,
-        client_id=client_id,
-        client_secret=client_secret,
-        use_local_webserver=False,
-    )
     return credentials.token
 
 
