@@ -56,30 +56,14 @@ def test_sso_config(mocker, tmpdir):
         if "jwt" in foundry_dev_tools.Configuration:
             del foundry_dev_tools.Configuration["jwt"]
         client = FoundryRestClient()
-        import sys
 
-        mock_installed = mocker.patch(
-            "foundry_dev_tools.foundry_api_client._is_palantir_oauth_client_installed"
-        )
-        # mock palantir-oauth-client get_user_credentials()
-
-        get_user_credentials_mock = mocker.Mock()
-        get_user_credentials_mock.get_user_credentials.return_value.token = (
-            "access-token"
-        )
-        sys.modules["palantir_oauth_client"] = get_user_credentials_mock
-        sys.modules[
+        mock_get_user_credentials = mocker.patch(
             "palantir_oauth_client.get_user_credentials"
-        ] = get_user_credentials_mock
-
-        # mock palantir-oauth-client is installed
-        mock_installed.return_value = sys.modules["palantir_oauth_client"]
+        )
+        mock_get_user_credentials.return_value.token = "access-token"
 
         assert client._headers()["Authorization"] == "Bearer access-token"
         assert "Foundry DevTools" in client._headers()["User-Agent"]
-
-    del sys.modules["palantir_oauth_client.get_user_credentials"]
-    del sys.modules["palantir_oauth_client"]
 
 
 @pytest.mark.integration
