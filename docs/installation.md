@@ -68,19 +68,5 @@ spark.createDataFrame(data=[[1, 2]]).collect()
 This should not fail and return `[Row(_1=1, _2=2)]`. If it does not work check your Spark installation and pyspark
 installation.
 
-## Install with SSO and native Foundry SQL support
-
-foundry-dev-tools comes with built-in support for Single-Sign-On (SSO) with Foundry
-using
-the [Third Party Applications](https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/)
-feature of Foundry.
-Internally, this uses the Palantir provided library `palantir-oauth-client` to handle the authentication flows.
-
-It is recommended to set up foundry-dev-tools with the dependency, using `foundry-libs`:
-
-```bash
-pip install foundry-dev-tools[foundry-libs]
-```
-
 [conda environment]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html
 [python environment]: https://docs.python.org/3/library/venv.html
