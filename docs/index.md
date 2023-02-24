@@ -13,7 +13,7 @@
 
 Overview <self>
 Installation <installation>
-Usage <usage>
+Usage and Examples <usage_and_examples>
 Development <develop>
 Architecture <architecture>
 License <license>

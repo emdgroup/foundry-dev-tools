@@ -4,8 +4,10 @@ Rotate Secret rotate_third_party_application_secret
 
 """
 import json
+import warnings
 
 import pytest
+from requests.exceptions import HTTPError
 from requests_mock.adapter import ANY
 from requests_mock.mocker import Mocker
 
@@ -152,7 +154,15 @@ def test_crud(is_integration_test, requests_mock: Mocker, mocker):
 
 @pytest.mark.integration
 def test_crud_integration(mocker):
-    _test_crud_inner(mocker)
+    try:
+        _test_crud_inner(mocker)
+    except HTTPError as err:
+        if err.response.status_code == 403:
+            pytest.skip(
+                "To test integration for multipass tpa, you need permissions to manage third party applications!"
+            )
+        else:
+            raise err
 
 
 def _test_crud_inner(mocker):

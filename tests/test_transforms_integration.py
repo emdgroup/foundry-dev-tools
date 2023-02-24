@@ -1,13 +1,17 @@
+import io
+import random
 import warnings
 from unittest import mock
-from unittest.mock import MagicMock
 
 import pyspark.sql.functions as F
 import pytest
 from pyspark.sql import SparkSession
 from transforms.api import Input, Output, transform, transform_df, TransformContext
+from transforms.api._transform import TransformInput
 
 import foundry_dev_tools
+
+import tests.utils
 from foundry_dev_tools import FoundryRestClient
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
@@ -15,6 +19,8 @@ from foundry_dev_tools.utils.converter.foundry_spark import (
 )
 
 from tests.conftest import PatchConfig
+
+from tests.utils import generic_upload_dataset_if_not_exists, TEST_FOLDER
 
 
 @pytest.fixture()
@@ -159,20 +165,27 @@ def test_file_download(mocker, input_dataset_fixture, request, client):
 
 @pytest.mark.integration
 def test_binary_dataset(mocker):
-    input_dataset = "ri.foundry.main.dataset.9118d2de-d41b-4c67-8cb4-2ae456f9295c"
+    upload_client = FoundryRestClient()
+    uploaded_dataset = generic_upload_dataset_if_not_exists(
+        upload_client, "bin", TEST_FOLDER / "test_data" / "binary_dataset"
+    )
+    with open(
+        TEST_FOLDER / "test_data" / "binary_dataset" / "bin", "rb"
+    ) as uploaded_file:
+        uploaded_binary = uploaded_file.read()
+
     online = mocker.spy(Input, "_online")
     offline = mocker.spy(Input, "_offline")
 
-    client = FoundryRestClient()
-    dataset_identity = client.get_dataset_identity(input_dataset, "master")
-
     @transform(
         output=Output("/path/to/output1"),
-        input1=Input(input_dataset, branch="master"),
+        input1=Input(uploaded_dataset[0], branch="master"),
     )
-    def transform_me_online(output, input1):
+    def transform_me_online(output, input1: TransformInput):
         assert input1.filesystem() is not None
         assert input1.dataframe() is None
+        with input1.filesystem().open("bin", "rb") as bin_fd:
+            assert uploaded_binary == bin_fd.read()
 
     result = transform_me_online.compute()
     assert "output" in result
@@ -185,18 +198,20 @@ def test_binary_dataset(mocker):
 
     # Check that offline functions of cache work
     cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.Configuration)
-    ds_identity = cache.get_dataset_identity_not_branch_aware(input_dataset)
+    ds_identity = cache.get_dataset_identity_not_branch_aware(uploaded_dataset[0])
     assert cache.dataset_has_schema(ds_identity) is False
 
     with PatchConfig(config_overwrite={"transforms_freeze_cache": True}):
 
         @transform(
             output=Output("/path/to/output1"),
-            input1=Input(input_dataset),
+            input1=Input(uploaded_dataset[0]),
         )
         def transform_me_from_offline_cache(output, input1):
             assert input1.filesystem() is not None
             assert input1.dataframe() is None
+            with input1.filesystem().open("bin", "rb") as bin_fd:
+                assert uploaded_binary == bin_fd.read()
 
         result = transform_me_from_offline_cache.compute()
         assert "output" in result
