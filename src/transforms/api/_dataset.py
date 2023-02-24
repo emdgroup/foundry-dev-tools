@@ -1,9 +1,10 @@
-"""Implementation of foundry classes Input and Output.
+"""The exposed Function definitions and docstrings is Copyright © 2023 Palantir Technologies Inc. and/or affiliates (“Palantir”). All rights reserved.
 
-Copyright of the exposed Function definitions and docstrings is with Palantir:
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
-"""
+
+"""  # pylint: disable=line-too-long
+
 import inspect
 import logging
 import pathlib
