@@ -3,6 +3,7 @@
 
   <a href="https://github.com/emdgroup/foundry-dev-tools/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/emdgroup/foundry-dev-tools/ci.yml?style=flat-square"/></img>
   <a href="https://github.com/emdgroup/foundry-dev-tools/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/emdgroup/foundry-dev-tools/docs.yml?style=flat-square"/></img>
+  <a href="ihttps://pypi.org/project/foundry-dev-tools/"><img src="https://img.shields.io/pypi/v/foundry-dev-tools.svg"/></a>
   <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://shields.io/badge/License-Apache%202.0-green.svg?style=flat-square"/></a>
   <a href="https://github.com/emdgroup/foundry-dev-tools/issues"><img src="https://img.shields.io/github/issues/emdgroup/foundry-dev-tools?color=important&style=flat-square"/></a>
   <a href="https://github.com/emdgroup/foundry-dev-tools/pulls"><img src="https://img.shields.io/github/issues-pr/emdgroup/foundry-dev-tools?color=blueviolet&style=flat-square"/></a>
@@ -15,7 +16,7 @@
 
   <a href="https://emdgroup.github.io/foundry-dev-tools/installation.html">Installation<a/>
   &nbsp;•&nbsp;
-  <a href="https://emdgroup.github.io/foundry-dev-tools/usage.html">Usage<a/>
+  <a href="https://emdgroup.github.io/foundry-dev-tools/usage_and_examples.html">Usage<a/>
   &nbsp;•&nbsp;
   <a href="https://emdgroup.github.io/foundry-dev-tools/develop.html">Development<a/>
 
@@ -27,11 +28,11 @@ Seamlessly run your Palantir Foundry Repository transforms code and more on your
 Foundry DevTools is a set of useful libraries to interact with the Foundry APIs. There are currently three
 high level entrypoints to Foundry DevTools:
 
-* [FoundryRestClient](docs/FoundryRestClient_usage.md)
+* [FoundryRestClient](https://emdgroup.github.io/foundry-dev-tools/FoundryRestClient_usage.html)
 
   * An API client that contains an opinionated client implementation to some of Foundry's APIs.
 
-* [FoundryFileSystem](docs/FoundryFileSystem_usage.md)
+* [FoundryFileSystem](https://emdgroup.github.io/foundry-dev-tools/FoundryFileSystem_usage.html)
 
   * An implementation of `fsspec` for Foundry. Useful to interact with Foundry from popular data science libraries such as
   `pandas` or `dask`.
@@ -74,4 +75,4 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-The full text of the license can be found in the file [LICENSE](LICENSE) in the repository root directory.
+The full text of the license can be found in the file [LICENSE](https://github.com/emdgroup/foundry-dev-tools/blob/main/LICENSE) in the repository root directory.
