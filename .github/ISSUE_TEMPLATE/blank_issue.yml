@@ -1,0 +1,27 @@
+name: "Other issue"
+description: "Open an issue, that is neither a bug or a feature/enhancement request"
+labels: ["other"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # ⚠️  PLEASE KEEP IN MIND THAT GITHUB IS PUBLIC! DON'T SHARE ANY SENSITIVE OR INTERNAL INFORMATION! ⚠️
+        ## IF YOU POST YOUR CONFIGURATION REMOVE **AT LEAST** `jwt`,`client_id`,`client_secret` and `foundry_url`
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Issue checklist"
+      description: "To open an issue, all conditions below **need** to be met."
+      options:
+        - label: "This is **not** a bug or a feature/enhancement request."
+          required: true
+        - label: "I searched through the GitHub issues and this issue has not been opened before."
+          required: true
+  - type: textarea
+    id: text
+    attributes:
+      label: "Issue"
+      description: |
+        Any text you want, but please be kind :)
+    validations:
+      required: true

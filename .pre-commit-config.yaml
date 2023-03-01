@@ -1,0 +1,25 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: mixed-line-ending
+    args: ['--fix=lf']  # replace 'auto' with 'lf' to enforce Linux/Mac line endings or 'crlf' for Windows
+- repo: https://github.com/omnilib/ufmt
+  rev: v2.0.0
+  hooks:
+    - id: ufmt
+      additional_dependencies:
+        - black == 22.6.0
+        - usort == 1.0.4
+-   repo: local
+    hooks:
+    -   id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args: [
+        "-rn",
+       "-sn"
+        ]
+        exclude: "tests|docs"

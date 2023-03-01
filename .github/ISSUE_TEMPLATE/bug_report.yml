@@ -1,0 +1,87 @@
+name: "Bug report: Foundry DevTools"
+description: "Report a bug in Foundry DevTools"
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # ⚠️  PLEASE KEEP IN MIND THAT GITHUB IS PUBLIC! DON'T SHARE ANY SENSITIVE OR INTERNAL INFORMATION! ⚠️
+        ## IF YOU POST YOUR CONFIGURATION REMOVE **AT LEAST** `jwt`,`client_id`,`client_secret` and `foundry_url`
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Issue checklist"
+      description: "To open an issue, all conditions below **need** to be met."
+      options:
+        - label: "This is a **bug** in Foundry DevTools and not a bug in another project. It is also not an enhancement/feature request"
+          required: true
+        - label: "I searched through the GitHub issues and this issue has not been opened before."
+          required: true
+        - label: "I have installed the latest version of Foundry DevTools and don't use an unsupported python version."
+          required: true
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Description of the bug
+      description: |
+        Concise description of the bug.
+        Please provide as much info as possible, so we can help you better. Unfortunately we can't read minds (yet).
+      placeholder: |
+        For example:
+        When i use [...] my transform fails with this error [...]. It works on foundry and [...].
+        I provided a code snippet below, for you to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: bug-reproduce
+    attributes:
+      label: Steps to reproduce this bug.
+      description: |
+        To debug your issue, we need to know how we can reproduce this error on our machines.
+        This way we can try to solve the issue faster.
+    validations:
+      required: true
+  - type: textarea
+    id: bug-logs
+    attributes:
+      label: Log output
+      description: |
+        If there were warnings or errors during your execution
+        or any other logs file that may help us, then please
+        paste them here.
+        > Please note that this textarea will automatically get formatted as `shell` for better readability.
+  - type: textarea
+    id: bug-context
+    attributes:
+      label: Additional context
+      description: |
+          Additional context that may help us, e.g. specifig config options you set. PySpark version, Java version... Or anything else that doesn't fit any other category above.
+          > NOTE: Config options like `jwt`,`client_id`,`client_secret`,... which contain sensitive informations, should **never** be posted!
+      placeholder: |
+        For example:
+
+        I set `transforms_sql_sample_row_limit` to 1337. But i set it via environment variables.
+  - type: dropdown
+    id: bug-os
+    attributes:
+      label: Operating System
+      multiple: false
+      options:
+        - Windows
+        - WSL
+        - Linux
+        - MacOS
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: bug-python-version
+    attributes:
+      label: Your python version
+      description: |
+        The python version you use to run Foundry DevTools.
+        You can use the command `python -V` to find out your version.
+      placeholder: "e.g. Python 3.10.9"
+    validations:
+      required: true

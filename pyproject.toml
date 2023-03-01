@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# For smarter version schemes and other configuration options,
+# check out https://github.com/pypa/setuptools_scm
+version_scheme = "post-release"
+
+[tool.ufmt]
+excludes = [
+    "docs",
+]
+
+[tool.pylint.BASIC]
+good-names = ["fs", "i", "j"]
+
+[tool.pylint.FORMAT]
+max-line-length = 120
+
+[tool.usort.known]
+first_party = ["foundry_dev_tools"]
