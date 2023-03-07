@@ -50,8 +50,7 @@ high level entrypoints to Foundry DevTools:
     ```python
     import pandas as pd
     # /Global/Foundry Training and Resources/Foundry Reference Project/Ontology Project: Aviation/airlines
-    dataset_rid = 'ri.foundry.main.dataset.5d78f3ae-a588-4fd8-9ba2-66827808c85f'
-    df = pd.read_parquet(f"foundry://{dataset_rid}")
+    df = pd.read_parquet("foundry://ri.foundry.main.dataset.5d78f3ae-a588-4fd8-9ba2-66827808c85f")
     df.shape
     Out[2]: (17, 10)
     ```
