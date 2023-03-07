@@ -25,6 +25,12 @@ Seamlessly run your Palantir Foundry Repository transforms code and more on your
 Foundry DevTools is a set of useful libraries to interact with the Foundry APIs. There are currently three
 high level entrypoints to Foundry DevTools:
 
+* A [transforms](https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/) implementation
+
+  * An implementation of the Foundry `transforms` package that internally uses the `CachedFoundryClient`.
+    This allows you to seamlessly run your Palantir Foundry Code Repository transforms code on your local machine.
+    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/architecture.html#known-limitations).
+
 * [FoundryRestClient](https://emdgroup.github.io/foundry-dev-tools/FoundryRestClient_usage.html)
 
   * An API client that contains an opinionated client implementation to some of Foundry's APIs.
@@ -36,8 +42,9 @@ high level entrypoints to Foundry DevTools:
 
     # Queries the Foundry SQL Server with spark SQL dialect
     rest_client = FoundryRestClient()
-    df = rest_client.query_foundry_sql("SELECT * FROM `/path/to/test_dataset`", branch='master')
-    df.to_string()
+    df = rest_client.query_foundry_sql("SELECT * FROM `/Global/Foundry Training and Resources/Foundry Reference Project/Ontology Project: Aviation/airlines`", branch='master')
+    df.shape
+    # Out[2]: (17, 10)
     ```
 
 * [FoundryFileSystem](https://emdgroup.github.io/foundry-dev-tools/FoundryFileSystem_usage.html)
@@ -52,14 +59,9 @@ high level entrypoints to Foundry DevTools:
     # /Global/Foundry Training and Resources/Foundry Reference Project/Ontology Project: Aviation/airlines
     df = pd.read_parquet("foundry://ri.foundry.main.dataset.5d78f3ae-a588-4fd8-9ba2-66827808c85f")
     df.shape
-    Out[2]: (17, 10)
+    # Out[2]: (17, 10)
     ```
 
-* A [transforms](https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/) implementation
-
-  * An implementation of the Foundry `transforms` package that internally uses the `CachedFoundryClient`.
-    This allows you to seamlessly run your Palantir Foundry Code Repository transforms code on your local machine.
-    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/architecture.html#known-limitations).
 
 ## Quickstart
 
