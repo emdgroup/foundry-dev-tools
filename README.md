@@ -46,13 +46,15 @@ high level entrypoints to Foundry DevTools:
   `pandas` or `dask`.
 
   * For example:
-  ```python
-  import fsspec
-  dataset_rid = 'ri.foundry.main.dataset.4c33cd4-6fe3-7a13-5aab-703c1b80c9f8'
-  with fsspec.open(f"foundry://{dataset_rid}/test.txt", "r") as f:
-      print(f.read())
-  'content of test.txt'
-  ```
+
+    ```python
+    import pandas as pd
+    # /Global/Foundry Training and Resources/Foundry Reference Project/Ontology Project: Aviation/airlines
+    dataset_rid = 'ri.foundry.main.dataset.5d78f3ae-a588-4fd8-9ba2-66827808c85f'
+    df = pd.read_parquet(f"foundry://{dataset_rid}")
+    df.shape
+    Out[2]: (17, 10)
+    ```
 
 * A [transforms](https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/) implementation
 
