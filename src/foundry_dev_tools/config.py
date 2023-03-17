@@ -365,5 +365,6 @@ def _find_project_config_file(project_directory: Path) -> str:
                 )
                 return foundry_local_project_config_file
         raise ValueError()
-    except subprocess.CalledProcessError as exc:
+    # FileNotFoundError is thrown when git is not installed
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         raise ValueError from exc
