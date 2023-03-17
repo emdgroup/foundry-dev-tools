@@ -367,4 +367,7 @@ def _find_project_config_file(project_directory: Path) -> str:
         raise ValueError()
     # FileNotFoundError is thrown when git is not installed
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        warnings.warn(
+            "Could not find top-level directory of project, is git not installed?"
+        )
         raise ValueError from exc
