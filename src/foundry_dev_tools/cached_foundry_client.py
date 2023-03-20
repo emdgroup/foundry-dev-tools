@@ -9,10 +9,11 @@ from typing import Tuple, Union
 import pandas as pd
 
 import foundry_dev_tools
-from foundry_dev_tools.foundry_api_client import (
-    BranchNotFoundError,
-    DatasetHasNoSchemaError,
-    DatasetNotFoundError,
+from foundry_dev_tools.Exceptions.DataProxyExceptions import (
+    BranchExceptions,
+    DatasetExceptions,
+    FolderExceptions,
+    SQLExceptions,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
