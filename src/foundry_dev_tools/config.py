@@ -365,9 +365,13 @@ def _find_project_config_file(project_directory: Path) -> str:
                 )
                 return foundry_local_project_config_file
         raise ValueError()
-    # FileNotFoundError is thrown when git is not installed
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        warnings.warn(
-            "Could not find top-level directory of project, is git not installed?"
+    except FileNotFoundError as exc:
+        LOGGER.debug(
+            "Project-based config file could not be loaded due to missing git installation"
+        )
+        raise ValueError from exc
+    except subprocess.CalledProcessError as exc:
+        LOGGER.debug(
+            "Project-based config file could not be loaded, is project not managed with git?"
         )
         raise ValueError from exc
