@@ -30,7 +30,7 @@ import requests
 
 import foundry_dev_tools
 from foundry_dev_tools import __version__ as fdt_version
-from foundry_dev_tools.Exceptions.DataProxyExceptions import DatasetExceptions, BranchExceptions
+from foundry_dev_tools.Exceptions.DataProxyExceptions import DatasetExceptions, BranchExceptions, SQLExceptions, FolderExceptions
 
 # On Python 3.8 on macOS, the default start method for new processes was
 #  switched to 'spawn' by default due to 'fork' potentially causing crashes.
@@ -681,7 +681,7 @@ class FoundryRestClient:
                 verify=self._verify(),
             )
             if response.status_code == 404:
-                raise Exceptions.dataproxy.folders.FolderNotFoundError(folder_rid, response=response)
+                raise FolderExceptions.FolderNotFoundError(folder_rid, response=response)
             _raise_for_status_verbose(response)
             response_as_json = response.json()
             for value in response_as_json["values"]:
@@ -1329,7 +1329,7 @@ class FoundryRestClient:
         foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
             return foundry_sql_client.query(query=query, return_type=return_type)
-        except Exceptions.dataproxy.sql.FoundrySqlSerializationFormatNotImplementedError as exc:
+        except SQLExceptions.FoundrySqlSerializationFormatNotImplementedError as exc:
             if return_type == "arrow":
                 raise ValueError(
                     "Only direct read eligible queries can be returned as arrow Table. "
@@ -1779,9 +1779,9 @@ class FoundrySqlClient:
             _raise_for_status_verbose(response)
             response_json = response.json()
             if response_json["status"]["type"] == "failed":
-                raise Exceptions.dataproxy.sql.FoundrySqlQueryFailedError(response=response)
+                raise SQLExceptions.FoundrySqlQueryFailedError(response=response)
             if time.time() > start_time + timeout:
-                raise Exceptions.dataproxy.sql.FoundrySqlQueryClientTimedOutError(timeout)
+                raise SQLExceptions.FoundrySqlQueryClientTimedOutError(timeout)
             time.sleep(0.2)
 
     def _read_results_arrow(
@@ -1820,7 +1820,7 @@ class FoundrySqlClient:
             # The query does not select from a column with a type that is ineligible for direct read.
             # Ineligible types are array, map, and struct.
 
-            raise Exceptions.dataproxy.sql.FoundrySqlSerializationFormatNotImplementedError()
+            raise SQLExceptions.FoundrySqlSerializationFormatNotImplementedError()
         # pylint: disable=import-outside-toplevel
         import pyarrow as pa
 
