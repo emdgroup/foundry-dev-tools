@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [1.0.4] - 2023-03-20
+
+### Fixed
+
+- Better exception handling when git executable is missing (#6)
+
 ## [1.0.3] - 2023-03-07
 
 ### Added
