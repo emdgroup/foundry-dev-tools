@@ -365,5 +365,13 @@ def _find_project_config_file(project_directory: Path) -> str:
                 )
                 return foundry_local_project_config_file
         raise ValueError()
+    except FileNotFoundError as exc:
+        LOGGER.debug(
+            "Project-based config file could not be loaded due to missing git installation"
+        )
+        raise ValueError from exc
     except subprocess.CalledProcessError as exc:
+        LOGGER.debug(
+            "Project-based config file could not be loaded, is project not managed with git?"
+        )
         raise ValueError from exc
