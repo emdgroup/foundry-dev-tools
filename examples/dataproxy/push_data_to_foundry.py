@@ -1,5 +1,6 @@
 from foundry_dev_tools import FoundryRestClient, Exceptions
-from foundry_dev_tools.Exceptions.DataProxyExceptions import DatasetExceptions
+import foundry_dev_tools.Exceptions
+import requests
 
 datasetRid = 'ri.foundry.main.dataset.c520b5e1-bc06-438b-8388-34a410621629'
 
@@ -19,7 +20,7 @@ def test_transaction(datasetRid):
     Transaction opened sucessfully: \n\
         datasetRid:         {datasetRid} \n\
         openTransactionRid: {transactionRid}\n')
-    except DatasetExceptions.DatasetHasOpenTransactionError as e:
+    except DatasetHasOpenTransactionError as e:
 
         print(
             f"\
@@ -29,6 +30,9 @@ def test_transaction(datasetRid):
         response:           {e.response}\n\
     ")
         transactionRid = e.open_transaction_rid
+    except requests.exceptions.ConnectionError as e:
+        print("Connection error:", e)
+        return
     except Exception as e:
         print("something went wrong", e)
 

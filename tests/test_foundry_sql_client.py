@@ -2,15 +2,7 @@ import pytest
 from requests_mock import Mocker
 from requests_mock.adapter import ANY
 
-from foundry_dev_tools.foundry_api_client import (
-    BranchNotFoundError,
-    DatasetHasNoSchemaError,
-    DatasetNotFoundError,
-    FoundrySqlClient,
-    FoundrySqlQueryClientTimedOutError,
-    FoundrySqlQueryFailedError,
-    FoundrySqlSerializationFormatNotImplementedError,
-)
+from foundry_dev_tools import Exceptions
 
 
 def mock_initiate_session(

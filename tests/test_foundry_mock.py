@@ -7,11 +7,7 @@ import time
 import fs
 import pytest
 
-from foundry_dev_tools.foundry_api_client import (
-    BranchesAlreadyExistError,
-    DatasetHasOpenTransactionError,
-    DatasetNotFoundError,
-)
+from foundry_dev_tools import Exceptions
 
 from tests.foundry_mock_client import MockFoundryRestClient
 

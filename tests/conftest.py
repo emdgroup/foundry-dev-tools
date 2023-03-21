@@ -16,7 +16,8 @@ import fs
 import pytest
 
 import foundry_dev_tools
-from foundry_dev_tools.foundry_api_client import DatasetNotFoundError, FoundryRestClient
+from foundry_dev_tools.foundry_api_client import FoundryRestClient
+from foundry_dev_tools.Exceptions import DatasetExceptions
 
 from tests.test_foundry_mock import MockFoundryRestClient
 from tests.utils import (
@@ -207,7 +208,7 @@ def complex_dataset_fixture(client, spark_session, tmpdir):
             dataset_path_or_rid=ds_path, branch="master"
         )
         yield identity["dataset_rid"]
-    except DatasetNotFoundError:
+    except DatasetExceptions.DatasetNotFoundError:
         generate_test_dataset(spark_session, output_folder=tmpdir, n_rows=5000)
         (ds_rid, _, _, _, _,) = generic_upload_dataset_if_not_exists(
             client,

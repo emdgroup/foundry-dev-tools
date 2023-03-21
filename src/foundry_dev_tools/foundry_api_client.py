@@ -30,7 +30,7 @@ import requests
 
 import foundry_dev_tools
 from foundry_dev_tools import __version__ as fdt_version
-from foundry_dev_tools.Exceptions.DataProxyExceptions import DatasetExceptions, BranchExceptions, SQLExceptions, FolderExceptions
+from foundry_dev_tools.Exceptions import DatasetExceptions, BranchExceptions, SQLExceptions, FolderExceptions
 
 # On Python 3.8 on macOS, the default start method for new processes was
 #  switched to 'spawn' by default due to 'fork' potentially causing crashes.
