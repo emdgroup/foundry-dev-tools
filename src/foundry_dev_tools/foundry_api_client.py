@@ -915,7 +915,7 @@ class FoundryRestClient:
             dataset_path_or_rid (str): Path to dataset (e.g. /Global/...)
                 or rid of dataset (e.g. ri.foundry.main.dataset...)
             branch (str): branch of the dataset
-            check_read_access (bool): default is True, checks if the user has read access ('compass:read-resource')
+            check_read_access (bool): default is True, checks if the user has read access ('gatekeeper:view-resource')
                 to the dataset otherwise exception is thrown
 
         Returns:
@@ -930,7 +930,7 @@ class FoundryRestClient:
         dataset_rid = dataset_details["rid"]
         dataset_path = dataset_details["path"]
         if check_read_access:
-            if "compass:read-resource" not in dataset_details["operations"]:
+            if "gatekeeper:view-resource" not in dataset_details["operations"]:
                 raise DatasetNoReadAccessError(dataset_rid)
         return {
             "dataset_path": dataset_path,
@@ -2318,7 +2318,7 @@ class DatasetHasNoTransactionsError(FoundryAPIError):
 
 
 class DatasetNoReadAccessError(FoundryAPIError):
-    """Exception is thrown when user is missing 'compass:read-resource' on the dataset,
+    """Exception is thrown when user is missing 'gatekeeper:view-resource' on the dataset,
     which normally comes with the Viewer role."""
 
     def __init__(self, dataset_rid: str, response: Optional[requests.Response] = None):
