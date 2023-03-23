@@ -915,7 +915,7 @@ class FoundryRestClient:
             dataset_path_or_rid (str): Path to dataset (e.g. /Global/...)
                 or rid of dataset (e.g. ri.foundry.main.dataset...)
             branch (str): branch of the dataset
-            check_read_access (bool): default is True, checks if the user has read access ('compass:view')
+            check_read_access (bool): default is True, checks if the user has read access ('compass:read-resource')
                 to the dataset otherwise exception is thrown
 
         Returns:
@@ -930,7 +930,7 @@ class FoundryRestClient:
         dataset_rid = dataset_details["rid"]
         dataset_path = dataset_details["path"]
         if check_read_access:
-            if "compass:view" not in dataset_details["operations"]:
+            if "compass:read-resource" not in dataset_details["operations"]:
                 raise DatasetNoReadAccessError(dataset_rid)
         return {
             "dataset_path": dataset_path,
