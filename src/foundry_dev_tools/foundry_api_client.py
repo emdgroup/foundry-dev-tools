@@ -2318,7 +2318,8 @@ class DatasetHasNoTransactionsError(FoundryAPIError):
 
 
 class DatasetNoReadAccessError(FoundryAPIError):
-    """Exception is thrown when user is missing 'compass:view' on the dataset."""
+    """Exception is thrown when user is missing 'compass:read-resource' on the dataset,
+    which normally comes with the Viewer role."""
 
     def __init__(self, dataset_rid: str, response: Optional[requests.Response] = None):
         """Pass parameters to constructor for later use and uniform error messages.
