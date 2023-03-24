@@ -2,7 +2,7 @@
 General modules for foundry_dev_tools exceptions.
 """
 
-from typing import AnyStr, IO, Iterator, List, Optional, Tuple, Union
+from typing import Optional
 
 import requests
 
