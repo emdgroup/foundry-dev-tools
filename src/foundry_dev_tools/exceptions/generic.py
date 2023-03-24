@@ -35,3 +35,11 @@ class FoundryAPIError(FoundryDevToolsError):
     >>>     print(e.dataset_rid)
 
     """
+
+
+class FoundryFileSystemError(FoundryDevToolsError):
+    """Parent class for alle FoundryFileSystem errors.
+
+    See also :class:`foundry_dev_tools.foundry_api_client.FoundryDevToolsError` and
+        :class:`foundry_dev_tools.foundry_api_client.FoundryAPIError`
+    """
