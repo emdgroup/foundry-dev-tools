@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [1.0.5] - 2023-03-20
+
+### Fixed
+
+- Use gatekeeper:view-resource over compass:view (#8)
+
 ## [1.0.4] - 2023-03-20
 
 ### Fixed
@@ -51,6 +57,8 @@ and this project adheres to [Semantic Versioning].
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+[1.0.5]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.4...v1.0.5
+[1.0.4]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/emdgroup/foundry-dev-tools/releases/tag/v1.0.2
 [1.0.1]: https://github.com/emdgroup/foundry-dev-tools
