@@ -14,7 +14,16 @@ from requests_mock.adapter import ANY
 
 import foundry_dev_tools
 from foundry_dev_tools import FoundryRestClient
-from foundry_dev_tools import Exceptions
+from foundry_dev_tools.foundry_api_client import (
+    BranchesAlreadyExistError,
+    BranchNotFoundError,
+    DatasetAlreadyExistsError,
+    DatasetHasNoSchemaError,
+    DatasetHasOpenTransactionError,
+    DatasetNoReadAccessError,
+    DatasetNotFoundError,
+    FolderNotFoundError,
+)
 
 from tests.conftest import PatchConfig
 from tests.utils import (
@@ -35,7 +44,7 @@ def test_get_config(is_integration_test, client):
     assert "foundry_url" in client._config
 
 
-@ pytest.mark.no_patch_conf
+@pytest.mark.no_patch_conf
 def test_sso_config(mocker, tmpdir):
     with PatchConfig(
         config_overwrite={

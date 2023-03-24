@@ -13,7 +13,8 @@ from fsspec import register_implementation
 from pandas._testing import assert_frame_equal
 
 import foundry_dev_tools.config
-from foundry_dev_tools import FoundryRestClient, Exceptions
+from foundry_dev_tools import FoundryRestClient
+from foundry_dev_tools.foundry_api_client import DatasetHasOpenTransactionError
 from foundry_dev_tools.fsspec_impl import (
     _correct_directories,
     _file_or_directory,

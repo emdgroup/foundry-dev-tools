@@ -9,7 +9,11 @@ from pandas.testing import assert_frame_equal
 from pyspark.sql import SparkSession
 
 import foundry_dev_tools.config
-from foundry_dev_tools import CachedFoundryClient, Exceptions
+from foundry_dev_tools import CachedFoundryClient
+from foundry_dev_tools.foundry_api_client import (
+    BranchNotFoundError,
+    DatasetNotFoundError,
+)
 from foundry_dev_tools.utils.spark import get_spark_session
 
 from tests.test_foundry_mock import MockFoundryRestClient

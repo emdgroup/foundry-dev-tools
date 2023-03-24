@@ -8,7 +8,7 @@ from typing import Tuple
 
 import numpy as np
 
-from foundry_dev_tools import Exceptions
+from foundry_dev_tools.foundry_api_client import DatasetNotFoundError
 
 INTEGRATION_TEST_COMPASS_ROOT_PATH = pathlib.PurePosixPath(
     os.getenv(

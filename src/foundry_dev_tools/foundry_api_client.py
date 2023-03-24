@@ -30,7 +30,20 @@ import requests
 
 import foundry_dev_tools
 from foundry_dev_tools import __version__ as fdt_version
-from foundry_dev_tools.Exceptions import DatasetExceptions, BranchExceptions, SQLExceptions, FolderExceptions
+from .exceptions import (
+    BranchesAlreadyExistError,
+    BranchNotFoundError,
+    DatasetAlreadyExistsError,
+    DatasetHasNoSchemaError,
+    DatasetHasNoTransactionsError,
+    DatasetHasOpenTransactionError,
+    DatasetNoReadAccessError,
+    DatasetNotFoundError,
+    FolderNotFoundError,
+    FoundrySqlQueryClientTimedOutError,
+    FoundrySqlQueryFailedError,
+    FoundrySqlSerializationFormatNotImplementedError,
+)
 
 # On Python 3.8 on macOS, the default start method for new processes was
 #  switched to 'spawn' by default due to 'fork' potentially causing crashes.
@@ -121,7 +134,7 @@ class FoundryRestClient:
             json={"path": dataset_path},
         )
         if response.status_code == 400 and "DuplicateDatasetName" in response.text:
-            raise DatasetExceptions.DatasetAlreadyExistsError(dataset_path)
+            raise DatasetAlreadyExistsError(dataset_path)
         _raise_for_status_verbose(response)
         return response.json()
 
@@ -145,7 +158,7 @@ class FoundryRestClient:
             verify=self._verify(),
         )
         if response.status_code == 204 and response.text == "":
-            raise DatasetExceptions.DatasetNotFoundError(dataset_rid, response=response)
+            raise DatasetNotFoundError(dataset_rid, response=response)
         _raise_for_status_verbose(response)
         return response.json()
 
@@ -167,7 +180,7 @@ class FoundryRestClient:
             json={"rid": dataset_rid},
         )
         if response.status_code == 400 and "DatasetsNotFound" in response.text:
-            raise DatasetExceptions.DatasetNotFoundError(dataset_rid, response=response)
+            raise DatasetNotFoundError(dataset_rid, response=response)
         _raise_for_status_verbose(response)
         self.move_resource_to_trash(resource_id=dataset_rid)
 
@@ -222,7 +235,7 @@ class FoundryRestClient:
             json={"parentBranchId": parent_branch, "parentRef": parent_branch_id},
         )
         if response.status_code == 400 and "BranchesAlreadyExist" in response.text:
-            raise BranchExceptions.BranchesAlreadyExistError(dataset_rid, branch, response=response)
+            raise BranchesAlreadyExistError(dataset_rid, branch, response=response)
         _raise_for_status_verbose(response)
         return response.json()
 
@@ -284,7 +297,7 @@ class FoundryRestClient:
             verify=self._verify(),
         )
         if response.status_code == 204 and response.text == "":
-            raise BranchExceptions.BranchNotFoundError(dataset_rid, branch, response=None)
+            raise BranchNotFoundError(dataset_rid, branch, response=None)
         _raise_for_status_verbose(response)
         return response.json()
 
@@ -318,15 +331,15 @@ class FoundryRestClient:
             json={"branchId": f"{branch}", "record": {}},
         )
         if response.status_code == 400 and "BranchesNotFound" in response.text:
-            raise BranchExceptions.BranchNotFoundError(dataset_rid, branch, response=response)
+            raise BranchNotFoundError(dataset_rid, branch, response=response)
         if response.status_code == 400 and "InvalidArgument" in response.text:
-            raise DatasetExceptions.DatasetNotFoundError(dataset_rid, response=response)
+            raise DatasetNotFoundError(dataset_rid, response=response)
         if (
             response.status_code == 400
             and "SimultaneousOpenTransactionsNotAllowed" in response.text
         ):
             open_transaction_rid = response.json()["parameters"]["openTransactionRid"]
-            raise DatasetExceptions.DatasetHasOpenTransactionError(
+            raise DatasetHasOpenTransactionError(
                 dataset_rid=dataset_rid,
                 open_transaction_rid=open_transaction_rid,
                 response=response,
@@ -494,12 +507,12 @@ class FoundryRestClient:
             },
         )
         if response.status_code in (404, 400):
-            raise BranchExceptions.BranchNotFoundError(dataset_rid, branch, response=response)
+            raise BranchNotFoundError(dataset_rid, branch, response=response)
         _raise_for_status_verbose(response)
         as_json = response.json()
         if "values" in as_json and len(response.json()["values"]) > 0:
             return response.json()["values"]
-        raise DatasetExceptions.DatasetHasNoTransactionsError(dataset_rid, response=response)
+        raise DatasetHasNoTransactionsError(dataset_rid, response=response)
 
     def get_dataset_last_transaction_rid(
         self, dataset_rid: str, branch: str = "master"
@@ -517,7 +530,7 @@ class FoundryRestClient:
         """
         try:
             return self.get_dataset_transactions(dataset_rid, branch)[0]["rid"]
-        except DatasetExceptions.DatasetHasNoTransactionsError:
+        except DatasetHasNoTransactionsError:
             return None
 
     def upload_dataset_file(
@@ -648,7 +661,7 @@ class FoundryRestClient:
             )
         _raise_for_status_verbose(response)
         if response.status_code != 200:
-            raise DatasetExceptions.DatasetNotFoundError(dataset_path_or_rid, response=response)
+            raise DatasetNotFoundError(dataset_path_or_rid, response=response)
         as_json = response.json()
         if as_json["directlyTrashed"]:
             warnings.warn(f"Dataset '{dataset_path_or_rid}' is in foundry trash.")
@@ -681,7 +694,7 @@ class FoundryRestClient:
                 verify=self._verify(),
             )
             if response.status_code == 404:
-                raise FolderExceptions.FolderNotFoundError(folder_rid, response=response)
+                raise FolderNotFoundError(folder_rid, response=response)
             _raise_for_status_verbose(response)
             response_as_json = response.json()
             for value in response_as_json["values"]:
@@ -743,7 +756,7 @@ class FoundryRestClient:
         """
         rid_path_dict = self.get_dataset_paths([dataset_rid])
         if dataset_rid not in rid_path_dict:
-            raise DatasetExceptions.DatasetNotFoundError(dataset_rid)
+            raise DatasetNotFoundError(dataset_rid)
         return rid_path_dict[dataset_rid]
 
     def get_dataset_paths(self, dataset_rids: list) -> dict:
@@ -759,7 +772,7 @@ class FoundryRestClient:
         """
         batch_size = 100
         batches = [
-            dataset_rids[i: i + batch_size]
+            dataset_rids[i : i + batch_size]
             for i in range(0, len(dataset_rids), batch_size)
         ]
         result = {}
@@ -821,17 +834,17 @@ class FoundryRestClient:
             verify=self._verify(),
         )
         if response.status_code == 403:
-            raise DatasetExceptions.DatasetNotFoundError(dataset_rid, response=response)
+            raise DatasetNotFoundError(dataset_rid, response=response)
         if response.status_code == 204:
             # here we don't know if schema does not exist or branch does not exist
             # we ask api for branch information, if branch does not exist, exception is thrown
             self.get_branch(dataset_rid, branch)
-            raise DatasetExceptions.DatasetHasNoSchemaError(dataset_rid, transaction_rid, branch)
+            raise DatasetHasNoSchemaError(dataset_rid, transaction_rid, branch)
         if response.status_code == 404 or (
             "errorName" in response.json()
             and response.json()["errorName"] == "Catalog:BranchesNotFound"
         ):
-            raise BranchExceptions.BranchNotFoundError(dataset_rid, branch, response=response)
+            raise BranchNotFoundError(dataset_rid, branch, response=response)
         if response.status_code != 200:
             raise KeyError(
                 f"{dataset_rid}, {branch}, {transaction_rid} combination not found"
@@ -916,7 +929,7 @@ class FoundryRestClient:
             dataset_path_or_rid (str): Path to dataset (e.g. /Global/...)
                 or rid of dataset (e.g. ri.foundry.main.dataset...)
             branch (str): branch of the dataset
-            check_read_access (bool): default is True, checks if the user has read access ('compass:view')
+            check_read_access (bool): default is True, checks if the user has read access ('gatekeeper:view-resource')
                 to the dataset otherwise exception is thrown
 
         Returns:
@@ -931,8 +944,8 @@ class FoundryRestClient:
         dataset_rid = dataset_details["rid"]
         dataset_path = dataset_details["path"]
         if check_read_access:
-            if "compass:view" not in dataset_details["operations"]:
-                raise DatasetExceptions.DatasetNoReadAccessError(dataset_rid)
+            if "gatekeeper:view-resource" not in dataset_details["operations"]:
+                raise DatasetNoReadAccessError(dataset_rid)
         return {
             "dataset_path": dataset_path,
             "dataset_rid": dataset_rid,
@@ -992,7 +1005,7 @@ class FoundryRestClient:
             )
             _raise_for_status_verbose(response)
             if response.status_code != 200:
-                raise DatasetExceptions.DatasetNotFoundError(dataset_rid, response=response)
+                raise DatasetNotFoundError(dataset_rid, response=response)
             response_json = response.json()
             return response_json
 
@@ -1279,7 +1292,7 @@ class FoundryRestClient:
             and response.json()["errorName"] == "DataProxy:SchemaNotFound"
         ):
             dataset_rid = response.json()["parameters"]["datasetRid"]
-            raise DatasetExceptions.DatasetHasNoSchemaError(dataset_rid, branch=branch)
+            raise DatasetHasNoSchemaError(dataset_rid, branch=branch)
         if (
             response.status_code == 400
             and response.json()["errorName"]
@@ -1287,7 +1300,7 @@ class FoundryRestClient:
         ):
             # FallbackBranchesNotSpecifiedInQuery does not sound right,
             # but this indicates that the branch does not exist
-            raise BranchExceptions.BranchNotFoundError(
+            raise BranchNotFoundError(
                 response.json()["parameters"]["datasetRid"],
                 branch,
                 response=response,
@@ -1329,7 +1342,7 @@ class FoundryRestClient:
         foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
             return foundry_sql_client.query(query=query, return_type=return_type)
-        except SQLExceptions.FoundrySqlSerializationFormatNotImplementedError as exc:
+        except FoundrySqlSerializationFormatNotImplementedError as exc:
             if return_type == "arrow":
                 raise ValueError(
                     "Only direct read eligible queries can be returned as arrow Table. "
@@ -1779,9 +1792,9 @@ class FoundrySqlClient:
             _raise_for_status_verbose(response)
             response_json = response.json()
             if response_json["status"]["type"] == "failed":
-                raise SQLExceptions.FoundrySqlQueryFailedError(response=response)
+                raise FoundrySqlQueryFailedError(response=response)
             if time.time() > start_time + timeout:
-                raise SQLExceptions.FoundrySqlQueryClientTimedOutError(timeout)
+                raise FoundrySqlQueryClientTimedOutError(timeout)
             time.sleep(0.2)
 
     def _read_results_arrow(
@@ -1820,7 +1833,7 @@ class FoundrySqlClient:
             # The query does not select from a column with a type that is ineligible for direct read.
             # Ineligible types are array, map, and struct.
 
-            raise SQLExceptions.FoundrySqlSerializationFormatNotImplementedError()
+            raise FoundrySqlSerializationFormatNotImplementedError()
         # pylint: disable=import-outside-toplevel
         import pyarrow as pa
 
@@ -1884,19 +1897,19 @@ def _transform_bad_request_response_to_exception(response):
         response.status_code == 400
         and response.json()["errorName"] == "FoundrySqlServer:InvalidDatasetNoSchema"
     ):
-        raise DatasetExceptions.DatasetHasNoSchemaError("SQL")
+        raise DatasetHasNoSchemaError("SQL")
     if (
         response.status_code == 400
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetCannotAccess"
     ):
-        raise BranchExceptions.BranchNotFoundError("SQL", "SQL")
+        raise BranchNotFoundError("SQL", "SQL")
     if (
         response.status_code == 400
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetPathNotFound"
     ):
-        raise DatasetExceptions.DatasetNotFoundError("SQL")
+        raise DatasetNotFoundError("SQL")
 
 
 def _assert_pyarrow_packages_available():

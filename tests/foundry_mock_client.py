@@ -9,7 +9,14 @@ import fs
 import timeflake
 from fs.errors import DirectoryExists, ResourceNotFound
 
-from foundry_dev_tools import FoundryRestClient, Exceptions
+from foundry_dev_tools import FoundryRestClient
+from foundry_dev_tools.foundry_api_client import (
+    BranchesAlreadyExistError,
+    BranchNotFoundError,
+    DatasetHasNoSchemaError,
+    DatasetHasOpenTransactionError,
+    DatasetNotFoundError,
+)
 from foundry_dev_tools.utils.caches.spark_caches import _read
 from foundry_dev_tools.utils.converter.foundry_spark import (
     foundry_schema_to_dataset_format,
@@ -507,7 +514,7 @@ class MockFoundryRestClient(FoundryRestClient):
             branch_inner for branch_inner in branches if branch_inner["id"] == branch
         ]
         if len(branch_found) == 0:
-            raise BranchesAlreadyExistError(dataset_rid, branch)
+            raise BranchNotFoundError(dataset_rid, branch)
         return branch_found[0]
 
     def _create_compass_folder_if_not_exists(self, folder_path: str):

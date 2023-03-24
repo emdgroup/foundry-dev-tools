@@ -9,7 +9,8 @@ from fsspec import AbstractFileSystem
 from fsspec.spec import AbstractBufferedFile
 
 from . import FoundryRestClient
-from .Exceptions import FoundryDevToolsError
+from .exceptions import FoundryDevToolsError
+from .foundry_api_client import DatasetHasOpenTransactionError
 
 DEFAULT_BRANCH = "master"
 
@@ -70,7 +71,7 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
             no_foundry = path.lstrip("foundry").lstrip("://")
             if "/" in no_foundry:
                 return no_foundry[
-                    no_foundry.index("/") + 1:
+                    no_foundry.index("/") + 1 :
                 ]  # everything after dataset_rid/ is the path
             return ""  # no subpath passed
         return path
@@ -508,7 +509,7 @@ def _file_or_directory(file_or_folder_name, size, subfolder_prefix=""):
 
 
 def _get_top_level_folder(path, subfolder_prefix):
-    tmp_path = path[len(subfolder_prefix):]
+    tmp_path = path[len(subfolder_prefix) :]
     if len(tmp_path) > 0 and tmp_path[0] == "/":
         tmp_path = tmp_path.lstrip("/")
     if "/" in tmp_path:
@@ -520,5 +521,5 @@ def _remove_prefix(text, prefix):
     # Remove once we drop Python 3.8 support and replace with
     # in-build removeprefix() function
     if text.startswith(prefix):
-        return text[len(prefix):]
+        return text[len(prefix) :]
     return text

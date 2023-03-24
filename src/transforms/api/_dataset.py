@@ -18,7 +18,7 @@ import pyspark
 import foundry_dev_tools
 from foundry_dev_tools import CachedFoundryClient
 from foundry_dev_tools.config import execute_as_subprocess
-import foundry_dev_tools.Exceptions
+from foundry_dev_tools.exceptions import BranchNotFoundError, DatasetHasNoSchemaError
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 
 LOGGER = logging.getLogger(__name__)
