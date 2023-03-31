@@ -2221,7 +2221,7 @@ class BranchNotFoundError(FoundryAPIError):
                 if transaction_rid is not None
                 else ""
             )
-            + " has no branch {branch}.\n"
+            + f"has no branch {branch}.\n"
             + (response.text if response is not None else "")
         )
         self.dataset_rid = dataset_rid
