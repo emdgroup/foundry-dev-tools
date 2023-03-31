@@ -75,8 +75,10 @@ def test_monster_integration_test(client):
     ds = client.create_dataset(dataset_path)
     assert "rid" in ds
     assert "fileSystemId" in ds
-    with pytest.raises(DatasetAlreadyExistsError):
+    with pytest.raises(DatasetAlreadyExistsError) as excinfo:
         client.create_dataset(dataset_path)
+    assert excinfo.value.dataset_rid == ds["rid"]
+    assert excinfo.value.dataset_path == dataset_path
 
     ds_returned = client.get_dataset(ds["rid"])
     assert "rid" in ds_returned

@@ -120,7 +120,8 @@ class FoundryRestClient:
             json={"path": dataset_path},
         )
         if response.status_code == 400 and "DuplicateDatasetName" in response.text:
-            raise DatasetAlreadyExistsError(dataset_path)
+            rid = self.get_dataset_rid(dataset_path=dataset_path)
+            raise DatasetAlreadyExistsError(dataset_path=dataset_path, dataset_rid=rid)
         _raise_for_status_verbose(response)
         return response.json()
 
@@ -2275,8 +2276,10 @@ class DatasetNotFoundError(FoundryAPIError):
 class DatasetAlreadyExistsError(FoundryAPIError):
     """Exception is thrown when dataset already exists."""
 
-    def __init__(self, dataset_rid: str):
-        super().__init__(f"Dataset {dataset_rid} already exists.")
+    def __init__(self, dataset_path: str, dataset_rid: str):
+        super().__init__(f"Dataset {dataset_path=} {dataset_rid=} already exists.")
+        self.dataset_rid = dataset_rid
+        self.dataset_path = dataset_path
 
 
 class FolderNotFoundError(FoundryAPIError):
