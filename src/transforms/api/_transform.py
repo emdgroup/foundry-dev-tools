@@ -12,7 +12,6 @@ import re
 from typing import Callable, Dict, Optional
 
 import fs
-import pandas as pd
 import pyspark
 
 from transforms.api import Input, Output
@@ -121,6 +120,7 @@ class Transform:
             kwargs["ctx"] = TransformContext()
 
         output_df = self(**kwargs)
+        import pandas as pd  # pylint: disable=import-outside-toplevel
 
         if not isinstance(output_df, pd.DataFrame):
             raise ValueError(
