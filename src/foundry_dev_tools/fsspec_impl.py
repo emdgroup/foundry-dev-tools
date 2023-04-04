@@ -314,7 +314,9 @@ class FoundryFile(AbstractBufferedFile):
         """Internal function to add a chunk of data to a started upload."""
         assert final is True, "chunked uploading not supported"
         self.buffer.seek(0)
-
+        assert (
+            self.fs._transaction is not None  # pylint: disable=protected-access
+        ), "multiple threads, same dataset? use skip_instance_cache"
         self.fs.api.upload_dataset_file(
             dataset_rid=self.fs.dataset_identity["dataset_rid"],
             transaction_rid=self.fs._transaction.transaction_rid,  # pylint: disable=protected-access
