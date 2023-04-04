@@ -1,16 +1,17 @@
-"""
-Enable enable_third_party_application
-Rotate Secret rotate_third_party_application_secret
+# pylint: disable=protected-access
+"""Enable enable_third_party_application
+Rotate Secret rotate_third_party_application_secret.
 
 """
 import json
 
 import pytest
+import requests
 from requests.exceptions import HTTPError
 from requests_mock.adapter import ANY
 from requests_mock.mocker import Mocker
 
-from foundry_dev_tools import FoundryRestClient
+from foundry_dev_tools.foundry_api_client import FoundryRestClient
 
 USER_INFO_RESPONSE = {
     "id": "3c8fbda5-686e-4fcb-ad52-d95e4281d99f",
@@ -151,12 +152,12 @@ def test_crud(is_integration_test, requests_mock: Mocker, mocker):
         _test_crud_inner(mocker)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_crud_integration(mocker):
     try:
         _test_crud_inner(mocker)
     except HTTPError as err:
-        if err.response.status_code == 403:
+        if err.response.status_code == requests.codes.forbidden:
             pytest.skip(
                 "To test integration for multipass tpa, you need permissions to manage third party applications!"
             )

@@ -1,4 +1,6 @@
+# pylint: disable=redefined-outer-name,protected-access,import-outside-toplevel
 import os
+from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
@@ -8,25 +10,24 @@ import pytest
 from pandas.testing import assert_frame_equal
 from pyspark.sql import SparkSession
 
-import foundry_dev_tools.config
-from foundry_dev_tools import CachedFoundryClient
+from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
+from foundry_dev_tools.config import Configuration
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetNotFoundError,
 )
 from foundry_dev_tools.utils.spark import get_spark_session
-
-from tests.test_foundry_mock import MockFoundryRestClient
+from tests.foundry_mock_client import MockFoundryRestClient
 
 DATASET_RID = "ri.foundry.main.dataset.12345de3-b916-46ba-b097-c4326ea4342e"
 DATASET_PATH = "/mock/path/ds1"
 TRANSACTION_RID = "transaction1"
-API = "foundry_dev_tools.FoundryRestClient"
+API = "foundry_dev_tools.foundry_api_client.FoundryRestClient"
 
 
 @pytest.fixture()
 def mock_client(tmpdir):
-    yield MockFoundryRestClient(fs=fs.open_fs(str(tmpdir)))
+    return MockFoundryRestClient(filesystem=fs.open_fs(str(tmpdir)))
 
 
 def test_config():
@@ -65,7 +66,6 @@ def test_save_pandas(upload_dataset_files):
     )
 
     args = upload_dataset_files.call_args[0]
-    kwargs = upload_dataset_files.call_args[1]
 
     assert args[0] == DATASET_RID
     assert args[1] == TRANSACTION_RID
@@ -110,12 +110,11 @@ def test_save_spark(upload_dataset_files):
     )
 
     args = upload_dataset_files.call_args[0]
-    kwargs = upload_dataset_files.call_args[1]
 
     assert args[0] == DATASET_RID
     assert args[1] == TRANSACTION_RID
     # at least two files uploaded, one parquet and one _SUCCESS
-    assert len(args[2]) >= 2
+    assert len(args[2]) >= 2  # noqa: PLR2004
 
     assert dataset_rid == "ri.foundry.main.dataset.12345de3-b916-46ba-b097-c4326ea4342e"
     assert transaction_id == "transaction1"
@@ -150,14 +149,12 @@ def test_save_model(upload_dataset_files):
     )
 
     args = upload_dataset_files.call_args[0]
-    kwargs = upload_dataset_files.call_args[1]
 
     assert args[0] == DATASET_RID
     assert args[1] == TRANSACTION_RID
     # one model object should be uploaded
     assert len(args[2]) == 1
-    assert "model.pickle" in args[2].keys()
-    assert "model.pickle" in args[2]["model.pickle"]
+    assert "model.pickle" in args[2]
 
     assert dataset_rid == "ri.foundry.main.dataset.12345de3-b916-46ba-b097-c4326ea4342e"
     assert transaction_id == "transaction1"
@@ -190,7 +187,7 @@ def test_save_objects(
     abort_transaction,
 ):
     fdt = CachedFoundryClient()
-    path_file_dict = {"path-in/foundry.pickle": os.getcwd()}
+    path_file_dict = {"path-in/foundry.pickle": Path.cwd()}
 
     # happy path, dataset does not exist!
     get_dataset_identity.side_effect = DatasetNotFoundError("dataset_rid")
@@ -214,8 +211,8 @@ def test_save_objects(
     }
 
     # Error in upload files -> verify abort transaction is called
-    upload_dataset_files.side_effect = IOError()
-    with pytest.raises(ValueError):
+    upload_dataset_files.side_effect = OSError()
+    with pytest.raises(ValueError):  # noqa: PT011
         fdt._save_objects(
             path_file_dict,
             DATASET_PATH,
@@ -228,7 +225,7 @@ def test_save_objects(
     upload_dataset_files.side_effect = None
 
     # ValueError is thrown when dataset exists already
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         fdt._save_objects(
             path_file_dict,
             DATASET_PATH,
@@ -239,7 +236,7 @@ def test_save_objects(
 
     # ValueError is thrown when dataset is in trash
     is_dataset_in_trash.return_value = True
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         fdt._save_objects(
             path_file_dict,
             DATASET_PATH,
@@ -286,11 +283,21 @@ def test_fetch_dataset(
     mocker,
 ):
     from_foundry_and_cache = mocker.spy(
-        CachedFoundryClient, "_download_dataset_and_return_local_path"
+        CachedFoundryClient,
+        "_download_dataset_and_return_local_path",
     )
-    from_cache = mocker.spy(CachedFoundryClient, "_return_local_path_of_cached_dataset")
-    online = mocker.spy(CachedFoundryClient, "_get_dataset_identity_online")
-    offline = mocker.spy(CachedFoundryClient, "_get_dataset_identity_offline")
+    from_cache = mocker.spy(
+        CachedFoundryClient,
+        "_return_local_path_of_cached_dataset",
+    )
+    online = mocker.spy(
+        CachedFoundryClient,
+        "_get_dataset_identity_online",
+    )
+    offline = mocker.spy(
+        CachedFoundryClient,
+        "_get_dataset_identity_offline",
+    )
 
     get_dataset_rid.return_value = DATASET_RID
     get_dataset_last_transaction_rid.return_value = TRANSACTION_RID
@@ -312,20 +319,20 @@ def test_fetch_dataset(
         files: list,
         view="master",
     ):
-        path = os.sep.join([output_directory, "spark"])
-        os.makedirs(path, exist_ok=True)
+        path = Path(output_directory).joinpath("spark")
+        path.mkdir(parents=True, exist_ok=True)
         df.write.format("parquet").option("compression", "snappy").save(
-            path=path, mode="overwrite"
+            path=str(path), mode="overwrite"
         )
 
-    from foundry_dev_tools import FoundryRestClient
+    from foundry_dev_tools.foundry_api_client import FoundryRestClient
 
     backup = FoundryRestClient.download_dataset_files
     FoundryRestClient.download_dataset_files = download_dataset_files_mock
 
     fdt = CachedFoundryClient()
     path, dataset_identity = fdt.fetch_dataset(DATASET_PATH, "master")
-    assert path.split(os.sep)[-1] == TRANSACTION_RID + ".parquet"
+    assert path.split(os.sep, maxsplit=-1)[-1] == TRANSACTION_RID + ".parquet"
     assert dataset_identity == {
         "dataset_rid": DATASET_RID,
         "last_transaction_rid": TRANSACTION_RID,
@@ -392,9 +399,13 @@ def test_load_dataset(
     mocker,
 ):
     from_foundry_and_cache = mocker.spy(
-        CachedFoundryClient, "_download_dataset_and_return_local_path"
+        CachedFoundryClient,
+        "_download_dataset_and_return_local_path",
     )
-    from_cache = mocker.spy(CachedFoundryClient, "_return_local_path_of_cached_dataset")
+    from_cache = mocker.spy(
+        CachedFoundryClient,
+        "_return_local_path_of_cached_dataset",
+    )
     fdt = CachedFoundryClient()
 
     get_dataset_rid.return_value = DATASET_RID
@@ -419,13 +430,13 @@ def test_load_dataset(
         *,
         branch: str = "master",
     ):
-        path = os.sep.join([output_directory, "spark"])
-        os.makedirs(path, exist_ok=True)
+        path = Path(output_directory).joinpath("spark")
+        path.mkdir(parents=True, exist_ok=True)
         df.write.format("parquet").option("compression", "snappy").save(
-            path=path, mode="overwrite"
+            path=str(path), mode="overwrite"
         )
 
-    from foundry_dev_tools import FoundryRestClient
+    from foundry_dev_tools.foundry_api_client import FoundryRestClient
 
     backup = FoundryRestClient.download_dataset_files
     FoundryRestClient.download_dataset_files = download_dataset_files_mock
@@ -446,35 +457,35 @@ def test_load_dataset(
 
 
 def test_api_client_not_cached(mocker):
-    with mocker.patch(
-        "foundry_dev_tools.Configuration.get_config",
+    mocker.patch(
+        "foundry_dev_tools.config.Configuration.get_config",
         side_effect=[
             {
                 "jwt": "secret-token-CACHED-FOUNDRY",
                 "foundry_url": "https://test.com",
-                "cache_dir": foundry_dev_tools.Configuration["cache_dir"],
+                "cache_dir": Configuration["cache_dir"],
             },
             {
                 "jwt": "secret-token-ONE",
                 "foundry_url": "https://test.com",
-                "cache_dir": foundry_dev_tools.Configuration["cache_dir"],
+                "cache_dir": Configuration["cache_dir"],
             },
             {
                 "jwt": "secret-token-TWO",
                 "foundry_url": "https://test.com",
-                "cache_dir": foundry_dev_tools.Configuration["cache_dir"],
+                "cache_dir": Configuration["cache_dir"],
             },
         ],
-    ):
-        fs = CachedFoundryClient()
-        assert fs.config["jwt"] == "secret-token-CACHED-FOUNDRY"
-        assert fs.api._config["jwt"] == "secret-token-ONE"
-        assert fs.api._config["jwt"] == "secret-token-TWO"
+    )
+    fs = CachedFoundryClient()
+    assert fs.config["jwt"] == "secret-token-CACHED-FOUNDRY"
+    assert fs.api._config["jwt"] == "secret-token-ONE"
+    assert fs.api._config["jwt"] == "secret-token-TWO"
 
 
 def test_save_string_model(mock_client):
     with mock.patch(
-        "foundry_dev_tools.CachedFoundryClient.api",
+        "foundry_dev_tools.cached_foundry_client.CachedFoundryClient.api",
         mock_client,
     ):
         cfc = CachedFoundryClient()
@@ -491,7 +502,7 @@ def test_save_string_model(mock_client):
         from_foundry = cfc.fetch_dataset("/Namespace1/project1/save_model_test")
         import pickle
 
-        with open(f"{from_foundry[0]}/model.pickle", "rb") as f:
-            model_returned = pickle.load(f)
+        with Path(from_foundry[0]).joinpath("model.pickle").open(mode="rb") as f:
+            model_returned = pickle.load(f)  # noqa: S301, trusted, we are mocking
 
         assert model == model_returned

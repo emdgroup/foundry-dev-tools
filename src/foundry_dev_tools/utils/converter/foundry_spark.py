@@ -1,10 +1,15 @@
 """Helper function for conversion of data structures."""
-from typing import Optional
+
+import tempfile
+from typing import TYPE_CHECKING
 
 from foundry_dev_tools.utils.importer import import_optional_dependency
 from foundry_dev_tools.utils.spark import get_spark_session
 
 pyspark = import_optional_dependency("pyspark")
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 
 def foundry_schema_to_spark_schema(
@@ -54,20 +59,18 @@ def _parse_fields(fields: list):
     return outer_struct_type
 
 
-def _parse_field(field: dict) -> dict:  # pylint: disable=too-many-branches
-    spark_field = {"metadata": field["customMetadata"]}
+def _parse_field(field: dict) -> dict:
+    spark_field = {
+        "metadata": field["customMetadata"],
+        "nullable": True,
+        "type": field["type"].lower(),
+    }
     if "name" in field and field["name"] is not None:
         spark_field["name"] = field["name"]
     if "nullable" in field and field["nullable"] is not None:
         spark_field["nullable"] = field["nullable"]
-    else:
-        # nullable by default True from Foundry
-        spark_field["nullable"] = True
-    if "Noneable" in field:
-        if field["Noneable"] is None:
-            spark_field["nullable"] = True
-        else:
-            spark_field["nullable"] = field["Noneable"]
+    if "Noneable" in field and field["noneable"] is not None:
+        spark_field["nullable"] = field["Noneable"]
     if field["type"] == "DECIMAL":
         spark_field["type"] = f"decimal({field['precision']}, {field['scale']})"
     elif field["type"] == "STRING":
@@ -91,8 +94,6 @@ def _parse_field(field: dict) -> dict:  # pylint: disable=too-many-branches
             "valueType": map_value_type["type"],
             "valueContainsNull": map_value_type["nullable"],
         }
-    else:
-        spark_field["type"] = field["type"].lower()
     return spark_field
 
 
@@ -134,7 +135,7 @@ def spark_schema_to_foundry_schema(spark_schema, file_format="parquet") -> dict:
 
 def infer_dataset_format_from_foundry_schema(
     foundry_schema: dict, list_of_files: list
-) -> Optional[str]:
+) -> "str | None":
     """Infers dataset format from Foundry Schema dict, looking at key dataFrameReaderClass.
 
     Args:
@@ -143,7 +144,7 @@ def infer_dataset_format_from_foundry_schema(
             for file ending
 
     Returns:
-        Optional[str]:
+        str | None:
             parquet, csv or unknown
 
     """
@@ -204,7 +205,7 @@ def _parse_complex_type(field) -> dict:
 
 
 def foundry_sql_data_to_spark_dataframe(
-    data: (list, list), spark_schema: "pyspark.sql.types.StructType"
+    data: tuple[list, list], spark_schema: "pyspark.sql.types.StructType"
 ) -> "pyspark.sql.DataFrame":
     """Converts the result of a foundry sql API query to a spark dataframe.
 
@@ -244,7 +245,6 @@ def foundry_sql_data_to_spark_dataframe(
     for col in date_columns:
         spark_df = spark_df.withColumn(col, pyspark.sql.functions.to_date(col))
     for col, dtype in decimal_columns.items():
-        # pylint: disable=no-member
         spark_df = spark_df.withColumn(col, pyspark.sql.functions.col(col).cast(dtype))
     return spark_df
 
@@ -314,7 +314,7 @@ def foundry_schema_to_dataset_format(
 
 
 def arrow_stream_to_spark_dataframe(
-    stream_reader: "pyarrow.ipc.RecordBatchStreamReader",
+    stream_reader: "pa.ipc.RecordBatchStreamReader",
 ) -> "pyspark.sql.DataFrame":
     """Dumps an arrow stream to a parquet file in a temporary directory.
 
@@ -328,9 +328,6 @@ def arrow_stream_to_spark_dataframe(
             converted to a Spark DataFrame
 
     """
-    # pylint: disable=import-outside-toplevel
-    import tempfile
-
     # pylint: disable=import-outside-toplevel
     import pyarrow.parquet as pq
 

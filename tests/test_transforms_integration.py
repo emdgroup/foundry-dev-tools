@@ -1,34 +1,33 @@
 import warnings
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pyspark.sql.functions as F
 import pytest
 from pyspark.sql import SparkSession
-from transforms.api import Input, Output, transform, transform_df, TransformContext
-from transforms.api._transform import TransformInput
 
-import foundry_dev_tools
-
-import tests.utils
-from foundry_dev_tools import FoundryRestClient
+import foundry_dev_tools.config
+from foundry_dev_tools.foundry_api_client import FoundryRestClient
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
     foundry_schema_to_spark_schema,
 )
-
 from tests.conftest import PatchConfig
+from tests.utils import TEST_FOLDER, generic_upload_dataset_if_not_exists
+from transforms.api import Input, Output, TransformContext, transform, transform_df
 
-from tests.utils import generic_upload_dataset_if_not_exists, TEST_FOLDER
+if TYPE_CHECKING:
+    import transforms
 
 
 @pytest.fixture()
 def iris_integration_test_csv_rid(iris_dataset):
-    yield iris_dataset[0]
+    return iris_dataset[0]
 
 
 @pytest.fixture()
 def iris_integration_test_csv_path(iris_dataset):
-    yield iris_dataset[1]
+    return iris_dataset[1]
 
 
 @pytest.mark.parametrize(
@@ -55,9 +54,9 @@ def test_sql_with_limit(mocker, input_dataset_fixture, request, client):
     from_cache = mocker.spy(Input, "_retrieve_from_cache")
     with_sql_query = mocker.spy(Input, "_read_spark_df_with_sql_query")
 
-    with mock.patch("foundry_dev_tools.CachedFoundryClient.api", client), PatchConfig(
-        config_overwrite={"transforms_sql_dataset_size_threshold": 0}
-    ) as pc:
+    with mock.patch(
+        "foundry_dev_tools.cached_foundry_client.CachedFoundryClient.api", client
+    ), PatchConfig(config_overwrite={"transforms_sql_dataset_size_threshold": 0}):
 
         @transform_df(
             Output("/path/to/output1"),
@@ -89,7 +88,9 @@ def test_sql_with_limit(mocker, input_dataset_fixture, request, client):
         from_cache.assert_called()
 
         # Check that offline functions of cache work
-        cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.Configuration)
+        cache = DiskPersistenceBackedSparkCache(
+            **foundry_dev_tools.config.Configuration
+        )
         ds_identity = cache.get_dataset_identity_not_branch_aware(input_dataset)
         assert cache.dataset_has_schema(ds_identity) is True
 
@@ -125,7 +126,9 @@ def test_file_download(mocker, input_dataset_fixture, request, client):
                 "transforms_force_full_dataset_download": True,
                 "transforms_sql_dataset_size_threshold": 1,
             }
-        ), mock.patch("foundry_dev_tools.CachedFoundryClient.api", client):
+        ), mock.patch(
+            "foundry_dev_tools.cached_foundry_client.CachedFoundryClient.api", client
+        ):
 
             @transform_df(
                 Output("/path/to/output1"),
@@ -156,19 +159,21 @@ def test_file_download(mocker, input_dataset_fixture, request, client):
             from_cache.assert_called()
 
             # Check that offline functions of cache work
-            cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.Configuration)
+            cache = DiskPersistenceBackedSparkCache(
+                **foundry_dev_tools.config.Configuration
+            )
             ds_identity = cache.get_dataset_identity_not_branch_aware(input_dataset)
             assert cache.dataset_has_schema(ds_identity) is True
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_binary_dataset(mocker):
     upload_client = FoundryRestClient()
     uploaded_dataset = generic_upload_dataset_if_not_exists(
         upload_client, "bin", TEST_FOLDER / "test_data" / "binary_dataset"
     )
-    with open(
-        TEST_FOLDER / "test_data" / "binary_dataset" / "bin", "rb"
+    with TEST_FOLDER.joinpath("test_data", "binary_dataset", "bin").open(
+        mode="rb"
     ) as uploaded_file:
         uploaded_binary = uploaded_file.read()
 
@@ -179,7 +184,7 @@ def test_binary_dataset(mocker):
         output=Output("/path/to/output1"),
         input1=Input(uploaded_dataset[0], branch="master"),
     )
-    def transform_me_online(output, input1: TransformInput):
+    def transform_me_online(output, input1: "transforms.api._transform.TransformInput"):
         assert input1.filesystem() is not None
         assert input1.dataframe() is None
         with input1.filesystem().open("bin", "rb") as bin_fd:
@@ -195,7 +200,7 @@ def test_binary_dataset(mocker):
     offline.reset_mock()
 
     # Check that offline functions of cache work
-    cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.Configuration)
+    cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.config.Configuration)
     ds_identity = cache.get_dataset_identity_not_branch_aware(uploaded_dataset[0])
     assert cache.dataset_has_schema(ds_identity) is False
 

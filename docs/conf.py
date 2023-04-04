@@ -42,17 +42,18 @@ except FileNotFoundError:
     pass
 
 try:
-    import sphinx
-
     args = ["--implicit-namespaces", "-M", "-T", "-f", "-o", output_dir]
 
     apidoc.main(
-        args
-        + [foundry_dev_tools_module_dir, foundry_dev_tools_module_dir + "/__init__.py"]
+        [
+            *args,
+            foundry_dev_tools_module_dir,
+            foundry_dev_tools_module_dir + "/__init__.py",
+        ]
     )
-    apidoc.main(args + [transforms_module_dir])
+    apidoc.main([*args, transforms_module_dir])
 except Exception as e:
-    print("Running `sphinx-apidoc` failed!\n{}".format(e))
+    print(f"Running `sphinx-apidoc` failed!\n{e}")
 
 # -- General configuration ---------------------------------------------------
 
@@ -116,7 +117,7 @@ copyright = "2023, (Merck KGaA, Darmstadt, Germany)"
 #
 # version: The short X.Y version.
 # release: The full version, including alpha/beta/rc tags.
-# If you don’t need the separation provided between version and release,
+# If you don`t need the separation provided between version and release,
 # just set them both to the same value.
 try:
     from foundry_dev_tools import __version__ as version

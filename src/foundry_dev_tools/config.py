@@ -17,13 +17,9 @@ import subprocess
 import warnings
 from collections import UserDict
 from configparser import ConfigParser
-from os import sep
 from pathlib import Path
 
-import foundry_dev_tools
-from foundry_dev_tools.utils.token_provider.foundry_token_provider import (
-    TOKEN_PROVIDERS,
-)
+from foundry_dev_tools.utils.token_provider import TOKEN_PROVIDERS
 
 warnings.filterwarnings(
     "default", category=DeprecationWarning, module="foundry_dev_tools"
@@ -66,16 +62,13 @@ def type_convert(config: dict) -> dict:
     """
     return_config = {}
     for key, value in config.items():
-        if value is not None:
-            # convert value to its type
-            if key in TYPES:
-                value = TYPES[key](value)
-
-        return_config[key] = value
+        return_config[key] = (
+            TYPES[key](value) if value is not None and key in TYPES else None
+        )
     return return_config
 
 
-def initial_config() -> (dict, dict, pathlib.Path):
+def initial_config() -> tuple[dict, pathlib.Path]:
     """Parses the config file and applies defaults.
 
     The order of config values and how they are applied are:
@@ -114,7 +107,7 @@ def initial_config() -> (dict, dict, pathlib.Path):
         "grant_type": "authorization_code",
         "scopes": None,
         "foundry_url": None,
-        "cache_dir": os.path.join(foundry_dev_tools_directory, "cache"),
+        "cache_dir": foundry_dev_tools_directory / "cache",
         "transforms_output_folder": None,
         "transforms_sql_sample_select_random": False,
         "transforms_force_full_dataset_download": False,
@@ -141,19 +134,15 @@ def initial_config() -> (dict, dict, pathlib.Path):
 
     if foundry_dev_tools_config_file.exists():
         config_parser = ConfigParser()
-        with open(
-            foundry_dev_tools_config_file.absolute(), "r", encoding="UTF-8"
-        ) as file:
+        with foundry_dev_tools_config_file.open(encoding="UTF-8") as file:
             config_parser.read_file(file)
             if "default" in config_parser:
                 return_config.update(config_parser["default"])
     try:
-        caller_filename = getattr(inspect.stack()[1], "filename")
-        project_config_file = _find_project_config_file(
-            os.path.dirname(caller_filename)
-        )
+        caller_filename = inspect.stack()[1].filename
+        project_config_file = _find_project_config_file(Path(caller_filename).parent)
         project_config_parser = ConfigParser()
-        with open(str(project_config_file), "r", encoding="UTF-8") as file:
+        with project_config_file.open(encoding="UTF-8") as file:
             project_config_parser.read_file(file)
         if "default" in project_config_parser:
             LOGGER.debug(
@@ -187,13 +176,18 @@ class Config(UserDict):
     """
 
     def __init__(self, *args, **kwargs):
+        """The constructor is the same as for a dict.
+
+        The only difference is, that the config keys
+        get casted to their type.
+        """
         super().__init__(*args, **kwargs)
 
         # convert the dict to their types
         self.data = type_convert(self.data)
 
     def _combined(self) -> dict:
-        ___data = dict(foundry_dev_tools.INITIAL_CONFIG)
+        ___data = dict(INITIAL_CONFIG)
         ___data.update(self.data)
         __data = dict(___data)
         # if keys are none, they are "deleted"
@@ -222,18 +216,19 @@ class Config(UserDict):
         return iter(self._combined())
 
     def items(self):
+        """ItemsView of config dictionary."""
         return self._combined().items()
 
     def values(self):
+        """ValuesView of config dictionary."""
         return self._combined().values()
 
     def __len__(self):
         return len(self._combined())
 
     def __getitem__(self, key):
-        if key in self.data:
-            if self.data[key] is not None:
-                return self.data[key]
+        if key in self.data and self.data[key] is not None:
+            return self.data[key]
         return self.__missing__(key)
 
     def __delitem__(self, key):
@@ -241,7 +236,7 @@ class Config(UserDict):
             raise KeyError(key)
         self.data[key] = None
 
-    def set(self, key, value):
+    def set(self, key, value):  # noqa: A003
         """Deprecated: Stores value in config.
 
         Args:
@@ -275,7 +270,7 @@ class Config(UserDict):
                 return token
         return None
 
-    def get_config(self, overwrite_config: dict = None):
+    def get_config(self, overwrite_config: dict | None = None):
         """Returns the Foundry DevTools config.
 
         Merges the overwrite config from :py:class:`Config` with `overwrite_config` and returns a dict.
@@ -288,7 +283,7 @@ class Config(UserDict):
 
 
         Args:
-            overwrite_config (Optional[dict]): This is an overwrite config only for the returned dict
+            overwrite_config (dict | None): This is an overwrite config only for the returned dict
                               It will get applied above the overwrite config in `self`.
 
         Returns:
@@ -298,12 +293,12 @@ class Config(UserDict):
         if overwrite_config:
             cnf.update(overwrite_config)
 
-        if (
-            ("jwt" not in cnf)
-            and "enable_runtime_token_providers" in cnf
-            and cnf["enable_runtime_token_providers"]
-        ):
-            if token := self._get_token_from_token_provider():
+        if "jwt" not in cnf:  # noqa: SIM102
+            if (
+                (token := self._get_token_from_token_provider())
+                and "enable_runtime_token_providers" in cnf
+                and cnf["enable_runtime_token_providers"]
+            ):
                 cnf["jwt"] = token
 
         if "foundry_url" not in cnf:
@@ -322,8 +317,8 @@ class Config(UserDict):
         return cnf
 
 
-def _traverse_to_git_project_top_level_dir(git_dir: Path) -> str:
-    return execute_as_subprocess(["git", "rev-parse", "--show-toplevel"], git_dir)
+def _traverse_to_git_project_top_level_dir(git_dir: Path) -> Path:
+    return Path(execute_as_subprocess(["git", "rev-parse", "--show-toplevel"], git_dir))
 
 
 def execute_as_subprocess(args: list, cwd: Path) -> str:
@@ -339,24 +334,22 @@ def execute_as_subprocess(args: list, cwd: Path) -> str:
 
     """
     return subprocess.run(
-        args, check=True, stdout=-1, stderr=-1, cwd=cwd, universal_newlines=True
+        args, check=True, stdout=-1, stderr=-1, cwd=cwd, text=True
     ).stdout.strip()
 
 
-def _find_project_config_file(project_directory: Path) -> str:
+def _find_project_config_file(project_directory: Path) -> Path:
     try:
-        if os.path.isdir(project_directory):
+        if project_directory.is_dir():
             git_directory = _traverse_to_git_project_top_level_dir(project_directory)
-            project_config_file = sep.join([git_directory, ".foundry_dev_tools"])
+            project_config_file = git_directory / ".foundry_dev_tools"
 
-            if os.path.isfile(project_config_file):
+            if project_config_file.is_file():
                 return project_config_file
 
-            foundry_local_project_config_file = sep.join(
-                [git_directory, ".foundry_local_config"]
-            )
+            foundry_local_project_config_file = git_directory / ".foundry_local_config"
 
-            if os.path.isfile(foundry_local_project_config_file):
+            if foundry_local_project_config_file.is_file():
                 warnings.warn(
                     "Foundrylocal has been renamed to Foundry DevTools.\n"
                     f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
@@ -375,3 +368,11 @@ def _find_project_config_file(project_directory: Path) -> str:
             "Project-based config file could not be loaded, is project not managed with git?"
         )
         raise ValueError from exc
+
+
+(
+    INITIAL_CONFIG,
+    FOUNDRY_DEV_TOOLS_DIRECTORY,
+) = initial_config()
+Configuration = Config()
+__all__ = ["INITIAL_CONFIG", "FOUNDRY_DEV_TOOLS_DIRECTORY", "Configuration"]

@@ -1,3 +1,4 @@
+# pylint: disable=import-outside-toplevel,redefined-outer-name
 import datetime
 import os
 from pathlib import Path
@@ -20,9 +21,9 @@ def to_dict(dataset_rid, last_transaction_rid, dataset_path):
 
 @pytest.fixture(autouse=True)
 def provide_config():
-    from foundry_dev_tools import Configuration
+    from foundry_dev_tools.config import Configuration
 
-    yield Configuration
+    return Configuration
 
 
 def test_add_get_delete(spark_session, provide_config):
@@ -59,9 +60,11 @@ def test_iterate(spark_session, provide_config):
     )
 
     for key, value in pc.items():
+        # pylint: disable=unnecessary-dict-index-lookup
         assert_frame_equal(pc[key].toPandas(), value.toPandas())
 
-    assert len(pc) == 3
+    EXPECTED_LENGTH = 3
+    assert len(pc) == EXPECTED_LENGTH
 
     del pc[to_dict("d1", "t11", "/d1")]
     del pc[to_dict("d2", "t21", "/d2")]
@@ -87,7 +90,8 @@ def test_unicode(spark_session, provide_config):
     )
     pc[to_dict("d1", "t11", "/d1")] = data
 
-    for key, value in pc.items():
+    for key, _value in pc.items():
+        # pylint: disable=unnecessary-dict-index-lookup
         assert_frame_equal(data.toPandas(), pc[key].toPandas())
 
     del pc[to_dict("d1", "t11", "/d1")]
@@ -179,13 +183,14 @@ def test_multiline_csv(spark_session, provide_config):
     dataset_directory = os.sep.join(
         [provide_config["cache_dir"], "ds_multiline", "t1.csv"]
     )
-    csv_content = """,Name,"Test Status (Current) 
+    csv_content = """,Name,"Test Status (Current)
 (Company :Bar/Territory : Status : Indication : Date)",Report_date
-0,"12345 asdf 1234 (asdf), Ba1234","Bawefawef Pharma International Ltd: Country: No Development Reported: Aram foo bar asdf: 16-Feb-2011
-",2020-01-28"""
+0,"12345 asdf 1234 (asdf), Ba1234","Bawefawef Pharma International Ltd: Country:
+ No Development Reported: Aram foo bar asdf: 16-Feb-2011",2020-01-28"""
 
-    os.makedirs(dataset_directory)
-    with open(dataset_directory + "/manual.csv", "w") as f:
+    ds_dir = Path(dataset_directory)
+    ds_dir.mkdir(parents=True)
+    with ds_dir.joinpath("manual.csv").open(mode="w", encoding="UTF-8") as f:
         f.write(csv_content)
 
     foundry_schema = {
@@ -297,10 +302,11 @@ Hans,Doe"""
     csv_content_2 = """given_name,family_name
 Max,Mustermann"""
 
-    os.makedirs(dataset_directory)
-    with open(os.sep.join([dataset_directory, "1"]), "w") as f:
+    ds_dir = Path(dataset_directory)
+    ds_dir.mkdir(parents=True)
+    with ds_dir.joinpath("1").open(mode="w", encoding="UTF-8") as f:
         f.write(csv_content_1)
-    with open(os.sep.join([dataset_directory, "2"]), "w") as f:
+    with ds_dir.joinpath("2").open(mode="w", encoding="UTF-8") as f:
         f.write(csv_content_2)
 
     foundry_schema = {

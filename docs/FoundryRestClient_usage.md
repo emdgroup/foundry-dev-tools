@@ -50,7 +50,7 @@ rest_client.upload_dataset_files(dataset_rid=dataset_rid,
                                  transaction_rid=transaction_rid,
                                  path_file_dict=path_file_dict)
 rest_client.commit_transaction(dataset_rid, transaction_rid)
-````
+```
 
 ### Save model or other type of file
 
@@ -124,6 +124,7 @@ df.toPandas().to_string()
 ### Download only few files from dataset
 
 You can simply specify the list of files you want to download in download_dataset_files
+
 ```python
 rid = "ri.foundry.main.dataset.xxxxxxx-xxxx-xxx-xxx-xxxxxxxxx"
 rest_client.download_dataset_files(dataset_rid=rid, output_directory='/paht/to/only_few_files', files=['file1.png', 'file2.png'], branch='master')
@@ -131,8 +132,8 @@ rest_client.download_dataset_files(dataset_rid=rid, output_directory='/paht/to/o
 
 [Third Party Application in Foundry]: https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/
 
+### Polars DataFrame from Spark SQL dialect
 
-### Polars DataFrame from Spark SQL dialect 
 Queries the Foundry SQL server with Spark SQL dialect, load arrow stream using [polars](https://www.pola.rs/).
 
 ```python
@@ -150,7 +151,8 @@ df = pl.from_arrow(arrow_table)
 print(df)
 ```
 
-### DuckDB Table from Spark SQL dialect 
+### DuckDB Table from Spark SQL dialect
+
 Queries the Foundry SQL server with Spark SQL dialect, load arrow stream using [duckdb](https://duckdb.org/).
 
 ```python

@@ -19,7 +19,7 @@ Every change you make in the code is instantly applied.
 Install the test dependencies and execute pytest.
 
 ```shell
-pip install -e .[testing] 
+pip install -e ".[testing]"
 pytest
 ```
 
@@ -37,27 +37,20 @@ These environment variables should point to an empty folder on palantir foundry 
 the tests will create the datasets automatically.
 
 ```shell
-pip install -e [integration-testing]
+pip install -e ".[integration-testing]"
 pytest --integration
 ```
 
 or use [tox]
+
 ```shell
 tox -- --integration
-```
-
-## Run pylint
-
-To run [pylint] locally, execute the following code:
-
-```shell
-pylint src
 ```
 
 ## Pre-Commit hooks & formatting
 
 To format the code and make it ready for a commit we use pre-commit.
-Currently, we run [ufmt] which uses black and usort, [pylint] and force the line endings to linux/mac ones.
+Currently, we run [black], [ruff] and force the line endings to linux/mac ones.
 After a commit gets pushed it will automatically check if it is correctly formatted.
 If not, the checks will fail, and we will not be able to merge your changes.
 
@@ -78,6 +71,7 @@ pre-commit run --all-files
 
 To check if it is correctly formatted according
 to the pre-commit hooks, we run in our pipeline:
+
 ```shell
 tox -e lint
 ```
@@ -85,5 +79,5 @@ tox -e lint
 [pyscaffold]: https://pyscaffold.org/en/stable/
 [tox]: https://tox.wiki/en/latest/
 [pre-commit]: https://pre-commit.com/
-[ufmt]: https://github.com/omnilib/ufmt
-[pylint]: https://github.com/PyCQA/pylint
+[black]: https://github.com/psf/black
+[ruff]: https://github.com/charliermarsh/ruff

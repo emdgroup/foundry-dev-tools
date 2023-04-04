@@ -26,8 +26,9 @@ rest_client.get_user_info()
 ```
 
 Steps:
+
 1. Execute the above lines - a message with a URL will appear - visit this URL in your browser
-2. Once opened, log in to Foundry (if necessary) using your account and allow  application
+2. Once opened, log in to Foundry (if necessary) using your account and allow application
 3. Copy the authorization code to the prompt of your Python commands and press Enter
 
 The result of `get_user_info()` should appear, showing your Foundry user information.

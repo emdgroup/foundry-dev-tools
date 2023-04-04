@@ -5,10 +5,9 @@ to make pyspark an optional dependency
 """
 import importlib
 from types import ModuleType
-from typing import Optional
 
 
-def import_optional_dependency(name: str, extra: str = "") -> Optional[ModuleType]:
+def import_optional_dependency(name: str, extra: str = "") -> "ModuleType | None":
     """Import an optional dependency.
 
     By default, if a dependency is missing an ImportError with a nice
@@ -19,7 +18,7 @@ def import_optional_dependency(name: str, extra: str = "") -> Optional[ModuleTyp
         extra (str): Additional text to include in the ImportError message.
 
     Returns:
-        `Optional[ModuleType]`:
+        `ModuleType | None`:
             The imported module, when found.
 
     """

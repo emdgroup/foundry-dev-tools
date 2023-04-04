@@ -45,7 +45,7 @@ After adding this, you just need to run the file.
 
 You can run your transform code from jupyter with very minimal, non-breaking changes to your repository.
 
-Open the `transforms-python/src/setup.py` file of your repository and change line 8 and 9 by adding a default value 
+Open the `transforms-python/src/setup.py` file of your repository and change line 8 and 9 by adding a default value
 for package name and package version:
 
 ```diff
@@ -71,7 +71,6 @@ output = apply_the_schema.compute()
 # output in pandas format
 output.toPandas()
 ```
-
 
 ## More specific Foundry DevTools usage
 

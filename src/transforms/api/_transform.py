@@ -3,22 +3,23 @@
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
 
-"""  # pylint: disable=line-too-long
+"""  # noqa: E501
 
 import collections
 import inspect
 import os
 import re
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
+from os import PathLike
+from pathlib import Path
 
 import fs
 import pyspark
 
-from transforms.api import Input, Output
-
-import foundry_dev_tools
+import foundry_dev_tools.config
 from foundry_dev_tools.utils.caches.spark_caches import get_dataset_path
 from foundry_dev_tools.utils.spark import get_spark_session
+from transforms.api._dataset import Input, Output
 
 
 class Transform:
@@ -32,8 +33,8 @@ class Transform:
     def __init__(
         self,
         compute_func: Callable,
-        outputs: Dict[str, Output] = None,
-        inputs: Dict[str, Input] = None,
+        outputs: "dict[str, Output] | None" = None,
+        inputs: "dict[str, Input] | None" = None,
         decorator: str = "spark",
     ):
         """Initialize the `Transform`.
@@ -59,7 +60,7 @@ class Transform:
                     f"Input '{name}' to transform {self} is not "
                     f"a transforms.api.Input"
                 )
-        for name, toutput in self.outputs.items():
+        for _, toutput in self.outputs.items():
             if not isinstance(toutput, Output):
                 raise ValueError(
                     f"Output '{compute_func.__name__}' of transform {self} is not "
@@ -76,7 +77,7 @@ class Transform:
             setattr(exc, "__transform_compute_error", True)
             raise
 
-    def compute(self):  # pylint: disable=arguments-differ
+    def compute(self):
         """Execute the wrapped transform function."""
         if self._type == "pandas":
             return self._compute_pandas()
@@ -86,7 +87,7 @@ class Transform:
 
     def _compute_spark(
         self,
-    ) -> "pyspark.sql.DataFrame":  # pylint: disable=arguments-differ
+    ) -> "pyspark.sql.DataFrame":
         """Execute the wrapped transform function.
 
         Returns:
@@ -107,7 +108,7 @@ class Transform:
 
         return output_df
 
-    def _compute_pandas(self):  # pylint: disable=arguments-differ
+    def _compute_pandas(self):
         """Execute the wrapped transform function.
 
         Returns:
@@ -148,7 +149,7 @@ class Transform:
         return {name: i.dataframe() for name, i in outputs.items()}
 
 
-class TransformContext:  # pylint: disable=too-few-public-methods
+class TransformContext:
     """The TransformContext is passed to the transform function if ctx is the first argument."""
 
     def __init__(self):
@@ -220,7 +221,8 @@ class TransformInput:
         """
         return FileSystem(
             base_path=get_dataset_path(
-                foundry_dev_tools.Configuration["cache_dir"], self._dataset_identity
+                foundry_dev_tools.config.Configuration["cache_dir"],
+                self._dataset_identity,
             )
         )
 
@@ -242,7 +244,7 @@ class TransformOutput:
         self.path = output.alias
         self.rid = "no-implemented-in-foundry-dev-tools"
 
-    def dataframe(self) -> Optional[pyspark.sql.DataFrame]:
+    def dataframe(self) -> "pyspark.sql.DataFrame | None":
         """Returns pyspark DataFrame.
 
         Returns:
@@ -253,7 +255,6 @@ class TransformOutput:
         return self._df
 
     def write_dataframe(self, df: pyspark.sql.DataFrame, **kwargs):
-        # pylint: disable=invalid-name, unused-argument
         """Storing dataframe as variable.
 
         Args:
@@ -272,14 +273,11 @@ class TransformOutput:
         return self.write_dataframe(get_spark_session().createDataFrame(pandas_df))
 
     def _make_filesystem(self):
-        if "transforms_output_folder" in foundry_dev_tools.Configuration:
-            base_path = os.sep.join(
-                [
-                    foundry_dev_tools.Configuration["transforms_output_folder"],
-                    self._argument_name,
-                ]
-            )
-            os.makedirs(base_path, exist_ok=True)
+        if "transforms_output_folder" in foundry_dev_tools.config.Configuration:
+            base_path = Path(
+                foundry_dev_tools.config.Configuration["transforms_output_folder"]
+            ).joinpath(self._argument_name)
+            base_path.mkdir(parents=True, exist_ok=True)
             return FileSystem(base_path=base_path)
         return FileSystem()
 
@@ -308,22 +306,22 @@ class FileStatus(collections.namedtuple("FileStatus", ["path", "size", "modified
 class FileSystem:
     """File System for TransformOutput and TransformInput."""
 
-    def __init__(self, base_path=None):
+    def __init__(self, base_path: "str | PathLike | None" = None):
         if base_path:
-            self._fs = fs.open_fs(base_path)
+            self._fs = fs.open_fs(os.fspath(base_path))
         else:
             self._fs = fs.open_fs("mem://")
 
     def ls(
-        self, glob: Optional[str] = None, regex: str = ".*", show_hidden: bool = False
-    ):  # pylint: disable=invalid-name
+        self, glob: "str | None" = None, regex: str = ".*", show_hidden: bool = False
+    ):
         """Recurses through all directories and lists all files matching the given patterns.
 
         Starting from the root directory of the dataset.
 
         Args:
-            glob (Optional[str]): A unix file matching pattern. Also supports globstar.
-            regex (Optional[str]): A regex pattern against which to match filenames.
+            glob (str | None): A unix file matching pattern. Also supports globstar.
+            regex (str | None): A regex pattern against which to match filenames.
             show_hidden (bool): Include hidden files, those prefixed with '.' or '_'.
 
         Yields:
@@ -348,7 +346,7 @@ class FileSystem:
                 result_path, "size not implemented", "modified not implemented"
             )
 
-    def open(self, path, mode="w", **kwargs):
+    def open(self, path, mode="w", **kwargs):  # noqa: A003
         """Open file in this filesystem.
 
         Args:

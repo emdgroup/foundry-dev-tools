@@ -3,11 +3,11 @@
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
 
-"""  # pylint: disable=line-too-long
+"""  # noqa: E501
+import warnings
 
 
 def configure(*args, **kwargs):
-    # pylint: disable=unused-argument
     """Not implemented in local.
 
     Args:
@@ -17,9 +17,6 @@ def configure(*args, **kwargs):
     Returns:
         the compute_func
     """
-    # pylint: disable=import-outside-toplevel
-    import warnings
-
     warnings.warn("@configure functionality not implemented in Foundry DevTools")
 
     def _configure(compute_func):

@@ -4,22 +4,26 @@ import os
 import pickle
 import tempfile
 import time
-from typing import Tuple, Union
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-import foundry_dev_tools
+import foundry_dev_tools.config
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetHasNoSchemaError,
     DatasetNotFoundError,
+    FoundryRestClient,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
     infer_dataset_format_from_foundry_schema,
 )
 
-from .foundry_api_client import FoundryRestClient
-
 LOGGER = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyspark.sql
 
 
 class CachedFoundryClient:
@@ -28,7 +32,7 @@ class CachedFoundryClient:
     Methods to save, load datasets are implemented.
     """
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: "dict | None" = None):
         """Initialize `CachedFoundryClient`.
 
         Possible to pass overwrite config and
@@ -39,7 +43,9 @@ class CachedFoundryClient:
             config (dict): config dict to overwrite values from config file
         """
         self.overwrite_config = config
-        self.config = foundry_dev_tools.Configuration.get_config(self.overwrite_config)
+        self.config = foundry_dev_tools.config.Configuration.get_config(
+            self.overwrite_config
+        )
         self.cache = DiskPersistenceBackedSparkCache(**self.config)
 
     @property
@@ -76,7 +82,7 @@ class CachedFoundryClient:
 
     def fetch_dataset(
         self, dataset_path_or_rid: str, branch: str = "master"
-    ) -> Tuple[str, dict]:
+    ) -> tuple[str, dict]:
         """Downloads complete dataset from Foundry and stores in cache.
 
         Returns local path to dataset
@@ -133,16 +139,14 @@ class CachedFoundryClient:
         LOGGER.debug(
             "Returning data for %s on branch %s from cache", dataset_identity, branch
         )
-        path = self.cache.get_path_to_local_dataset(dataset_identity)
-        return path
+        return self.cache.get_path_to_local_dataset(dataset_identity)
 
     def _download_dataset_and_return_local_path(
         self, dataset_identity, branch, foundry_schema
     ) -> str:
         LOGGER.debug("Caching data for %s on branch %s", dataset_identity, branch)
         self._download_dataset_to_cache_dir(dataset_identity, branch, foundry_schema)
-        path = self.cache.get_path_to_local_dataset(dataset_identity)
-        return path
+        return self.cache.get_path_to_local_dataset(dataset_identity)
 
     def _download_dataset_to_cache_dir(self, dataset_identity, branch, foundry_schema):
         list_of_files = self.api.list_dataset_files(
@@ -173,13 +177,12 @@ class CachedFoundryClient:
 
     def save_dataset(
         self,
-        df: Union["pd.DataFrame", "pyspark.sql.DataFrame"],
+        df: "pd.DataFrame | pyspark.sql.DataFrame",
         dataset_path_or_rid: str,
         branch: str = "master",
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
-    ) -> Tuple[str, str]:
-        # pylint: disable=invalid-name,too-many-arguments,too-many-locals
+    ) -> tuple[str, str]:
         """Saves a dataframe to Foundry. If the dataset in Foundry does not exist it is created.
 
         If the branch does not exist, it is created. If the dataset exists, an exception is thrown.
@@ -234,17 +237,12 @@ class CachedFoundryClient:
             filenames = list(
                 filter(lambda file: not file.endswith(".crc"), os.listdir(path))
             )
-            filepaths = list(map(lambda file: os.sep.join([path, file]), filenames))
-            if mode == "APPEND":
-                folder = round(time.time() * 1000)
-            else:
-                # to be backwards compatible to most readers, that expect files
-                # to be under spark/
-                folder = "spark"
-            dataset_paths_in_foundry = list(
-                map(lambda file: f"{folder}/" + file, filenames)
-            )
-            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths))
+            filepaths = [os.sep.join([path, file]) for file in filenames]
+            # to be backwards compatible to most readers, that expect files
+            # to be under spark/
+            folder = round(time.time() * 1000) if mode == "APPEND" else "spark"
+            dataset_paths_in_foundry = [f"{folder}/" + file for file in filenames]
+            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths, strict=True))
             dataset_rid, transaction_id = self._save_objects(
                 path_file_dict, dataset_path_or_rid, branch, exists_ok, mode
             )
@@ -262,8 +260,7 @@ class CachedFoundryClient:
         branch: str,
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
-    ) -> Tuple[str, str]:
-        # pylint: disable=too-many-arguments
+    ) -> tuple[str, str]:
         if path_file_dict is None or len(path_file_dict) == 0:
             raise ValueError(
                 "Please provide at least one file like object in dict 'path_file_dict"
@@ -321,8 +318,7 @@ class CachedFoundryClient:
         branch: str = "master",
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
-    ) -> Tuple[str, str]:
-        # pylint: disable=too-many-arguments
+    ) -> tuple[str, str]:
         """Saves a python object to a foundry dataset.
 
         The python object is pickled and uploaded to path model.pickle.
@@ -353,15 +349,13 @@ class CachedFoundryClient:
             raise ValueError("Please provide a dataset branch with parameter 'branch'")
 
         with tempfile.TemporaryDirectory() as path:
-            model_path = os.sep.join([path, "model.pickle"])
-            with open(model_path, "wb") as file:
+            model_path = Path(path).joinpath("model.pickle")
+            with model_path.open(mode="wb") as file:
                 pickle.dump(model_obj, file)
-            result = self._save_objects(
-                {"model.pickle": model_path},
+            return self._save_objects(
+                {"model.pickle": str(model_path)},
                 dataset_path_or_rid,
                 branch,
                 exists_ok,
                 mode,
             )
-
-        return result

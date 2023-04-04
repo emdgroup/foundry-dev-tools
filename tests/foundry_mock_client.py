@@ -1,21 +1,22 @@
 import datetime
 import io
 import json
-import os
 import shutil
-from typing import AnyStr, IO, List, Optional, Union
+from pathlib import Path
+from typing import IO, TYPE_CHECKING, AnyStr
 
 import fs
 import timeflake
+from fs.base import FS
 from fs.errors import DirectoryExists, ResourceNotFound
 
-from foundry_dev_tools import FoundryRestClient
 from foundry_dev_tools.foundry_api_client import (
     BranchesAlreadyExistError,
     BranchNotFoundError,
     DatasetHasNoSchemaError,
     DatasetHasOpenTransactionError,
     DatasetNotFoundError,
+    FoundryRestClient,
 )
 from foundry_dev_tools.utils.caches.spark_caches import _read
 from foundry_dev_tools.utils.converter.foundry_spark import (
@@ -24,11 +25,16 @@ from foundry_dev_tools.utils.converter.foundry_spark import (
     foundry_schema_to_spark_schema,
 )
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
+    import pyspark
+
 
 class MockFoundryRestClient(FoundryRestClient):
     def query_foundry_sql(
         self, query, branch="master", return_type="pandas"
-    ) -> "pandas.core.frame.DataFrame | pyarrow.Table | pyspark.sql.DataFrame":
+    ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
         if return_type != "spark":
             raise NotImplementedError
         dataset_path_or_rid = query.split("`")[1]
@@ -94,7 +100,7 @@ class MockFoundryRestClient(FoundryRestClient):
 
     def get_dataset_last_transaction_rid(
         self, dataset_rid: str, branch="master"
-    ) -> Optional[str]:
+    ) -> str | None:
         transactions = self._load_transactions(dataset_rid=dataset_rid)
         if len(transactions) == 0:
             return None
@@ -109,9 +115,9 @@ class MockFoundryRestClient(FoundryRestClient):
         else:
             dataset_path = dataset_path_or_rid
             try:
-                dataset_files = self.fs.listdir(dataset_path)
-            except ResourceNotFound:
-                raise DatasetNotFoundError(dataset_path)
+                dataset_files = self.filesystem.listdir(dataset_path)
+            except ResourceNotFound as e:
+                raise DatasetNotFoundError(dataset_path) from e
             maybe_dataset_rid_file = [
                 file
                 for file in dataset_files
@@ -121,15 +127,16 @@ class MockFoundryRestClient(FoundryRestClient):
                 raise DatasetNotFoundError(dataset_path_or_rid)
             dataset_rid = fs.path.basename(maybe_dataset_rid_file[0])[1:]
         transactions = self._load_transactions(dataset_rid=dataset_rid)
-        if len(transactions) == 0:
+        if (
+            len(transactions) == 0
+            or len(transactions) == 1
+            and transactions[0]["status"] == "OPEN"
+        ):
             last_transaction_rid = None
+        elif len(transactions) > 1 and transactions[0]["status"] == "OPEN":
+            last_transaction_rid = transactions[1]["rid"]
         else:
-            if len(transactions) == 1 and transactions[0]["status"] == "OPEN":
-                last_transaction_rid = None
-            elif len(transactions) > 1 and transactions[0]["status"] == "OPEN":
-                last_transaction_rid = transactions[1]["rid"]
-            else:
-                last_transaction_rid = transactions[0]["rid"]
+            last_transaction_rid = transactions[0]["rid"]
         return {
             "dataset_path": dataset_path,
             "dataset_rid": dataset_rid,
@@ -157,7 +164,7 @@ class MockFoundryRestClient(FoundryRestClient):
         root_path = self._rid_to_fs_path(transaction_rid)
         if not transaction["schemaRid"]:
             raise DatasetHasNoSchemaError(dataset_rid, transaction_rid, branch)
-        with self.fs.open(
+        with self.filesystem.open(
             fs.path.join(root_path, f".{transaction['schemaRid']}"), "r"
         ) as f:
             return json.load(f)
@@ -175,81 +182,66 @@ class MockFoundryRestClient(FoundryRestClient):
         )
         transaction["schemaRid"] = schema_rid
         schema_file_path = fs.path.join(root_path, f".{schema_rid}")
-        with self.fs.open(schema_file_path, "w") as f:
+        with self.filesystem.open(schema_file_path, "w") as f:
             json.dump(schema, f)
         self._upsert_transaction(dataset_rid=dataset_rid, transaction=transaction)
         if old_schema_rid:
             old_schema_file_path = fs.path.join(root_path, f".{old_schema_rid}")
-            self.fs.remove(old_schema_file_path)
+            self.filesystem.remove(old_schema_file_path)
 
     def download_dataset_files(
         self,
         dataset_rid: str,
         output_directory: str,
-        files: list = None,
+        files: list | None = None,
         view: str = "master",
-        parallel_processes: int = None,
-    ) -> List[str]:
+        parallel_processes: int | None = None,
+    ) -> list[str]:
         return super().download_dataset_files(
             dataset_rid, output_directory, files, view, parallel_processes=1
-        )
-
-    def download_dataset_files_temporary(
-        self,
-        dataset_rid: str,
-        files: list = None,
-        view: str = "master",
-        parallel_processes: Optional[int] = None,
-    ) -> str:
-        return super().download_dataset_files_temporary(
-            dataset_rid, files, view, parallel_processes
         )
 
     def download_dataset_file(
         self,
         dataset_rid: str,
-        output_directory: Optional[str],
+        output_directory: str | None,
         foundry_file_path: str,
         view: str = "master",
-    ) -> Union[str, bytes]:
+    ) -> str | bytes:
         # view can be branch or transaction rid
-        if view.startswith("ri.foundry.main.transaction"):
-            transaction_rid = view
-        else:
-            transaction_rid = self.get_branch(dataset_rid=dataset_rid, branch=view)[
-                "transactionRid"
-            ]
+        transaction_rid = (
+            view
+            if view.startswith("ri.foundry.main.transaction")
+            else self.get_branch(dataset_rid=dataset_rid, branch=view)["transactionRid"]
+        )
         root_path = self._rid_to_fs_path(rid=transaction_rid)
         if output_directory:
-            file_directory = fs.path.join(
-                output_directory, fs.path.dirname(foundry_file_path)
-            )
-            os.makedirs(file_directory, exist_ok=True)
-            destination_path = fs.path.join(output_directory, foundry_file_path)
-            with open(destination_path, "wb") as fdst:
-                with self.fs.open(
-                    fs.path.join(root_path, foundry_file_path),
-                    "rb",
-                ) as fsrc:
-                    shutil.copyfileobj(fsrc=fsrc, fdst=fdst)
-            return destination_path
-        else:
-            with self.fs.open(
+            dest_path = Path(output_directory).joinpath(foundry_file_path)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            with dest_path.open("wb") as fdst, self.filesystem.open(
                 fs.path.join(root_path, foundry_file_path),
                 "rb",
             ) as fsrc:
-                return fsrc.read()
+                shutil.copyfileobj(fsrc=fsrc, fdst=fdst)
+            # TODO pathlib
+            return str(dest_path.absolute())
+
+        with self.filesystem.open(
+            fs.path.join(root_path, foundry_file_path),
+            "rb",
+        ) as fsrc:
+            return fsrc.read()
 
     def list_dataset_files(
         self,
         dataset_rid: str,
-        exclude_hidden_files=True,
+        exclude_hidden_files: bool = True,
         view: str = "master",
-        logical_path=None,
-        detail=False,
+        logical_path: str | None = None,
+        detail: bool = False,
         *,
         include_open_exclusive_transaction: bool = False,
-        branch: str = None,
+        branch: str | None = None,
     ) -> list:
         # view can be branch or transaction rid
         if view.startswith("ri.foundry.main.transaction"):
@@ -261,7 +253,7 @@ class MockFoundryRestClient(FoundryRestClient):
         root_path = self._rid_to_fs_path(rid=transaction_rid)
         result = []
 
-        walker = fs.walk.Walker.bind(self.fs)
+        walker = fs.walk.Walker.bind(self.filesystem)
         file_or_folder_infos = list(walker.info(path=root_path, namespaces=["details"]))
         files_info = [
             (
@@ -291,11 +283,9 @@ class MockFoundryRestClient(FoundryRestClient):
                 file
                 for file in files_info
                 if not any(
-                    (
-                        part
-                        for part in file[2].split("/")
-                        if (part.startswith(".") or part.startswith("_"))
-                    )
+                    part
+                    for part in file[2].split("/")
+                    if (part.startswith(".") or part.startswith("_"))
                 )
             ]
 
@@ -322,7 +312,7 @@ class MockFoundryRestClient(FoundryRestClient):
         dataset_rid: str,
         transaction_rid: str,
         path_file_dict: dict,
-        parallel_processes: int = None,
+        parallel_processes: int | None = None,
     ) -> None:
         super().upload_dataset_files(
             dataset_rid, transaction_rid, path_file_dict, parallel_processes=1
@@ -372,7 +362,7 @@ class MockFoundryRestClient(FoundryRestClient):
         self,
         dataset_rid: str,
         transaction_rid,
-        path_or_buf: Union[str, str, IO[AnyStr]],
+        path_or_buf: str | Path | IO[AnyStr],
         path_in_foundry_dataset: str,
     ) -> None:
         transaction_path = self._rid_to_fs_path(rid=transaction_rid)
@@ -381,13 +371,15 @@ class MockFoundryRestClient(FoundryRestClient):
         folder_path = fs.path.join(
             transaction_path, fs.path.split(path_in_foundry_dataset)[0]
         )
-        print(folder_path)
         if "/" in path_in_foundry_dataset:
             # check if file exists and is empty, in that case replace with folder
             # can happen with empty s3 keys
-            if self.fs.isfile(folder_path) and self.fs.getsize(folder_path) == 0:
-                self.fs.remove(folder_path)
-            self.fs.makedirs(folder_path, recreate=True)
+            if (
+                self.filesystem.isfile(folder_path)
+                and self.filesystem.getsize(folder_path) == 0
+            ):
+                self.filesystem.remove(folder_path)
+            self.filesystem.makedirs(folder_path, recreate=True)
         binary_flag = ""
         if isinstance(path_or_buf, io.IOBase) and not isinstance(
             path_or_buf, io.TextIOBase
@@ -395,21 +387,23 @@ class MockFoundryRestClient(FoundryRestClient):
             binary_flag = "b"
         if not hasattr(path_or_buf, "read"):  # we read files always in binary mode
             binary_flag = "b"
-        with self.fs.open(
+        with self.filesystem.open(
             fs.path.join(folder_path, fs.path.split(path_in_foundry_dataset)[1]),
             mode=f"w{binary_flag}",
         ) as f:
             if hasattr(path_or_buf, "read"):
                 shutil.copyfileobj(fsrc=path_or_buf, fdst=f)
             else:
-                with open(path_or_buf, mode=f"r{binary_flag}") as fsrc:
+                with open(  # noqa: PTH123 # pylint: disable=unspecified-encoding
+                    path_or_buf, mode=f"r{binary_flag}"
+                ) as fsrc:
                     shutil.copyfileobj(fsrc=fsrc, fdst=f)
 
     def open_transaction(
         self, dataset_rid: str, mode: str = "SNAPSHOT", branch: str = "master"
     ) -> str:
         # Check if dataset_rid / branch combination exists
-        branch = self.get_branch(dataset_rid=dataset_rid, branch=branch)
+        got_branch = self.get_branch(dataset_rid=dataset_rid, branch=branch)
         # Check if dataset has open transaction
         transactions = self._load_transactions(dataset_rid)
         is_open = [
@@ -425,8 +419,8 @@ class MockFoundryRestClient(FoundryRestClient):
             resource_type="ri.foundry.main.transaction"
         )
         transaction_path = fs.path.join(self._rid_to_fs_path(dataset_rid), rid)
-        self.fs.makedir(transaction_path)
-        with self.fs.open(fs.path.join(transaction_path, f".{rid}"), "w") as f:
+        self.filesystem.makedir(transaction_path)
+        with self.filesystem.open(fs.path.join(transaction_path, f".{rid}"), "w") as f:
             f.write("")
         # I know this does not scale and runs in linear time
         transactions.insert(
@@ -444,9 +438,9 @@ class MockFoundryRestClient(FoundryRestClient):
 
         self._write_transactions(dataset_rid, transactions)
         branches = self._load_branches(dataset_rid=dataset_rid)
-        branch["openTransactionRid"] = rid
+        got_branch["openTransactionRid"] = rid
         branches = [
-            branch if branch_inner["id"] == branch["id"] else branch_inner
+            got_branch if branch_inner["id"] == got_branch["id"] else branch_inner
             for branch_inner in branches
         ]
         self._write_branches(dataset_rid=dataset_rid, branches=branches)
@@ -455,37 +449,39 @@ class MockFoundryRestClient(FoundryRestClient):
     def _load_transactions(self, dataset_rid: str) -> list:
         dataset_path = self._rid_to_fs_path(rid=dataset_rid)
         dataset_transactions = fs.path.join(dataset_path, ".transactions")
-        if self.fs.exists(dataset_transactions):
-            with self.fs.open(dataset_transactions, "r") as f:
+        if self.filesystem.exists(dataset_transactions):
+            with self.filesystem.open(dataset_transactions, "r") as f:
                 return json.load(f)
         else:
             return []
 
     def _write_transactions(self, dataset_rid: str, transactions: list):
         dataset_path = self._rid_to_fs_path(rid=dataset_rid)
-        with self.fs.open(fs.path.join(dataset_path, ".transactions"), "w") as f:
+        with self.filesystem.open(
+            fs.path.join(dataset_path, ".transactions"), "w"
+        ) as f:
             json.dump(transactions, f)
 
     def _load_branches(self, dataset_rid: str) -> list:
         dataset_path = self._rid_to_fs_path(rid=dataset_rid)
         dataset_branches = fs.path.join(dataset_path, ".branches")
-        if self.fs.exists(dataset_branches):
-            with self.fs.open(dataset_branches, "r") as f:
+        if self.filesystem.exists(dataset_branches):
+            with self.filesystem.open(dataset_branches, "r") as f:
                 return json.load(f)
         else:
             return []
 
     def _write_branches(self, dataset_rid: str, branches: list):
         dataset_path = self._rid_to_fs_path(rid=dataset_rid)
-        with self.fs.open(fs.path.join(dataset_path, ".branches"), "w") as f:
+        with self.filesystem.open(fs.path.join(dataset_path, ".branches"), "w") as f:
             json.dump(branches, f)
 
     def create_branch(
         self,
         dataset_rid: str,
         branch: str,
-        parent_branch: str = None,
-        parent_branch_id: str = None,
+        parent_branch: str | None = None,
+        parent_branch_id: str | None = None,
     ) -> dict:
         branch_rid = self._generate_resource_identifier(
             resource_type="ri.foundry.main.branch"
@@ -496,16 +492,16 @@ class MockFoundryRestClient(FoundryRestClient):
         ]
         if len(does_exists) != 0:
             raise BranchesAlreadyExistError(dataset_rid, branch)
-        branch = {
+        ret_branch = {
             "id": branch,
             "rid": branch_rid,
             "ancestorBranchIds": [],
             "creationTime": self._current_datetime(),
             "transactionRid": None,
         }
-        branches.append(branch)
+        branches.append(ret_branch)
         self._write_branches(dataset_rid=dataset_rid, branches=branches)
-        return branch
+        return ret_branch
 
     def get_branch(self, dataset_rid: str, branch: str) -> dict:
         _ = self.get_dataset(dataset_rid)
@@ -518,12 +514,12 @@ class MockFoundryRestClient(FoundryRestClient):
         return branch_found[0]
 
     def _create_compass_folder_if_not_exists(self, folder_path: str):
-        if not self.fs.exists(folder_path):
-            self.fs.makedir(folder_path)
+        if not self.filesystem.exists(folder_path):
+            self.filesystem.makedir(folder_path)
             rid = self._generate_resource_identifier(
                 resource_type="ri.compass.main.folder"
             )
-            with self.fs.open(fs.path.join(folder_path, f".{rid}"), "w") as f:
+            with self.filesystem.open(fs.path.join(folder_path, f".{rid}"), "w") as f:
                 f.write("")
 
     def _create_parent_compass_folders(self, compass_path):
@@ -537,29 +533,29 @@ class MockFoundryRestClient(FoundryRestClient):
         rid = self._generate_resource_identifier()
         self._create_parent_compass_folders(compass_path=dataset_path)
         try:
-            self.fs.makedir(dataset_path)
+            self.filesystem.makedir(dataset_path)
         except DirectoryExists as exc:
             raise KeyError(f"Dataset '{dataset_path}' already exists.") from exc
-        with self.fs.open(fs.path.join(dataset_path, f".{rid}"), "w") as f:
+        with self.filesystem.open(fs.path.join(dataset_path, f".{rid}"), "w") as f:
             f.write("")
-        return {"rid": rid, "fileSystemId": str(self.fs)}
+        return {"rid": rid, "fileSystemId": str(self.filesystem)}
 
     def get_dataset(self, dataset_rid: str) -> dict:
-        files_count = self.fs.glob(f"**/*.{dataset_rid}").count().files
+        files_count = self.filesystem.glob(f"**/*.{dataset_rid}").count().files
         if files_count == 0:
             raise DatasetNotFoundError(dataset_rid)
         if files_count > 1:
             raise ValueError("This should not happen.")
-        return {"rid": dataset_rid, "fileSystemId": str(self.fs)}
+        return {"rid": dataset_rid, "fileSystemId": str(self.filesystem)}
 
     def delete_dataset(self, dataset_rid: str) -> None:
         dataset_path = self._rid_to_fs_path(rid=dataset_rid)
-        self.fs.removetree(dataset_path)
+        self.filesystem.removetree(dataset_path)
 
-    def __init__(self, fs: "fs.base.FS"):
+    def __init__(self, filesystem: FS):
         super().__init__()
-        self.fs: "fs.base.FS" = fs
-        if str(self.fs) == "<memfs>":
+        self.filesystem: FS = filesystem
+        if str(self.filesystem) == "<memfs>":
             raise ValueError(
                 "<memfs> not supported due to threading issues in multiprocessing."
             )
@@ -569,12 +565,11 @@ class MockFoundryRestClient(FoundryRestClient):
             file for file in files if not file.startswith(".ri.foundry.main.dataset")
         ]
         filter_2 = [file for file in filter_1 if not file.startswith(".branches")]
-        filter_3 = [
+        return [
             file
             for file in filter_2
             if not file.startswith("ri.foundry.main.transaction")
         ]
-        return filter_3
 
     @staticmethod
     def _generate_resource_identifier(resource_type="ri.foundry.main.dataset"):
@@ -586,11 +581,11 @@ class MockFoundryRestClient(FoundryRestClient):
         return datetime.datetime.utcnow().isoformat()[0:23] + "Z"
 
     def _rid_to_fs_path(self, rid: str) -> str:
-        glob_matches = list(self.fs.glob(f"**/*.{rid}"))
+        glob_matches = list(self.filesystem.glob(f"**/*.{rid}"))
         if len(glob_matches) == 0 and "ri.foundry.main.dataset" in rid:
             raise DatasetNotFoundError(rid)
-        elif len(glob_matches) == 0:
+        if len(glob_matches) == 0:
             raise KeyError(rid)
-        elif len(glob_matches) != 1:
+        if len(glob_matches) != 1:
             raise ValueError("This should not happen.")
         return fs.path.split(glob_matches[0].path)[0]

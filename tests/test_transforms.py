@@ -1,3 +1,4 @@
+# pylint: disable=protected-access,import-outside-toplevel
 import io
 import json
 import pathlib
@@ -10,25 +11,24 @@ import pytest
 from pandas.testing import assert_frame_equal
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType
+
+import foundry_dev_tools.config
+from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
+from tests.conftest import PatchConfig
+from tests.test_foundry_mock import MockFoundryRestClient
 from transforms.api import (
-    configure,
-    incremental,
     Input,
     Markings,
     OrgMarkings,
     Output,
+    TransformContext,
+    configure,
+    incremental,
     transform,
     transform_df,
     transform_pandas,
-    TransformContext,
 )
 from transforms.api._transform import TransformInput, TransformOutput
-
-import foundry_dev_tools
-from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
-
-from tests.conftest import PatchConfig
-from tests.test_foundry_mock import MockFoundryRestClient
 
 
 def get_dataset_identity_mock(self, dataset_path: str, branch="master"):
@@ -43,7 +43,10 @@ def get_dataset_stats_mock(self, dataset_rid, branch_or_transaction_rid):
     # we return a dataset that is of size 1 mb bigger than the limit to force sql execution and not file download
     return {
         "sizeInBytes": (
-            foundry_dev_tools.Configuration["transforms_sql_dataset_size_threshold"] + 1
+            foundry_dev_tools.config.Configuration[
+                "transforms_sql_dataset_size_threshold"
+            ]
+            + 1
         )
         * 1024
         * 1024,
@@ -77,12 +80,11 @@ spark_df_return_data_timestamp_date = (
 
 
 def return_df(one, dataset_path, branch):
-    if dataset_path == "/input1":
-        return spark_df_return_data_one
-    elif dataset_path == "/input2":
-        return spark_df_return_data_two
-    elif dataset_path == "/tsdate":
-        return spark_df_return_data_timestamp_date
+    return {
+        "/input1": spark_df_return_data_one,
+        "/input2": spark_df_return_data_two,
+        "/tsdate": spark_df_return_data_timestamp_date,
+    }.get(dataset_path)
 
 
 def get_spark_schema_mock(one, dataset_rid, last_transaction_rid, branch="master"):
@@ -94,16 +96,16 @@ def dataset_has_schema_mock(one, two, three):
 
 
 @pytest.fixture()
-def run_around_tests(tmpdir):
+def _run_around_tests(tmpdir):
     with mock.patch(
         "transforms.api.Input._read_spark_df_with_sql_query", return_df
     ), mock.patch(
         "transforms.api.Input._dataset_has_schema", dataset_has_schema_mock
     ), mock.patch(
-        "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+        "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
         get_dataset_identity_mock,
     ), mock.patch(
-        "foundry_dev_tools.FoundryRestClient.get_dataset_stats",
+        "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_stats",
         get_dataset_stats_mock,
     ), mock.patch(
         "foundry_dev_tools.utils.converter.foundry_spark.foundry_schema_to_spark_schema",
@@ -112,7 +114,8 @@ def run_around_tests(tmpdir):
         yield
 
 
-def test_transform_one_input(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_one_input():
     @transform(output1=Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me(output1, input1):
         assert isinstance(output1, TransformOutput)
@@ -143,7 +146,7 @@ def test_transform_one_input(run_around_tests):
         assert "output.json" in [
             file.path for file in output1.filesystem().ls(glob="*/**", regex=".*")
         ]
-        assert len([file.path for file in output1.filesystem().ls(glob="**/*.py")]) is 0
+        assert len([file.path for file in output1.filesystem().ls(glob="**/*.py")]) == 0
         assert (
             len(
                 [
@@ -153,7 +156,7 @@ def test_transform_one_input(run_around_tests):
                     )
                 ]
             )
-            is 0
+            == 0
         )
         with output1.filesystem().open("output.json", "r") as f:
             content = f.read()
@@ -177,7 +180,8 @@ def test_transform_one_input(run_around_tests):
     assert result["output1"].schema.names[0] == "col1"
 
 
-def test_transform_df_one_input(mocker, run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_df_one_input(mocker):
     from_foundry_and_cache = mocker.spy(Input, "_retrieve_from_foundry_and_cache")
     from_cache = mocker.spy(Input, "_retrieve_from_cache")
 
@@ -209,7 +213,8 @@ def test_transform_df_one_input(mocker, run_around_tests):
     from_cache.assert_called()
 
 
-def test_transform_df_one_input_with_ctx(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_df_one_input_with_ctx():
     @transform_df(Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me(ctx, input1: DataFrame) -> DataFrame:
         assert isinstance(input1, DataFrame)
@@ -224,7 +229,8 @@ def test_transform_df_one_input_with_ctx(run_around_tests):
     assert df.schema.names[0] == "col1"
 
 
-def test_transform_df_two_inputs(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_df_two_inputs():
     @transform_df(
         Output("/output/to/dataset"),
         input1=Input("/input1"),
@@ -241,10 +247,12 @@ def test_transform_df_two_inputs(run_around_tests):
 
     df = transform_me.compute()
     assert df.columns == ["a", "b"]
-    assert df.count() == 2
+    EXPECTED_COUNT = 2
+    assert df.count() == EXPECTED_COUNT
 
 
-def test_transform_df_date_and_timestamp(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_df_date_and_timestamp():
     def mock_schema(one):
         return StructType.fromJson(
             {
@@ -282,7 +290,8 @@ def test_transform_df_date_and_timestamp(run_around_tests):
     assert df.count() == 1
 
 
-def test_transform_pandas_one_input(mocker, run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_pandas_one_input(mocker):
     from_foundry_and_cache = mocker.spy(Input, "_retrieve_from_foundry_and_cache")
     from_cache = mocker.spy(Input, "_retrieve_from_cache")
 
@@ -301,13 +310,14 @@ def test_transform_pandas_one_input(mocker, run_around_tests):
     from_foundry_and_cache.reset_mock()
     from_cache.reset_mock()
 
-    input1 = Input("/input1")
+    Input("/input1")
 
     from_foundry_and_cache.assert_not_called()
     from_cache.assert_called()
 
 
-def test_transform_pandas_one_input_with_ctx(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_pandas_one_input_with_ctx():
     @transform_pandas(Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me(ctx, input1: pd.DataFrame) -> pd.DataFrame:
         assert isinstance(input1, pd.DataFrame)
@@ -323,7 +333,8 @@ def test_transform_pandas_one_input_with_ctx(run_around_tests):
     assert_frame_equal(df, spark_df_return_data_one.toPandas())
 
 
-def test_transform_pandas_two_inputs(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_pandas_two_inputs():
     @transform_pandas(
         Output("/output/to/dataset"),
         input1=Input("/input1"),
@@ -343,7 +354,8 @@ def test_transform_pandas_two_inputs(run_around_tests):
     assert_frame_equal(df, spark_df_return_data_two.toPandas())
 
 
-def test_transform_pandas_date_and_timestamp(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_pandas_date_and_timestamp():
     def mock_schema(one):
         return StructType.fromJson(
             {
@@ -381,7 +393,8 @@ def test_transform_pandas_date_and_timestamp(run_around_tests):
     assert df.shape[0] == 1
 
 
-def test_transform_freeze_cache(mocker, tmpdir, run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_freeze_cache(mocker, tmpdir):
     online = mocker.spy(Input, "_online")
     offline = mocker.spy(Input, "_offline")
 
@@ -416,7 +429,8 @@ def test_transform_freeze_cache(mocker, tmpdir, run_around_tests):
         offline.assert_called()
 
 
-def test_transforms_with_configure(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transforms_with_configure():
     with pytest.warns(UserWarning):
 
         @configure(someArg=1234)
@@ -428,7 +442,8 @@ def test_transforms_with_configure(run_around_tests):
             pass
 
 
-def test_transforms_with_incremental(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transforms_with_incremental():
     with pytest.warns(UserWarning):
 
         @incremental()
@@ -440,7 +455,8 @@ def test_transforms_with_incremental(run_around_tests):
             pass
 
 
-def test_transform_output_write_to_folder(tmp_path_factory, run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_output_write_to_folder(tmp_path_factory):
     transforms_output_folder = pathlib.Path(
         tmp_path_factory.mktemp("transforms_output_folder")
     )
@@ -474,13 +490,16 @@ def test_transform_output_write_to_folder(tmp_path_factory, run_around_tests):
         assert "output1" in result
         assert "output2" in result
 
-        with open(transforms_output_folder / "output1" / "output.json", "r") as f:
+        with transforms_output_folder.joinpath("output1", "output.json").open(
+            encoding="UTF-8"
+        ) as f:
             assert f.read() == "test"
 
         assert pathlib.Path(transforms_output_folder / "output2").is_dir() is False
 
 
-def test_transform_works_in_no_git_repository(mocker, run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_works_in_no_git_repository(mocker):
     with pytest.warns(UserWarning):
         import subprocess
 
@@ -498,7 +517,8 @@ def test_transform_works_in_no_git_repository(mocker, run_around_tests):
             pass
 
 
-def test_transform_markings(run_around_tests):
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_markings():
     @transform_df(
         Output("output1"),
         input1=Input(
@@ -518,7 +538,7 @@ def test_binary_dataset_with_empty_folders(tmpdir):
 
     root = str(tmpdir)
     filesystem = fs.open_fs(root)
-    client = MockFoundryRestClient(fs=filesystem)
+    client = MockFoundryRestClient(filesystem=filesystem)
 
     branch = "master"
 
@@ -553,7 +573,9 @@ def test_binary_dataset_with_empty_folders(tmpdir):
     )
     client.commit_transaction(dataset_rid=ds["rid"], transaction_id=transaction_rid)
 
-    with mock.patch("foundry_dev_tools.CachedFoundryClient.api", client):
+    with mock.patch(
+        "foundry_dev_tools.cached_foundry_client.CachedFoundryClient.api", client
+    ):
 
         @transform(
             output=Output("/path/to/output1"),
@@ -573,6 +595,8 @@ def test_binary_dataset_with_empty_folders(tmpdir):
         assert "output" in result
 
         # Check that _offline functions of cache work
-        cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.Configuration)
+        cache = DiskPersistenceBackedSparkCache(
+            **foundry_dev_tools.config.Configuration
+        )
         ds_identity = cache.get_dataset_identity_not_branch_aware(input_dataset)
         assert cache.dataset_has_schema(ds_identity) is False

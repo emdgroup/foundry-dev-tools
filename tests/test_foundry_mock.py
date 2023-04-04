@@ -1,8 +1,9 @@
+# pylint: disable=redefined-outer-name
 import io
 import os
-import pathlib
 import shutil
 import time
+from pathlib import Path
 
 import fs
 import pytest
@@ -12,27 +13,22 @@ from foundry_dev_tools.foundry_api_client import (
     DatasetHasOpenTransactionError,
     DatasetNotFoundError,
 )
-
 from tests.foundry_mock_client import MockFoundryRestClient
 
 
 @pytest.fixture()
 def root_dir():
-    TEST_FOLDER = pathlib.Path(__file__).parent.resolve().as_posix()
-    root = f"{TEST_FOLDER}/foundry_mock_root"
+    root = Path(__file__).parent.joinpath("foundry_mock_root")
     shutil.rmtree(root, ignore_errors=True)
-    os.mkdir(root)
-    yield root
+    root.mkdir()
+    return root
 
 
 def test_create_rids_time_ordered(tmpdir, root_dir):
-    bases = [
-        str(tmpdir),
-        root_dir,
-    ]
+    bases = [tmpdir, root_dir]
     for base in bases:
-        filesystem = fs.open_fs(base)
-        client = MockFoundryRestClient(fs=filesystem)
+        filesystem = fs.open_fs(os.fspath(base))
+        client = MockFoundryRestClient(filesystem=filesystem)
 
         dataset = client.create_dataset("/path/to/ds")
         assert "rid" in dataset
@@ -53,37 +49,28 @@ def test_create_rids_time_ordered(tmpdir, root_dir):
 
 
 def test_dataset_not_found(tmpdir, root_dir):
-    bases = [
-        str(tmpdir),
-        root_dir,
-    ]
+    bases = [tmpdir, root_dir]
     for base in bases:
-        filesystem = fs.open_fs(base)
-        client = MockFoundryRestClient(fs=filesystem)
+        filesystem = fs.open_fs(os.fspath(base))
+        client = MockFoundryRestClient(filesystem=filesystem)
         with pytest.raises(DatasetNotFoundError):
             _ = client.get_dataset(dataset_rid="blarid")
 
 
 def test_create_delete(tmpdir, root_dir):
-    bases = [
-        str(tmpdir),
-        root_dir,
-    ]
+    bases = [tmpdir, root_dir]
     for base in bases:
-        filesystem = fs.open_fs(base)
-        client = MockFoundryRestClient(fs=filesystem)
+        filesystem = fs.open_fs(os.fspath(base))
+        client = MockFoundryRestClient(filesystem=filesystem)
         dataset = client.create_dataset("/path/to/to_be_deleted")
         client.delete_dataset(dataset["rid"])
 
 
 def test_create_delete_branch(tmpdir, root_dir):
-    bases = [
-        root_dir,
-        str(tmpdir),
-    ]
+    bases = [root_dir, tmpdir]
     for base in bases:
-        filesystem = fs.open_fs(base)
-        client = MockFoundryRestClient(fs=filesystem)
+        filesystem = fs.open_fs(os.fspath(base))
+        client = MockFoundryRestClient(filesystem=filesystem)
         dataset = client.create_dataset("/path/to/ds_with_branch")
         branch = client.create_branch(dataset_rid=dataset["rid"], branch="main")
         assert branch["id"] == "main"
@@ -99,21 +86,17 @@ def test_create_delete_branch(tmpdir, root_dir):
         with pytest.raises(BranchesAlreadyExistError):
             _ = client.create_branch(dataset_rid=dataset["rid"], branch="main")
 
-        master = client.create_branch(dataset_rid=dataset["rid"], branch="master")
+        client.create_branch(dataset_rid=dataset["rid"], branch="master")
 
         client.delete_dataset(dataset["rid"])
 
 
-def test_transactions(tmp_path_factory, root_dir):
-    temp_directory = tmp_path_factory.mktemp(f"foundry_dev_tools_test_1").as_posix()
-    print(temp_directory)
-    bases = [
-        root_dir,
-        str(temp_directory),
-    ]
+def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
+    temp_directory = tmp_path_factory.mktemp("foundry_dev_tools_test_1").as_posix()
+    bases = [root_dir, temp_directory]
     for base in bases:
-        filesystem = fs.open_fs(base)
-        client = MockFoundryRestClient(fs=filesystem)
+        filesystem = fs.open_fs(os.fspath(base))
+        client = MockFoundryRestClient(filesystem=filesystem)
 
         BRANCH = "master"
 
@@ -123,7 +106,7 @@ def test_transactions(tmp_path_factory, root_dir):
         )
         identity_by_rid = client.get_dataset_identity(dataset_path_or_rid=ds["rid"])
         assert identity_by_path == identity_by_rid
-        assert identity_by_path["last_transaction_rid"] == None
+        assert identity_by_path["last_transaction_rid"] is None
         branch = client.create_branch(dataset_rid=ds["rid"], branch=BRANCH)
 
         with pytest.raises(DatasetNotFoundError):
@@ -152,15 +135,15 @@ def test_transactions(tmp_path_factory, root_dir):
         assert exc_info.value.dataset_rid == ds["rid"]
         assert exc_info.value.open_transaction_rid == transaction_rid
 
-        tmpdir = tmp_path_factory.mktemp(f"foundry_dev_tools_test_2").as_posix()
-        path1 = fs.path.join(tmpdir, "test1.csv")
-        with open(path1, "w") as f:
+        tmpdir = tmp_path_factory.mktemp("foundry_dev_tools_test_2")
+        path1 = tmpdir.joinpath("test1.csv")
+        with path1.open(mode="w") as f:
             f.write("col1,col2\n1,2")
-        path2 = fs.path.join(tmpdir, "test2.csv")
-        with open(path2, "w") as f:
+        path2 = tmpdir.joinpath("test2.csv")
+        with path2.open(mode="w") as f:
             f.write("col1,col2\n1,2")
-        path3 = fs.path.join(tmpdir, "test3.csv")
-        with open(path3, "w") as f:
+        path3 = tmpdir.joinpath("test3.csv")
+        with path3.open(mode="w") as f:
             f.write("col1,col2\n1,2")
         client.upload_dataset_file(ds["rid"], transaction_rid, path1, "test1.csv")
 
@@ -233,7 +216,7 @@ def test_transactions(tmp_path_factory, root_dir):
             dataset_rid=ds["rid"], view=transaction_rid, detail=True
         )
         assert files_by_branch == files_by_transaction
-        assert len(files_by_branch) == 7
+        assert len(files_by_branch) == 7  # noqa: PLR2004
 
         assert [
             "spark/test5.csv",
@@ -248,7 +231,7 @@ def test_transactions(tmp_path_factory, root_dir):
         files_hidden_included = client.list_dataset_files(
             dataset_rid=ds["rid"], exclude_hidden_files=False, view=BRANCH, detail=True
         )
-        assert len(files_hidden_included) == 15
+        assert len(files_hidden_included) == 15  # noqa: PLR2004
         assert [
             ".folder/hidden",
             ".hidden",
@@ -267,7 +250,7 @@ def test_transactions(tmp_path_factory, root_dir):
             "test7.csv",
         ] == sorted([file["logicalPath"] for file in files_hidden_included])
 
-        tmp_output_dir = tmp_path_factory.mktemp(f"foundry_dev_tools_test_3").as_posix()
+        tmp_output_dir = tmp_path_factory.mktemp("foundry_dev_tools_test_3").as_posix()
         path = client.download_dataset_file(
             dataset_rid=ds["rid"],
             view=BRANCH,
@@ -283,15 +266,15 @@ def test_transactions(tmp_path_factory, root_dir):
         assert sorted(
             [
                 file.as_posix().replace(tmp_output_dir, "")[1:]
-                for file in pathlib.Path(tmp_output_dir).glob("**/*")
+                for file in Path(tmp_output_dir).glob("**/*")
                 if file.is_file()
             ]
         ) == ["spark/test6.csv", "test7.csv"]
-        with open(path, "r") as f:
+        with Path(path).open(encoding="UTF-8") as f:
             assert f.read() == "col1,col2\n5,6"
 
         tmp_output_dir_2 = tmp_path_factory.mktemp(
-            f"foundry_dev_tools_test_4"
+            "foundry_dev_tools_test_4"
         ).as_posix()
         client.download_dataset_files(
             dataset_rid=ds["rid"], output_directory=str(tmp_output_dir_2), view=BRANCH
@@ -299,7 +282,7 @@ def test_transactions(tmp_path_factory, root_dir):
         assert sorted(
             [
                 file.as_posix().replace(tmp_output_dir_2, "")[1:]
-                for file in pathlib.Path(tmp_output_dir_2).glob("**/*")
+                for file in Path(tmp_output_dir_2).glob("**/*")
                 if file.is_file()
             ]
         ) == [
@@ -314,19 +297,16 @@ def test_transactions(tmp_path_factory, root_dir):
 
 
 def test_dataset_schema(tmp_path_factory, root_dir):
-    temp_directory = tmp_path_factory.mktemp(f"foundry_dev_tools_test_100").as_posix()
-    bases = [
-        root_dir,
-        str(temp_directory),
-    ]
+    temp_directory = tmp_path_factory.mktemp("foundry_dev_tools_test_100").as_posix()
+    bases = [root_dir, temp_directory]
     for base in bases:
-        filesystem = fs.open_fs(base)
-        client = MockFoundryRestClient(fs=filesystem)
+        filesystem = fs.open_fs(os.fspath(base))
+        client = MockFoundryRestClient(filesystem=filesystem)
 
         BRANCH = "master"
 
         ds = client.create_dataset("/path/to/ds")
-        branch = client.create_branch(dataset_rid=ds["rid"], branch=BRANCH)
+        client.create_branch(dataset_rid=ds["rid"], branch=BRANCH)
 
         with pytest.raises(KeyError):
             client.upload_dataset_schema(

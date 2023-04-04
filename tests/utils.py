@@ -1,16 +1,22 @@
+# pylint: disable=import-outside-toplevel
 import datetime
+import glob
 import os
 import os.path
-import pathlib
 import random
 from decimal import Decimal
-from typing import Tuple
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from foundry_dev_tools.foundry_api_client import DatasetNotFoundError
 
-INTEGRATION_TEST_COMPASS_ROOT_PATH = pathlib.PurePosixPath(
+if TYPE_CHECKING:
+    import foundry_dev_tools
+    from tests.foundry_mock_client import MockFoundryRestClient
+
+INTEGRATION_TEST_COMPASS_ROOT_PATH = PurePosixPath(
     os.getenv(
         "INTEGRATION_TEST_COMPASS_ROOT_PATH",
         "/Global/global-use-case-public/Developer Experience/integration-test-folder",
@@ -21,7 +27,7 @@ INTEGRATION_TEST_COMPASS_ROOT_RID = os.getenv(
     "ri.compass.main.folder.c733ffcc-5a13-461e-8bdc-d1be925a0646",
 )
 
-TEST_FOLDER = pathlib.Path(__file__).parent.resolve()
+TEST_FOLDER = Path(__file__).parent.resolve()
 
 IRIS_SCHEMA = {
     "fieldSchemaList": [
@@ -267,11 +273,11 @@ FOUNDRY_SCHEMA_COMPLEX_DATASET = {
 
 
 def generic_upload_dataset_if_not_exists(
-    client: "foundry_dev_tools.FoundryRestClient",
+    client: "foundry_dev_tools.foundry_api_client.FoundryRestClient | MockFoundryRestClient",
     name="iris_new",
-    upload_folder=None,
+    upload_folder: Path | None = None,
     foundry_schema=None,
-) -> Tuple[str, str, str, str, bool]:
+) -> tuple[str, str, str, str, bool]:
     ds_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/{name}"
     ds_branch = "master"
     newly_created = False
@@ -286,20 +292,17 @@ def generic_upload_dataset_if_not_exists(
         _ = client.create_branch(rid, ds_branch)
         newly_created = True
         if upload_folder:
-            recursive_listing = pathlib.Path(upload_folder).rglob("*")
-            filenames_with_dirs = [
-                path.as_posix()
-                for path in recursive_listing
-                if not any(part.startswith(".") for part in path.parts)
-            ]
-            filepaths = [
-                str(file) for file in filenames_with_dirs if not os.path.isdir(file)
-            ]
-            dataset_paths_in_foundry = [
-                path.replace(pathlib.Path(upload_folder).as_posix(), "")[1:]
-                for path in filepaths
-            ]
-            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths))
+            recursive_listing = glob.glob(
+                os.fspath(upload_folder / "**"), recursive=True
+            )
+            path_file_dict = {}
+            for file in recursive_listing:
+                if not os.path.isdir(file):  # noqa: PTH112
+                    path_file_dict[
+                        PurePosixPath(file.replace(os.fspath(upload_folder), ""))
+                        .as_posix()
+                        .removeprefix("/")
+                    ] = file
             transaction_rid = client.open_transaction(dataset_rid=rid, mode="SNAPSHOT")
             client.upload_dataset_files(
                 dataset_rid=rid,
@@ -358,7 +361,6 @@ def random_datetime_array(length):
 
 
 def generate_test_dataset(spark_session, output_folder, n_rows=50000):
-    import numpy as np
     import pandas as pd
     import pyspark.sql.types as T
 
