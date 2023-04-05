@@ -25,6 +25,8 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
             or using SSO.
         transaction_backoff (bool): if FoundryFileSystem should retry to open a transaction, in case one is already
             open. The default value is 'True' and FoundryFileSystem will retry 60 seconds to open a transaction.
+        skip_instance_cache (bool): gets passed to FoundryFileSystem,
+                                    in multithreaded environments you want to set this to true.
         **kwargs: passed to underlying fsspec.AbstractFileSystem
     """
 
@@ -36,9 +38,11 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
         branch: str = DEFAULT_BRANCH,
         token: str = None,
         transaction_backoff: bool = True,
+        skip_instance_cache: bool = False,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        # pylint: disable=too-many-arguments
+        super().__init__(skip_instance_cache=skip_instance_cache, **kwargs)
         self.token = token
         self.dataset_identity = self.api.get_dataset_identity(
             dataset_path_or_rid=dataset, branch=branch
@@ -310,7 +314,9 @@ class FoundryFile(AbstractBufferedFile):
         """Internal function to add a chunk of data to a started upload."""
         assert final is True, "chunked uploading not supported"
         self.buffer.seek(0)
-
+        assert (
+            self.fs._transaction is not None  # pylint: disable=protected-access
+        ), "multiple threads, same dataset? use skip_instance_cache"
         self.fs.api.upload_dataset_file(
             dataset_rid=self.fs.dataset_identity["dataset_rid"],
             transaction_rid=self.fs._transaction.transaction_rid,  # pylint: disable=protected-access

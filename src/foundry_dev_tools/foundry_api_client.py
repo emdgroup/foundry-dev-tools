@@ -1324,8 +1324,6 @@ class FoundryRestClient:
 
         """
         assert return_type in {"pandas", "arrow", "spark"}
-        _assert_pyarrow_packages_available()
-        _assert_pandas_packages_available()
         foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
             return foundry_sql_client.query(query=query, return_type=return_type)
@@ -1696,7 +1694,6 @@ class FoundrySqlClient:
             branch (str):  default = master, all queries will be executed against this default branch
 
         """
-        _assert_pyarrow_packages_available()
         self._config = foundry_dev_tools.Configuration.get_config(config)
         self._requests_verify_value = _determine_requests_verify_value(self._config)
         self.foundry_sql_server_api = (
@@ -1897,26 +1894,6 @@ def _transform_bad_request_response_to_exception(response):
         == "FoundrySqlServer:InvalidDatasetPathNotFound"
     ):
         raise DatasetNotFoundError("SQL")
-
-
-def _assert_pyarrow_packages_available():
-    try:
-        # pylint: disable=import-outside-toplevel,unused-import
-        import pyarrow
-    except ImportError as err:
-        raise ValueError(
-            "Please install package 'pyarrow' to use SQL functionality."
-        ) from err
-
-
-def _assert_pandas_packages_available():
-    try:
-        # pylint: disable=import-outside-toplevel,unused-import
-        import pandas as pd
-    except ImportError as err:
-        raise ValueError(
-            "Please install package 'pandas' to use SQL functionality."
-        ) from err
 
 
 def _is_palantir_oauth_client_installed():

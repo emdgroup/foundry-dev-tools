@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [1.0.7] - 2023-04-05
+
+### Added
+
+- skip_instance_cache kwarg to FoundryFileSystem, which gets passed to fsspec
+  it should be set to True in a multithreaded environment (e.g. Streamlit),
+  as the same filesystem instance gets reused by default,
+  which resulted in weird behaviour. (#11)
+- an extra check, which may prevent sending a bad request to foundry
+  when skip_instance_cache is not used (#11)
+
+### Changed
+
+- remove pandas from top level import, which should speed up the initial import (#11)
+- restrict pandas to version less than 2,
+  as pyspark is currently not compatible with version 2 (#11)
+
 ## [1.0.6] - 2023-03-31
 
 ### Changed
@@ -63,6 +80,7 @@ and this project adheres to [Semantic Versioning].
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+[1.0.7]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.0.3...v1.0.4

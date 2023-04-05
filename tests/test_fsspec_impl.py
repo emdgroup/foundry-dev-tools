@@ -971,3 +971,43 @@ def test_ls_trailing_slash_empty_folder(random_file, fsspec_write_test_folder):
     ls_result_no_slash = fs.ls(random_folder, detail=False)
     ls_result_with_slash = fs.ls(random_folder + "/", detail=False)
     assert ls_result_no_slash == ls_result_with_slash
+
+
+@patch(
+    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    MagicMock(),
+)
+def test_skip_instance_cache():
+    fs = FoundryFileSystem(
+        dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
+        branch="master",
+        token="super-secret-token",
+        skip_instance_cache=True,
+    )
+    fs2 = FoundryFileSystem(
+        dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
+        branch="master",
+        token="super-secret-token",
+        skip_instance_cache=True,
+    )
+
+    fs3 = FoundryFileSystem(
+        dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
+        branch="master",
+        token="super-secret-token",
+        skip_instance_cache=False,
+    )
+    fs4 = FoundryFileSystem(
+        dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
+        branch="master",
+        token="super-secret-token",
+        skip_instance_cache=False,
+    )
+    fs.x = 123
+    fs2.x = 4567
+    fs3.x = 8901
+    fs4.x = 2345
+    assert fs.x == 123
+    assert fs2.x == 4567
+    assert fs3.x == 2345
+    assert fs4.x == 2345

@@ -6,8 +6,6 @@ import tempfile
 import time
 from typing import Tuple, Union
 
-import pandas as pd
-
 import foundry_dev_tools
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
@@ -175,13 +173,13 @@ class CachedFoundryClient:
 
     def save_dataset(
         self,
-        df: Union[pd.DataFrame, "pyspark.sql.DataFrame"],
+        df: Union["pd.DataFrame", "pyspark.sql.DataFrame"],
         dataset_path_or_rid: str,
         branch: str = "master",
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
     ) -> Tuple[str, str]:
-        # pylint: disable=invalid-name,too-many-arguments
+        # pylint: disable=invalid-name,too-many-arguments,too-many-locals
         """Saves a dataframe to Foundry. If the dataset in Foundry does not exist it is created.
 
         If the branch does not exist, it is created. If the dataset exists, an exception is thrown.
@@ -218,6 +216,9 @@ class CachedFoundryClient:
             raise ValueError("Please provide a dataset branch with parameter 'branch'")
 
         with tempfile.TemporaryDirectory() as path:
+            # pylint: disable=import-outside-toplevel
+            import pandas as pd
+
             if isinstance(df, pd.DataFrame):
                 df.to_parquet(
                     os.sep.join([path + "/dataset.parquet"]),
