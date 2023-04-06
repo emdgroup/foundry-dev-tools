@@ -51,8 +51,8 @@ for package name and package version:
 ```diff
 -      name=os.environ['PKG_NAME'],
 +      name=os.getenv('PKG_NAME', 'your-package-name'),
--      name=os.environ['PKG_VERSION'],
-+      name=os.getenv('PKG_VERSION', 'your-package-version'),
+-      version=os.environ['PKG_VERSION'],
++      version=os.getenv('PKG_VERSION', 'your-package-version'),
 ```
 
 Now you can install the repository into your local environment, when in directory `transform-python/src`:
