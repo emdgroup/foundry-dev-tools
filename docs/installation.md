@@ -25,7 +25,7 @@ Create a file called `config` with the following content:
 ```ini
 [default]
 foundry_url=<your foundry_url>
-jwt=<paste your foundry token here>
+jtw=<paste your foundry token here>
 ```
 
 ## Install the latest version of Foundry DevTools
