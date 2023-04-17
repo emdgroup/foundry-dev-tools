@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: {python-version: "3.10"}
+        with: {python-version: "3.11"}
       - name: Build Docs
         run: >-
           pipx run tox -e docs
