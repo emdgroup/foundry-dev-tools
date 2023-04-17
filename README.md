@@ -3,12 +3,14 @@
 
   <a href="https://github.com/emdgroup/foundry-dev-tools/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/emdgroup/foundry-dev-tools/ci.yml?style=flat-square"/></img>
   <a href="https://github.com/emdgroup/foundry-dev-tools/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/emdgroup/foundry-dev-tools/docs.yml?style=flat-square"/></img>
-  <a href="https://pypi.org/project/foundry-dev-tools/"><img src="https://img.shields.io/pypi/v/foundry-dev-tools.svg?style=flat-square"/></a>
-  <a href="https://pypi.org/project/foundry-dev-tools/"><img src="https://img.shields.io/pypi/pyversions/foundry-dev-tools?style=flat-square"/></a>
-  <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://shields.io/badge/License-Apache%202.0-green.svg?style=flat-square"/></a>
-  <a href="https://github.com/emdgroup/foundry-dev-tools/issues"><img src="https://img.shields.io/github/issues/emdgroup/foundry-dev-tools?color=important&style=flat-square"/></a>
-  <a href="https://github.com/emdgroup/foundry-dev-tools/pulls"><img src="https://img.shields.io/github/issues-pr/emdgroup/foundry-dev-tools?color=blueviolet&style=flat-square"/></a>
-
+  <a href="https://pypi.org/project/foundry-dev-tools/"><img src="https://img.shields.io/pypi/pyversions/foundry-dev-tools?style=flat-square&label=Supported%20Python%20versions&color=%23ffb86c"/></a>
+  <a href="https://pypi.org/project/foundry-dev-tools/"><img src="https://img.shields.io/pypi/v/foundry-dev-tools.svg?style=flat-square&label=PyPI%20version&color=%23bd93f9"/></a>
+  <a href="https://anaconda.org/conda-forge/foundry-dev-tools"><img src="https://img.shields.io/conda/vn/conda-forge/foundry-dev-tools.svg?style=flat-square&label=Conda%20Forge%20Version&color=%23bd93f9" alt="Conda Version"/></a>
+  <a href="https://pypi.org/project/foundry-dev-tools/"><img src="https://img.shields.io/pypi/dm/foundry-dev-tools?label=PyPI%20Downloads&style=flat-square&color=%236272a4"/></a>
+  <a href="https://anaconda.org/conda-forge/foundry-dev-tools"><img src="https://img.shields.io/conda/dn/conda-forge/foundry-dev-tools.svg?style=flat-square&label=Conda%20Forge%20Downloads&color=%236272a4" alt="Conda Downloads"/></a>
+  <a href="https://github.com/emdgroup/foundry-dev-tools/issues"><img src="https://img.shields.io/github/issues/emdgroup/foundry-dev-tools?style=flat-square&color=%23ff79c6"/></a>
+  <a href="https://github.com/emdgroup/foundry-dev-tools/pulls"><img src="https://img.shields.io/github/issues-pr/emdgroup/foundry-dev-tools?style=flat-square&color=%23ff79c6"/></a>
+  <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://shields.io/badge/License-Apache%202.0-green.svg?style=flat-square&color=%234c1"/></a>
   <p><a href="https://emdgroup.github.io/foundry-dev-tools">Documentation</a></p>
 
   <a href="https://emdgroup.github.io/foundry-dev-tools/installation.html">Installation<a/>
@@ -65,8 +67,14 @@ high level entrypoints to Foundry DevTools:
 
 ## Quickstart
 
+With pip:
 ```shell
 pip install foundry-dev-tools
+```
+
+With conda or mamba on the conda-forge channel:
+```shell
+conda install -c conda-forge foundry-dev-tools
 ```
 
 [Further instructions](https://emdgroup.github.io/foundry-dev-tools/installation.html) can be found in our documentation.

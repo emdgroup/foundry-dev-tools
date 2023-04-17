@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [1.0.8] - 2023-04-17
+
+### Added
+
+- python 3.11 support, as pyspark 3.4 gained support for it (#13)
+- conda-forge badges to the README (#13)
+
+### Fixed
+
+- typo in docs (#12)
+
+### Removed
+
+- pandas<2 restriction, as pyspark 3.4 supports it (#13)
+
+
 ## [1.0.7] - 2023-04-05
 
 ### Added

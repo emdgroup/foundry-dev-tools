@@ -33,8 +33,14 @@ jwt=<paste your foundry token here>
 We recommend using a new [conda environment] or [python environment],
 after you activated it, just run:
 
-```bash
+With pip:
+```shell
 pip install foundry-dev-tools
+```
+
+With conda or mamba on the conda-forge channel:
+```shell
+conda install -c conda-forge foundry-dev-tools
 ```
 
 or, if you have the repository locally available and want to tinker with the source code
