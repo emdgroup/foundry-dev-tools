@@ -63,7 +63,7 @@ def test_sso_config(mocker, tmpdir):
         mock_get_user_credentials.return_value.token = "access-token"
 
         assert client._headers()["Authorization"] == "Bearer access-token"
-        assert "Foundry DevTools" in client._headers()["User-Agent"]
+        assert client._headers()["User-Agent"].startswith("foundry-dev-tools")
 
 
 @pytest.mark.integration
