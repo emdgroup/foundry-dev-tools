@@ -90,7 +90,7 @@ class FoundryRestClient:
     def _headers(self):
         return {
             "User-Agent": requests.utils.default_user_agent(
-                f"Foundry DevTools/{fdt_version}/python-requests"
+                f"foundry-dev-tools/{fdt_version}/python-requests"
             ),
             "Content-Type": "application/json",
             "Authorization": f"Bearer {_get_auth_token(self._config)}",
@@ -1711,7 +1711,7 @@ class FoundrySqlClient:
     def _get_initial_headers(self, session_authorization=None):
         return {
             "User-Agent": requests.utils.default_user_agent(
-                f"Foundry DevTools/{fdt_version}/python-requests"
+                f"foundry-dev-tools/{fdt_version}/python-requests"
             ),
             "Accept": "application/json",
             "Accept-Encoding": "gzip, deflate, br",
@@ -2048,7 +2048,7 @@ def _get_oauth2_client_credentials_token(
     """
     headers = {
         "User-Agent": requests.utils.default_user_agent(
-            f"Foundry DevTools/{fdt_version}/python-requests"
+            f"foundry-dev-tools/{fdt_version}/python-requests"
         ),
         "Authorization": "Basic "
         + base64.b64encode(bytes(client_id + ":" + client_secret, "ISO-8859-1")).decode(
