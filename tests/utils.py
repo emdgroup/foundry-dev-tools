@@ -1,4 +1,3 @@
-# pylint: disable=import-outside-toplevel
 import datetime
 import glob
 import os

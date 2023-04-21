@@ -76,7 +76,6 @@ class AppServiceStreamlitTokenProvider(AbstractTokenProvider):
                 request headers
 
         """
-        # pylint: disable=import-outside-toplevel,import-error,protected-access,no-name-in-module
         from streamlit.scriptrunner.script_run_context import get_script_run_ctx
         from streamlit.server.server import Server
 
@@ -94,7 +93,6 @@ class AppServiceStreamlitTokenProvider(AbstractTokenProvider):
             :py:class:`~requests.structures.CaseInsensitiveDict`:
                 case-insensitive dict with request headers
         """
-        # pylint: disable=import-outside-toplevel,import-error,protected-access,no-name-in-module
         from streamlit.web.server.websocket_headers import _get_websocket_headers
 
         return CaseInsensitiveDict(_get_websocket_headers())
@@ -126,7 +124,6 @@ class AppServiceDashTokenProvider(AbstractTokenProvider):
                 flask/dash request headers for the current request
 
         """
-        # pylint: disable=import-outside-toplevel,import-error,protected-access,no-name-in-module
         from flask import request
 
         return request.headers

@@ -1,4 +1,3 @@
-# pylint: disable=protected-access,import-outside-toplevel
 """Tests for the tokenproviders."""
 import sys
 from unittest import mock

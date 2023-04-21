@@ -1,4 +1,3 @@
-# pylint: disable=protected-access,abstract-method
 """Module contains the fsspec implementation for Palantir Foundry."""
 import sys
 from datetime import datetime
@@ -94,9 +93,7 @@ class FoundryFileSystem(AbstractFileSystem):
             return_kwargs["branch"] = potential_branch
         return return_kwargs
 
-    def ls(
-        self, path: str, detail: bool = True, exclude_hidden_files: bool = True
-    ):  # pylint: disable=arguments-differ
+    def ls(self, path: str, detail: bool = True, exclude_hidden_files: bool = True):
         """List files in the path specified.
 
         Args:

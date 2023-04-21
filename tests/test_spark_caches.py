@@ -1,4 +1,3 @@
-# pylint: disable=import-outside-toplevel,redefined-outer-name
 import datetime
 import os
 from pathlib import Path
@@ -60,7 +59,6 @@ def test_iterate(spark_session, provide_config):
     )
 
     for key, value in pc.items():
-        # pylint: disable=unnecessary-dict-index-lookup
         assert_frame_equal(pc[key].toPandas(), value.toPandas())
 
     EXPECTED_LENGTH = 3
@@ -91,7 +89,6 @@ def test_unicode(spark_session, provide_config):
     pc[to_dict("d1", "t11", "/d1")] = data
 
     for key, _value in pc.items():
-        # pylint: disable=unnecessary-dict-index-lookup
         assert_frame_equal(data.toPandas(), pc[key].toPandas())
 
     del pc[to_dict("d1", "t11", "/d1")]

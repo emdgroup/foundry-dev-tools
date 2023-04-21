@@ -1,4 +1,3 @@
-# pylint: disable=protected-access,import-outside-toplevel
 import io
 import json
 import pathlib

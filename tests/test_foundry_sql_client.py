@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name,protected-access,import-outside-toplevel
 import pytest
 from requests_mock import Mocker
 from requests_mock.adapter import ANY

@@ -394,9 +394,7 @@ class MockFoundryRestClient(FoundryRestClient):
             if hasattr(path_or_buf, "read"):
                 shutil.copyfileobj(fsrc=path_or_buf, fdst=f)
             else:
-                with open(  # noqa: PTH123 # pylint: disable=unspecified-encoding
-                    path_or_buf, mode=f"r{binary_flag}"
-                ) as fsrc:
+                with open(path_or_buf, mode=f"r{binary_flag}") as fsrc:  # noqa: PTH123
                     shutil.copyfileobj(fsrc=fsrc, fdst=f)
 
     def open_transaction(

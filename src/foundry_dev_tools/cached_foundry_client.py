@@ -219,7 +219,6 @@ class CachedFoundryClient:
             raise ValueError("Please provide a dataset branch with parameter 'branch'")
 
         with tempfile.TemporaryDirectory() as path:
-            # pylint: disable=import-outside-toplevel
             import pandas as pd
 
             if isinstance(df, pd.DataFrame):

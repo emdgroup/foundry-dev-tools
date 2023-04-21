@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name
 """Dummy conftest.py for Foundry DevTools.
 
 If you don't know what this is for, just leave it empty.

@@ -1,4 +1,3 @@
-# pylint: disable=protected-access
 """Enable enable_third_party_application
 Rotate Secret rotate_third_party_application_secret.
 

@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name,too-many-lines,protected-access
 import datetime
 import io
 import random
@@ -462,7 +461,6 @@ def test_read_single_csv(fsspec_test_folder):
 
 @pytest.mark.integration()
 def test_read_dask_pyarrow(complex_dataset_fixture):
-    # pylint: disable=import-outside-toplevel
     import dask
     import dask.dataframe as dd
 
@@ -480,7 +478,6 @@ def test_read_dask_pyarrow(complex_dataset_fixture):
 
 @pytest.mark.integration()
 def test_read_dask_fastparquet(complex_dataset_fixture):
-    # pylint: disable=import-outside-toplevel
     import dask.dataframe as dd
 
     df = dd.read_parquet(

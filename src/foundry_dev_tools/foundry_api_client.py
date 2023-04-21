@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines,E1101
 """Contains FoundryRestClient and FoundrySqlClient and exception classes.
 
 One of the gaols of this module is to be self-contained so that it can be
@@ -65,7 +64,6 @@ def _poolcontext(*args, **kwargs):
 
 
 class FoundryRestClient:
-    # pylint: disable=too-many-public-methods, too-many-instance-attributes
     """Zero dependency python client for Foundry's REST APIs."""
 
     def __init__(self, config: "dict | None" = None):
@@ -1358,14 +1356,13 @@ class FoundryRestClient:
             foundry_schema, data = self.query_foundry_sql_legacy(query, branch)
 
             if return_type == "pandas":
-                # pylint: disable=import-outside-toplevel
                 import pandas as pd
 
                 return pd.DataFrame(
                     data=data,
                     columns=[e["name"] for e in foundry_schema["fieldSchemaList"]],
                 )
-            # pylint: disable=import-outside-toplevel
+
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
                 foundry_sql_data_to_spark_dataframe,
@@ -1851,7 +1848,7 @@ class FoundrySqlClient:
             # Ineligible types are array, map, and struct.
 
             raise FoundrySqlSerializationFormatNotImplementedError()
-        # pylint: disable=import-outside-toplevel
+
         import pyarrow as pa
 
         return pa.ipc.RecordBatchStreamReader(bytes_io)
@@ -1903,7 +1900,6 @@ class FoundrySqlClient:
         if return_type == "pandas":
             return arrow_stream_reader.read_pandas()
         if return_type == "spark":
-            # pylint: disable=import-outside-toplevel
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 arrow_stream_to_spark_dataframe,
             )
@@ -1934,13 +1930,11 @@ def _transform_bad_request_response_to_exception(response):
 
 def _is_palantir_oauth_client_installed():
     try:
-        # pylint: disable=import-outside-toplevel,unused-import,import-error
         import palantir_oauth_client
 
         return palantir_oauth_client
     except ImportError:
         try:
-            # pylint: disable=import-outside-toplevel,import-error
             import pyfoundry_auth
 
             warnings.warn(

@@ -121,7 +121,7 @@ class Transform:
             kwargs["ctx"] = TransformContext()
 
         output_df = self(**kwargs)
-        import pandas as pd  # pylint: disable=import-outside-toplevel
+        import pandas as pd
 
         if not isinstance(output_df, pd.DataFrame):
             raise ValueError(
@@ -174,7 +174,6 @@ class TransformContext:
                 false, as it is not implemented
 
         """
-        # pylint: disable=import-outside-toplevel
         import warnings
 
         warnings.warn(
@@ -337,7 +336,6 @@ class FileSystem:
         pattern = re.compile(regex)
         result_after_regex_match = [s for s in result if pattern.match(s)]
         if show_hidden:
-            # pylint: disable=import-outside-toplevel
             import warnings
 
             warnings.warn("argument 'show_hidden' not implemented in foundry_dev_tools")

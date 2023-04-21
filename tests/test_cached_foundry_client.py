@@ -1,4 +1,3 @@
-# pylint: disable=redefined-outer-name,protected-access,import-outside-toplevel
 import os
 from pathlib import Path
 from unittest import mock

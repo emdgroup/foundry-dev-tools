@@ -328,7 +328,6 @@ def arrow_stream_to_spark_dataframe(
             converted to a Spark DataFrame
 
     """
-    # pylint: disable=import-outside-toplevel
     import pyarrow.parquet as pq
 
     temporary_parquet_file = f"{tempfile.mkdtemp(suffix='foundry_dev_tools_sql_temp_result_set')}/query-result.parquet"

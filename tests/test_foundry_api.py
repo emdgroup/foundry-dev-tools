@@ -1,4 +1,3 @@
-# pylint: disable=protected-access,redefined-outer-name,import-outside-toplevel
 import io
 import os
 from pathlib import Path
@@ -783,7 +782,6 @@ def test_get_dataset_details_identical_path_rid(client, iris_dataset):
     ),
 )
 def test_get_dataset_details_throws_on_no_read_permissions():
-    # pylint: disable=reimported
     from foundry_dev_tools.foundry_api_client import FoundryRestClient
 
     client = FoundryRestClient()
