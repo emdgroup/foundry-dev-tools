@@ -296,11 +296,10 @@ def generic_upload_dataset_if_not_exists(
             )
             path_file_dict = {}
             for file in recursive_listing:
-                if not os.path.isdir(file):  # noqa: PTH112
+                pfile = Path(file)
+                if not pfile.is_dir():
                     path_file_dict[
-                        PurePosixPath(file.replace(os.fspath(upload_folder), ""))
-                        .as_posix()
-                        .lstrip("/")
+                        pfile.relative_to(upload_folder).as_posix().lstrip("/")
                     ] = file
             transaction_rid = client.open_transaction(dataset_rid=rid, mode="SNAPSHOT")
             client.upload_dataset_files(
