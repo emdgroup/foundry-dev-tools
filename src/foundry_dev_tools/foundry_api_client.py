@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, AnyStr
 from urllib.parse import quote, quote_plus
 
+import palantir_oauth_client
 import requests
 
 import foundry_dev_tools.config
@@ -1927,25 +1928,6 @@ def _transform_bad_request_response_to_exception(response):
         raise DatasetNotFoundError("SQL")
 
 
-def _is_palantir_oauth_client_installed():
-    try:
-        import palantir_oauth_client
-
-        return palantir_oauth_client
-    except ImportError:
-        try:
-            import pyfoundry_auth
-
-            warnings.warn(
-                "\nPyFoundry Auth has been renamed to Palantir Oauth Client\n"
-                "Please uninstall pyfoundry-auth and install palantir-oauth-client\n",
-                DeprecationWarning,
-            )
-            return pyfoundry_auth
-        except ImportError:
-            return False
-
-
 def _raise_for_status_verbose(response: requests.Response):
     """Executes response.raise_for_status but shows more info.
 
@@ -2100,27 +2082,20 @@ def _get_oauth2_client_credentials_token(
 def _get_palantir_oauth_token(
     foundry_url: str, client_id: str, client_secret: "str | None" = None
 ) -> str:
-    if oauth_provider := _is_palantir_oauth_client_installed():
-        credentials = oauth_provider.get_user_credentials(
-            scopes=[
-                "offline_access",
-                "compass:view",
-                "compass:edit",
-                "compass:discover",
-                "api:write-data",
-                "api:read-data",
-            ],
-            hostname=foundry_url,
-            client_id=client_id,
-            client_secret=client_secret,
-            use_local_webserver=False,
-        )
-
-    else:
-        raise ValueError(
-            "You provided a 'client_id' for Foundry SSO but "
-            "palantir-oauth-client is not installed.\n"
-        )
+    credentials = palantir_oauth_client.get_user_credentials(
+        scopes=[
+            "offline_access",
+            "compass:view",
+            "compass:edit",
+            "compass:discover",
+            "api:write-data",
+            "api:read-data",
+        ],
+        hostname=foundry_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        use_local_webserver=False,
+    )
 
     return credentials.token
 
