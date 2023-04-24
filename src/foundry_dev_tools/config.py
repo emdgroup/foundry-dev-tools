@@ -12,14 +12,17 @@ Usage:
 import inspect
 import logging
 import os
-import pathlib
 import subprocess
 import warnings
 from collections import UserDict
 from configparser import ConfigParser
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from foundry_dev_tools.utils.token_provider import TOKEN_PROVIDERS
+
+if TYPE_CHECKING:
+    import pathlib
 
 warnings.filterwarnings(
     "default", category=DeprecationWarning, module="foundry_dev_tools"
@@ -68,7 +71,7 @@ def type_convert(config: dict) -> dict:
     return return_config
 
 
-def initial_config() -> tuple[dict, pathlib.Path]:
+def initial_config() -> "tuple[dict, pathlib.Path]":
     """Parses the config file and applies defaults.
 
     The order of config values and how they are applied are:
@@ -270,7 +273,7 @@ class Config(UserDict):
                 return token
         return None
 
-    def get_config(self, overwrite_config: dict | None = None):
+    def get_config(self, overwrite_config: "dict | None" = None):
         """Returns the Foundry DevTools config.
 
         Merges the overwrite config from :py:class:`Config` with `overwrite_config` and returns a dict.
@@ -334,7 +337,7 @@ def execute_as_subprocess(args: list, cwd: Path) -> str:
 
     """
     return subprocess.run(
-        args, check=True, stdout=-1, stderr=-1, cwd=cwd, text=True
+        args, check=True, stdout=-1, stderr=-1, cwd=cwd, text=True  # noqa: S603
     ).stdout.strip()
 
 

@@ -93,7 +93,7 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
 
     def _load_spark_schema(
         self, path: str
-    ) -> tuple["pyspark.sql.types.StructType", dict]:
+    ) -> "tuple[pyspark.sql.types.StructType, dict]":
         with Path(path).joinpath("_schema.json").open(encoding="UTF-8") as file:
             spark_or_foundry_schema = json.load(file)
         if "fieldSchemaList" not in spark_or_foundry_schema:
@@ -280,7 +280,7 @@ def _read(
     return _read_csv(path, schema=schema, read_options=read_options)
 
 
-def _load_spark_schema(path: str) -> tuple["pyspark.sql.types.StructType", dict]:
+def _load_spark_schema(path: str) -> "tuple[pyspark.sql.types.StructType, dict]":
     with Path(path).joinpath("_schema.json").open(encoding="UTF-8") as file:
         spark_or_foundry_schema = json.load(file)
     if "fieldSchemaList" not in spark_or_foundry_schema:

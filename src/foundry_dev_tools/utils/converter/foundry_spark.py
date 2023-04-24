@@ -205,7 +205,7 @@ def _parse_complex_type(field) -> dict:
 
 
 def foundry_sql_data_to_spark_dataframe(
-    data: tuple[list, list], spark_schema: "pyspark.sql.types.StructType"
+    data: "tuple[list, list]", spark_schema: "pyspark.sql.types.StructType"
 ) -> "pyspark.sql.DataFrame":
     """Converts the result of a foundry sql API query to a spark dataframe.
 

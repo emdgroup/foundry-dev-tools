@@ -82,7 +82,7 @@ class CachedFoundryClient:
 
     def fetch_dataset(
         self, dataset_path_or_rid: str, branch: str = "master"
-    ) -> tuple[str, dict]:
+    ) -> "tuple[str, dict]":
         """Downloads complete dataset from Foundry and stores in cache.
 
         Returns local path to dataset
@@ -182,7 +182,7 @@ class CachedFoundryClient:
         branch: str = "master",
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
-    ) -> tuple[str, str]:
+    ) -> "tuple[str, str]":
         """Saves a dataframe to Foundry. If the dataset in Foundry does not exist it is created.
 
         If the branch does not exist, it is created. If the dataset exists, an exception is thrown.
@@ -241,7 +241,7 @@ class CachedFoundryClient:
             # to be under spark/
             folder = round(time.time() * 1000) if mode == "APPEND" else "spark"
             dataset_paths_in_foundry = [f"{folder}/" + file for file in filenames]
-            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths, strict=True))
+            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths))
             dataset_rid, transaction_id = self._save_objects(
                 path_file_dict, dataset_path_or_rid, branch, exists_ok, mode
             )
@@ -259,7 +259,7 @@ class CachedFoundryClient:
         branch: str,
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
-    ) -> tuple[str, str]:
+    ) -> "tuple[str, str]":
         if path_file_dict is None or len(path_file_dict) == 0:
             raise ValueError(
                 "Please provide at least one file like object in dict 'path_file_dict"
@@ -317,7 +317,7 @@ class CachedFoundryClient:
         branch: str = "master",
         exists_ok: bool = False,
         mode: str = "SNAPSHOT",
-    ) -> tuple[str, str]:
+    ) -> "tuple[str, str]":
         """Saves a python object to a foundry dataset.
 
         The python object is pickled and uploaded to path model.pickle.

@@ -27,7 +27,7 @@ from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSpa
 LOGGER = logging.getLogger(__name__)
 
 
-def _as_list(list_or_single_item: "list[Any] | Any | None") -> list[Any]:
+def _as_list(list_or_single_item: "list[Any] | Any | None") -> "list[Any]":
     """Helper function turning single values or None into lists.
 
     Args:
@@ -101,7 +101,7 @@ class Input:
 
     def _online(
         self, alias, branch
-    ) -> tuple["pyspark.sql.DataFrame | None", dict, str]:
+    ) -> "tuple[pyspark.sql.DataFrame | None, dict, str]":
         try:
             dataset_identity = self._cached_client.api.get_dataset_identity(
                 alias, branch
@@ -136,7 +136,7 @@ class Input:
 
     def _offline(
         self, alias: str, branch: str
-    ) -> tuple["pyspark.sql.DataFrame | None", dict, str]:
+    ) -> "tuple[pyspark.sql.DataFrame | None, dict, str]":
         dataset_identity = self._cache.get_dataset_identity_not_branch_aware(alias)
         if self._cache.dataset_has_schema(dataset_identity):
             return self._cache[dataset_identity], dataset_identity, branch

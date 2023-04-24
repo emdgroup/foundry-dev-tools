@@ -63,8 +63,8 @@ def pytest_generate_tests(metafunc):
 class PatchConfig:
     def __init__(
         self,
-        config_overwrite: dict | None = None,
-        initial_config_overwrite: dict | None = None,
+        config_overwrite: "dict | None" = None,
+        initial_config_overwrite: "dict | None" = None,
         read_initial: bool = False,
     ):
         self.initial_config_overwrite = initial_config_overwrite
@@ -89,10 +89,10 @@ class PatchConfig:
 
 
 def override_config(
-    initial_config_overwrite: dict | None = None,
-    config_overwrite: dict | None = None,
+    initial_config_overwrite: "dict | None" = None,
+    config_overwrite: "dict | None" = None,
     read_initial=False,
-) -> tuple[tuple[dict, pathlib.Path], foundry_dev_tools.config.Config,]:
+) -> "tuple[tuple[dict, pathlib.Path], foundry_dev_tools.config.Config]":
     save = (
         copy.deepcopy(foundry_dev_tools.config.INITIAL_CONFIG),
         copy.deepcopy(foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_DIRECTORY),

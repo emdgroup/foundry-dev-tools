@@ -1,6 +1,7 @@
 """Module contains the fsspec implementation for Palantir Foundry."""
 import sys
 from datetime import datetime
+from urllib.parse import urlparse
 
 import backoff
 from fs.opener.parse import parse_fs_url
@@ -68,15 +69,11 @@ class FoundryFileSystem(AbstractFileSystem):
         return FoundryRestClient()
 
     @classmethod
-    def _strip_protocol(cls, path):
+    def _strip_protocol(cls, path: str):
         """Return only subpath from foundry://<branch>:<token>@<dataset-rid>/<subpath e.g. test.txt>."""
-        if "foundry://" in path:
-            no_foundry = path.removeprefix("foundry").removeprefix("://")
-            if "/" in no_foundry:
-                return no_foundry[
-                    no_foundry.index("/") + 1 :
-                ]  # everything after dataset_rid/ is the path
-            return ""  # no subpath passed
+        if path.startswith("foundry://"):
+            parsed = urlparse(path)
+            return parsed.lstrip("/")
         return path
 
     @staticmethod

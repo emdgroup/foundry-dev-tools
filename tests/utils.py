@@ -274,9 +274,9 @@ FOUNDRY_SCHEMA_COMPLEX_DATASET = {
 def generic_upload_dataset_if_not_exists(
     client: "foundry_dev_tools.foundry_api_client.FoundryRestClient | MockFoundryRestClient",
     name="iris_new",
-    upload_folder: Path | None = None,
+    upload_folder: "Path | None" = None,
     foundry_schema=None,
-) -> tuple[str, str, str, str, bool]:
+) -> "tuple[str, str, str, str, bool]":
     ds_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/{name}"
     ds_branch = "master"
     newly_created = False
@@ -300,7 +300,7 @@ def generic_upload_dataset_if_not_exists(
                     path_file_dict[
                         PurePosixPath(file.replace(os.fspath(upload_folder), ""))
                         .as_posix()
-                        .removeprefix("/")
+                        .lstrip("/")
                     ] = file
             transaction_rid = client.open_transaction(dataset_rid=rid, mode="SNAPSHOT")
             client.upload_dataset_files(

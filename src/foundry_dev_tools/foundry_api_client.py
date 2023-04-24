@@ -18,7 +18,6 @@ import sys
 import tempfile
 import time
 import warnings
-from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
@@ -31,6 +30,8 @@ import requests
 import foundry_dev_tools.config
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     import pandas as pd
     import pyarrow as pa
     import pyspark
@@ -409,7 +410,7 @@ class FoundryRestClient:
         _raise_for_status_verbose(response)
 
     def add_files_to_delete_transaction(
-        self, dataset_rid: str, transaction_id: str, logical_paths: list[str]
+        self, dataset_rid: str, transaction_id: str, logical_paths: "list[str]"
     ):
         """Adds files in an open DELETE transaction.
 
@@ -638,7 +639,6 @@ class FoundryRestClient:
                         repeat(transaction_rid),
                         path_file_dict.values(),
                         path_file_dict.keys(),
-                        strict=False,
                     ),
                 )
 
@@ -682,7 +682,7 @@ class FoundryRestClient:
 
     def get_child_objects_of_folder(
         self, folder_rid: str, page_size: "int | None" = None
-    ) -> Iterator[dict]:
+    ) -> "Iterator[dict]":
         """Returns the child objects of a compass folder.
 
         Args:
@@ -1127,7 +1127,7 @@ class FoundryRestClient:
         files: "list | None" = None,
         view: str = "master",
         parallel_processes: "int | None" = None,
-    ) -> list[str]:
+    ) -> "list[str]":
         """Downloads files of a dataset (in parallel) to a local output directory.
 
         Args:
@@ -1171,7 +1171,6 @@ class FoundryRestClient:
                             repeat(output_directory),
                             files,
                             repeat(view),
-                            strict=False,
                         ),
                     )
                 )
@@ -1184,7 +1183,7 @@ class FoundryRestClient:
         files: "list | None" = None,
         view: str = "master",
         parallel_processes: "int | None" = None,
-    ) -> Iterator[str]:
+    ) -> "Iterator[str]":
         """Downloads all files of a dataset to a temporary directory.
 
         Which is deleted when the context is closed. Function returns the temporary directory.
@@ -1255,7 +1254,7 @@ class FoundryRestClient:
 
     def query_foundry_sql_legacy(
         self, query: str, branch: str = "master"
-    ) -> tuple[dict, list]:
+    ) -> "tuple[dict, list]":
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -1750,7 +1749,7 @@ class FoundrySqlClient:
             "Authorization": f"Bearer {_get_auth_token(self._config)}",
         }
 
-    def _establish_session(self, branch="master") -> tuple[str, str]:
+    def _establish_session(self, branch="master") -> "tuple[str, str]":
         response = _request(
             "POST",
             f"{self.foundry_sql_server_api}/sessions",

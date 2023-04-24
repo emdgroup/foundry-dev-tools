@@ -100,7 +100,7 @@ class MockFoundryRestClient(FoundryRestClient):
 
     def get_dataset_last_transaction_rid(
         self, dataset_rid: str, branch="master"
-    ) -> str | None:
+    ) -> "str | None":
         transactions = self._load_transactions(dataset_rid=dataset_rid)
         if len(transactions) == 0:
             return None
@@ -193,10 +193,10 @@ class MockFoundryRestClient(FoundryRestClient):
         self,
         dataset_rid: str,
         output_directory: str,
-        files: list | None = None,
+        files: "list | None" = None,
         view: str = "master",
-        parallel_processes: int | None = None,
-    ) -> list[str]:
+        parallel_processes: "int | None" = None,
+    ) -> "list[str]":
         return super().download_dataset_files(
             dataset_rid, output_directory, files, view, parallel_processes=1
         )
@@ -204,10 +204,10 @@ class MockFoundryRestClient(FoundryRestClient):
     def download_dataset_file(
         self,
         dataset_rid: str,
-        output_directory: str | None,
+        output_directory: "str | None",
         foundry_file_path: str,
         view: str = "master",
-    ) -> str | bytes:
+    ) -> "str | bytes":
         # view can be branch or transaction rid
         transaction_rid = (
             view
@@ -237,11 +237,11 @@ class MockFoundryRestClient(FoundryRestClient):
         dataset_rid: str,
         exclude_hidden_files: bool = True,
         view: str = "master",
-        logical_path: str | None = None,
+        logical_path: "str | None" = None,
         detail: bool = False,
         *,
         include_open_exclusive_transaction: bool = False,
-        branch: str | None = None,
+        branch: "str | None" = None,
     ) -> list:
         # view can be branch or transaction rid
         if view.startswith("ri.foundry.main.transaction"):
@@ -312,7 +312,7 @@ class MockFoundryRestClient(FoundryRestClient):
         dataset_rid: str,
         transaction_rid: str,
         path_file_dict: dict,
-        parallel_processes: int | None = None,
+        parallel_processes: "int | None" = None,
     ) -> None:
         super().upload_dataset_files(
             dataset_rid, transaction_rid, path_file_dict, parallel_processes=1
@@ -362,7 +362,7 @@ class MockFoundryRestClient(FoundryRestClient):
         self,
         dataset_rid: str,
         transaction_rid,
-        path_or_buf: str | Path | IO[AnyStr],
+        path_or_buf: "str | Path | IO[AnyStr]",
         path_in_foundry_dataset: str,
     ) -> None:
         transaction_path = self._rid_to_fs_path(rid=transaction_rid)
@@ -478,8 +478,8 @@ class MockFoundryRestClient(FoundryRestClient):
         self,
         dataset_rid: str,
         branch: str,
-        parent_branch: str | None = None,
-        parent_branch_id: str | None = None,
+        parent_branch: "str | None" = None,
+        parent_branch_id: "str | None" = None,
     ) -> dict:
         branch_rid = self._generate_resource_identifier(
             resource_type="ri.foundry.main.branch"

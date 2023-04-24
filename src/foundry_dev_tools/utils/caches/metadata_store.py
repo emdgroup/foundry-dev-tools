@@ -56,7 +56,7 @@ class DatasetMetadataStore(MutableMapping):
         db = self._read_db()
         return len(db.keys())
 
-    def __iter__(self) -> Iterator[dict]:
+    def __iter__(self) -> "Iterator[dict]":
         db = self._read_db()
         yield from db.keys()
 
