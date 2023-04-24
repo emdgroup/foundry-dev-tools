@@ -13,9 +13,7 @@ on:
     - cron: '0 0 1,16 * *'
 
 concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.ref_type }}-
-    ${{ github.event.pull_request.number || github.sha }}
+  group: check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +26,10 @@ jobs:
         with: {fetch-depth: 0}  # deep clone for setuptools-scm
       - uses: actions/setup-python@v4
         id: setup-python
-        with: {python-version: "3.11"}
+        with: 
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Run static analysis and format checkers
         run: |
           pip install .[testing,transforms] tox
@@ -61,6 +62,8 @@ jobs:
         id: setup-python
         with:
           python-version: ${{ matrix.python }}
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
@@ -78,7 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: {python-version: "3.11"}
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
