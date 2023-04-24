@@ -74,7 +74,11 @@ version_scheme = "post-release"
 addopts = "--verbose"
 norecursedirs = ["dist", "build", ".tox"]
 testpaths = "tests"
-markers = ["no_patch_conf: don't use autouse config patch fixture"]
+markers = [
+  "no_patch_conf: don't use autouse config patch fixture",
+  "integration: mark test to run only integration tests",
+  "performance: mark test to run only performance tests",
+]
 
 [tool.ruff]
 select = [

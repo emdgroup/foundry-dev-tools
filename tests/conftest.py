@@ -45,15 +45,6 @@ def pytest_runtest_setup(item):
         pytest.skip("need --performance option to run this test")
 
 
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "integration: mark test to run only integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "performance: mark test to run only performance tests"
-    )
-
-
 def pytest_generate_tests(metafunc):
     if "is_integration_test" in metafunc.fixturenames:
         is_integration_test = bool(metafunc.config.getoption("--integration"))
