@@ -12,6 +12,7 @@ import io
 import json
 import logging
 import multiprocessing
+import os
 import platform
 import shutil
 import sys
@@ -1108,7 +1109,7 @@ class FoundryRestClient:
             shutil.copyfileobj(resp.raw, out_file)
 
         resp.close()
-        return str(local_path.absolute())
+        return os.fspath(local_path)
 
     def _download_dataset_file(self, dataset_rid, view, foundry_file_path, stream=True):
         response = _request(

@@ -69,7 +69,7 @@ def test_sso_config(mocker, tmpdir):
 def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
     BRANCH = "master/with/slash"
     rnd = "".join(choice(ascii_uppercase) for i in range(5))
-    dataset_path = str(INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_{rnd}")
+    dataset_path = os.fspath(INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_{rnd}")
 
     ds = client.create_dataset(dataset_path)
     assert "rid" in ds
@@ -277,7 +277,9 @@ def test_get_dataset_rid(mocker, is_integration_test, client, iris_dataset):
 @pytest.mark.integration()
 def test_schema_inference(client):
     rnd = "".join(choice(ascii_uppercase) for i in range(5))
-    dataset_path = str(INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_schema_{rnd}")
+    dataset_path = os.fspath(
+        INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_schema_{rnd}"
+    )
 
     ds = client.create_dataset(dataset_path)
     client.create_branch(ds["rid"], "master")
@@ -470,7 +472,7 @@ def test_get_and_download_dataset_files(client, iris_dataset, tmpdir):
     assert list_of_files == ["iris.csv"]
     client.download_dataset_files(
         iris_dataset[0],
-        str(tmpdir),
+        os.fspath(tmpdir),
         list_of_files,
     )
     assert "iris.csv" in os.listdir(tmpdir)

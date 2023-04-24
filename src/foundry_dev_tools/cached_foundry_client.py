@@ -352,7 +352,7 @@ class CachedFoundryClient:
             with model_path.open(mode="wb") as file:
                 pickle.dump(model_obj, file)
             return self._save_objects(
-                {"model.pickle": str(model_path)},
+                {"model.pickle": os.fspath(model_path)},
                 dataset_path_or_rid,
                 branch,
                 exists_ok,

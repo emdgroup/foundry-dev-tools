@@ -211,7 +211,7 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
             self.STORE_LAST_N_TRANSACTIONS :
         ]
         for transaction in transaction_to_delete:
-            directory_path = str(
+            directory_path = os.fspath(
                 Path(self.get_cache_dir())
                 / dataset_identity["dataset_rid"]
                 / transaction

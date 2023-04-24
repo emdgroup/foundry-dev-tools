@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import pathlib
 from unittest import mock
 
@@ -461,7 +462,7 @@ def test_transform_output_write_to_folder(tmp_path_factory):
     )
     with PatchConfig(
         initial_config_overwrite={
-            "transforms_output_folder": str(transforms_output_folder)
+            "transforms_output_folder": os.fspath(transforms_output_folder)
         }
     ):
 
@@ -535,7 +536,7 @@ def test_transform_markings():
 def test_binary_dataset_with_empty_folders(tmpdir):
     input_dataset = "/namespace/dataset1"
 
-    root = str(tmpdir)
+    root = os.fspath(tmpdir)
     filesystem = fs.open_fs(root)
     client = MockFoundryRestClient(filesystem=filesystem)
 

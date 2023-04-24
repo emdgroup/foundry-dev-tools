@@ -1,6 +1,7 @@
 import datetime
 import io
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, AnyStr
@@ -224,7 +225,7 @@ class MockFoundryRestClient(FoundryRestClient):
             ) as fsrc:
                 shutil.copyfileobj(fsrc=fsrc, fdst=fdst)
             # TODO pathlib
-            return str(dest_path.absolute())
+            return os.fspath(dest_path)
 
         with self.filesystem.open(
             fs.path.join(root_path, foundry_file_path),

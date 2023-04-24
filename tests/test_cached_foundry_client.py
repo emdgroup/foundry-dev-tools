@@ -26,7 +26,7 @@ API = "foundry_dev_tools.foundry_api_client.FoundryRestClient"
 
 @pytest.fixture()
 def mock_client(tmpdir):
-    return MockFoundryRestClient(filesystem=fs.open_fs(str(tmpdir)))
+    return MockFoundryRestClient(filesystem=fs.open_fs(os.fspath(tmpdir)))
 
 
 def test_config():
@@ -321,7 +321,7 @@ def test_fetch_dataset(
         path = Path(output_directory).joinpath("spark")
         path.mkdir(parents=True, exist_ok=True)
         df.write.format("parquet").option("compression", "snappy").save(
-            path=str(path), mode="overwrite"
+            path=os.fspath(path), mode="overwrite"
         )
 
     from foundry_dev_tools.foundry_api_client import FoundryRestClient
@@ -432,7 +432,7 @@ def test_load_dataset(
         path = Path(output_directory).joinpath("spark")
         path.mkdir(parents=True, exist_ok=True)
         df.write.format("parquet").option("compression", "snappy").save(
-            path=str(path), mode="overwrite"
+            path=os.fspath(path), mode="overwrite"
         )
 
     from foundry_dev_tools.foundry_api_client import FoundryRestClient

@@ -5,6 +5,7 @@ Read more about conftest.py under:
 https://pytest.org/latest/plugins.html
 """
 import copy
+import os
 import pathlib
 from random import choice
 from string import ascii_uppercase
@@ -120,7 +121,7 @@ def _config_for_unit_tests(request, is_integration_test, tmp_path_factory):
             # Mandatory config keys
             with PatchConfig(
                 initial_config_overwrite={
-                    "cache_dir": str(temp_directory),
+                    "cache_dir": os.fspath(temp_directory),
                     "jwt": "123",
                     "foundry_url": "https://stack.palantirfoundry.com",
                 }
@@ -128,7 +129,7 @@ def _config_for_unit_tests(request, is_integration_test, tmp_path_factory):
                 yield
         else:
             with PatchConfig(
-                initial_config_overwrite={"cache_dir": str(temp_directory)}
+                initial_config_overwrite={"cache_dir": os.fspath(temp_directory)}
             ):
                 yield
 
@@ -140,7 +141,7 @@ def client(is_integration_test):
     else:
         root = pathlib.Path(__file__).parent.resolve() / "foundry_mock_root"
         root.mkdir(parents=True, exist_ok=True)
-        yield MockFoundryRestClient(filesystem=fs.open_fs(str(root)))
+        yield MockFoundryRestClient(filesystem=fs.open_fs(os.fspath(root)))
 
 
 @pytest.fixture()

@@ -253,13 +253,13 @@ def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
         path = client.download_dataset_file(
             dataset_rid=ds["rid"],
             view=BRANCH,
-            output_directory=str(tmp_output_dir),
+            output_directory=os.fspath(tmp_output_dir),
             foundry_file_path="test7.csv",
         )
         _ = client.download_dataset_file(
             dataset_rid=ds["rid"],
             view=BRANCH,
-            output_directory=str(tmp_output_dir),
+            output_directory=os.fspath(tmp_output_dir),
             foundry_file_path="spark/test6.csv",
         )
         assert sorted(
@@ -276,7 +276,9 @@ def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
             "foundry_dev_tools_test_4"
         ).as_posix()
         client.download_dataset_files(
-            dataset_rid=ds["rid"], output_directory=str(tmp_output_dir_2), view=BRANCH
+            dataset_rid=ds["rid"],
+            output_directory=os.fspath(tmp_output_dir_2),
+            view=BRANCH,
         )
         assert sorted(
             [
