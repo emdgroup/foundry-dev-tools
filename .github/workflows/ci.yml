@@ -31,7 +31,7 @@ jobs:
         with: {python-version: "3.11"}
       - name: Run static analysis and format checkers
         run: |
-          pip install .[testing,transforms]
+          pip install .[testing,transforms] tox
           tox -e lint
       - name: Build package distribution files
         run: tox -e clean,build
@@ -64,6 +64,8 @@ jobs:
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
+      - name: Install tox
+        run: pip install tox
       - name: Run tests
         run: >-
           tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
@@ -80,6 +82,8 @@ jobs:
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
+      - name: Install Tox
+        run: pip install tox
       - name: Publish Package
         env:
           TWINE_REPOSITORY: pypi

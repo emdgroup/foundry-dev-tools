@@ -73,7 +73,7 @@ class FoundryFileSystem(AbstractFileSystem):
         """Return only subpath from foundry://<branch>:<token>@<dataset-rid>/<subpath e.g. test.txt>."""
         if path.startswith("foundry://"):
             parsed = urlparse(path)
-            return parsed.lstrip("/")
+            return parsed.path.lstrip("/")
         return path
 
     @staticmethod

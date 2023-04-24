@@ -8,7 +8,6 @@ from foundry_dev_tools.utils.token_provider import APP_SERVICE_ACCESS_TOKEN_HEAD
 from tests.conftest import PatchConfig
 
 
-@pytest.mark.no_patch_conf()
 def test_token_provider_streamlit(mocker):
     """Tests the streamlit token provider."""
     mocker.patch(
