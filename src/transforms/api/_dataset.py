@@ -209,7 +209,7 @@ class Input:
             warnings.warn(
                 f"Retrieving subset ({self.config['transforms_sql_sample_row_limit']} rows) of dataset '{dataset_name}'"
                 f" with rid '{dataset_identity['dataset_rid']}' "
-                f"because dataset size {size_in_mega_bytes_rounded} megabytes > "
+                f"because dataset size {size_in_mega_bytes_rounded} megabytes >= "
                 f"{self.config['transforms_sql_dataset_size_threshold']} megabytes "
                 f"(as defined in config['transforms_sql_dataset_size_threshold'])."
             )
