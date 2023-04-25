@@ -92,3 +92,25 @@ def test_env_variable_takes_precedence(tmp):
             ]
             == RANDOM_NUMBER3
         )
+
+
+@mock.patch("pathlib.Path.home", return_value=FAKE_HOME)
+@mock.patch.dict(
+    os.environ, {"FOUNDRY_DEV_TOOLS_JWT": "env_jwt_takes_precedence_over_config_files"}
+)
+def test_env_varibale_takes_precedence_over_config_files(tmp):
+    FDT_DIR = pathlib.Path.home().joinpath(".foundry-dev-tools")
+    FDT_DIR.mkdir(parents=True)
+    with FDT_DIR.joinpath("config").open(mode="w+") as fdt_conf_file:
+        fdt_conf_file.write(
+            "[default]\njwt=123456789\nfoundry_url=https://env_take_prec.lan/"
+        )
+    with PatchConfig(read_initial=True):
+        assert (
+            foundry_dev_tools.config.Configuration["jwt"]
+            == "env_jwt_takes_precedence_over_config_files"
+        )
+        assert (
+            foundry_dev_tools.config.INITIAL_CONFIG["jwt"]
+            == "env_jwt_takes_precedence_over_config_files"
+        )

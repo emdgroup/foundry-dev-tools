@@ -121,20 +121,6 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
     }
 
     return_config = {}
-
-    for key in config:
-        if f"FOUNDRY_DEV_TOOLS_{key.upper()}" in os.environ:
-            return_config[key] = os.getenv(f"FOUNDRY_DEV_TOOLS_{key.upper()}")
-        elif f"FOUNDRY_LOCAL_{key.upper()}" in os.environ:
-            warnings.warn(
-                "Foundrylocal has been renamed to Foundry DevTools.\n"
-                "Rename your environment variables accordingly:\n"
-                f"FOUNDRY_LOCAL_{key.upper()} to FOUNDRY_DEV_TOOLS_{key.upper()}\n"
-                "The fallback to the old environment variables will be removed in the future!\n",
-                category=DeprecationWarning,
-            )
-            return_config[key] = os.getenv(f"FOUNDRY_LOCAL_{key.upper()}")
-
     if foundry_dev_tools_config_file.exists():
         config_parser = ConfigParser()
         with foundry_dev_tools_config_file.open(encoding="UTF-8") as file:
@@ -157,6 +143,19 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
                 return_config[key] = value
     except ValueError:
         pass
+
+    for key in config:
+        if f"FOUNDRY_DEV_TOOLS_{key.upper()}" in os.environ:
+            return_config[key] = os.getenv(f"FOUNDRY_DEV_TOOLS_{key.upper()}")
+        elif f"FOUNDRY_LOCAL_{key.upper()}" in os.environ:
+            warnings.warn(
+                "Foundrylocal has been renamed to Foundry DevTools.\n"
+                "Rename your environment variables accordingly:\n"
+                f"FOUNDRY_LOCAL_{key.upper()} to FOUNDRY_DEV_TOOLS_{key.upper()}\n"
+                "The fallback to the old environment variables will be removed in the future!\n",
+                category=DeprecationWarning,
+            )
+            return_config[key] = os.getenv(f"FOUNDRY_LOCAL_{key.upper()}")
 
     config.update(return_config)
     return_config = type_convert(config)
