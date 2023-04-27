@@ -550,7 +550,7 @@ class FoundryRestClient:
                 f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/"
                 f"transactions/{transaction_rid}/putFile",
                 params={"logicalPath": path_in_foundry_dataset},
-                data=file.read(),
+                data=file,
                 headers={
                     "Content-Type": "application/octet-stream",
                     "Authorization": self._headers()["Authorization"],
@@ -2073,7 +2073,6 @@ def _get_palantir_oauth_token(
     foundry_url: str, client_id: str, client_secret: str = None
 ) -> str:
     if oauth_provider := _is_palantir_oauth_client_installed():
-
         credentials = oauth_provider.get_user_credentials(
             scopes=[
                 "offline_access",
