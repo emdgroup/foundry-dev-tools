@@ -21,6 +21,7 @@ from foundry_dev_tools.config import execute_as_subprocess
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetHasNoSchemaError,
+    DatasetHasNoTransactionsError,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 
@@ -117,6 +118,8 @@ class Input:
             dataset_identity = self._cached_client.api.get_dataset_identity(
                 alias, branch
             )
+        if dataset_identity["last_transaction_rid"] is None:
+            raise DatasetHasNoTransactionsError(alias)
         if self._dataset_has_schema(dataset_identity, branch):
             return (
                 self._retrieve_spark_df(dataset_identity, branch),
