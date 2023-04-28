@@ -255,6 +255,8 @@ def _get_branch(caller_filename: Path) -> str:
         if ref.startswith("ref: refs/heads/"):
             return ref[16:]
 
+        return "HEAD"  # immitate behaviour of `git rev-parse --abbrev-ref HEAD`
+
     warnings.warn("Could not detect git branch of project, falling back to 'master'.")
     return "master"
 
