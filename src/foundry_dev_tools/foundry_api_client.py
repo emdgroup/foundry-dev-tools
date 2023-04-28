@@ -1098,13 +1098,8 @@ class FoundryRestClient:
         resp = self._download_dataset_file(
             dataset_rid, view, foundry_file_path, stream=True
         )
+        _raise_for_status_verbose(resp)
         with local_path.open(mode="wb") as out_file:
-            if resp.status_code != requests.codes.ok:
-                raise ValueError(
-                    f"Issue while downloading {dataset_rid}, "
-                    f"file {foundry_file_path}, branch/transaction_rid {view}."
-                    f"Response status was {resp.status_code}"
-                )
             resp.raw.decode_content = True
             shutil.copyfileobj(resp.raw, out_file)
 

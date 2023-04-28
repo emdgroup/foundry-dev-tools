@@ -7,17 +7,15 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 import inspect
 import logging
-import pathlib
 import warnings
 from pathlib import Path
-from subprocess import CalledProcessError
 from typing import Any
 
 import pyspark
 
 import foundry_dev_tools.config
 from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
-from foundry_dev_tools.config import execute_as_subprocess
+from foundry_dev_tools.config import _traverse_to_git_project_top_level_dir
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetHasNoSchemaError,
@@ -80,13 +78,13 @@ class Input:
 
         """
         # extract caller filename to retrieve git information
-        caller_filename = inspect.stack()[1].__getattribute__("filename")
+        caller_filename = inspect.stack()[1].filename
         LOGGER.debug("Input instantiated from %s", caller_filename)
         self.config = foundry_dev_tools.config.Configuration.get_config()
         self._cached_client = CachedFoundryClient(self.config)
         self._cache = DiskPersistenceBackedSparkCache(**self.config)
         if branch is None:
-            branch = _get_branch(caller_filename)
+            branch = _get_branch(Path(caller_filename))
 
         if (
             "transforms_freeze_cache" not in self.config
@@ -242,24 +240,23 @@ class Input:
         return self._dataset_identity
 
 
-def _get_branch(caller_filename: str) -> str:
-    git_dir = Path(caller_filename).parent
-
-    if not git_dir or not Path(git_dir).exists():
+def _get_branch(caller_filename: Path) -> str:
+    git_dir = _traverse_to_git_project_top_level_dir(caller_filename)
+    if not git_dir:
         # fallback for VS Interactive Console
         # or Jupyter lab on Windows
         git_dir = Path.cwd()
 
-    try:
-        branch = execute_as_subprocess(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=pathlib.Path(git_dir)
-        )
-    except (FileNotFoundError, CalledProcessError):
-        warnings.warn(
-            "Could not detect git branch of project, falling back to 'master'."
-        )
-        branch = "master"
-    return branch
+    head_file = git_dir.joinpath(".git", "HEAD")
+    if head_file.is_file():
+        with head_file.open() as hf:
+            ref = hf.read().strip()
+
+        if ref.startswith("ref: refs/heads/"):
+            return ref[16:]
+
+    warnings.warn("Could not detect git branch of project, falling back to 'master'.")
+    return "master"
 
 
 class Output:

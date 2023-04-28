@@ -205,7 +205,11 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
         ):
             print(all_transactions_sorted[0], file=sys.stderr)
             print(dataset_identity["last_transaction_rid"], file=sys.stderr)
-            raise RuntimeError("Cache dir not in sync with db.")
+            raise RuntimeError(
+                "Cache dir not in sync with db.\n"
+                f"Please delete the cache dir ({self.get_cache_dir()})"
+                "and restart the transform."
+            )
 
         transaction_to_delete = all_transactions_sorted[
             self.STORE_LAST_N_TRANSACTIONS :

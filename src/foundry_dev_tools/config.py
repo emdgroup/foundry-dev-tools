@@ -320,7 +320,12 @@ class Config(UserDict):
 
 
 def _traverse_to_git_project_top_level_dir(git_dir: Path) -> Path:
-    return Path(execute_as_subprocess(["git", "rev-parse", "--show-toplevel"], git_dir))
+    if git_dir.joinpath(".git").is_dir():
+        return git_dir
+    for p in git_dir.resolve().parents:
+        if p.joinpath(".git").is_dir():
+            return p
+    return None
 
 
 def execute_as_subprocess(args: list, cwd: Path) -> str:
