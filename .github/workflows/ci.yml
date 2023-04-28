@@ -51,6 +51,7 @@ jobs:
   test:
     needs: prepare
     strategy:
+      fail-fast: false # always test both versions
       matrix:
         python:
         - "3.8"
