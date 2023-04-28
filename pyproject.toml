@@ -61,13 +61,9 @@ Changelog = "https://emdgroup.github.io/foundry-dev-tools/changelog.html"
 
 [tool.setuptools]
 zip-safe = false
-# packages = ["foundry-dev-tools", "transforms"]
-# package-dir = "src"
 platforms = ["any"]
 
 [tool.setuptools_scm]
-# For smarter version schemes and other configuration options,
-# check out https://github.com/pypa/setuptools_scm
 version_scheme = "post-release"
 
 [tool.pytest.ini_options]
