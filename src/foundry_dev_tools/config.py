@@ -328,23 +328,6 @@ def _traverse_to_git_project_top_level_dir(git_dir: Path) -> Path:
     return None
 
 
-def execute_as_subprocess(args: list, cwd: Path) -> str:
-    """Wrapper around subprocess.
-
-    Args:
-        args (list): list of arguments for running
-        cwd (pathlib.Path): directory in where to run the command.
-
-    Returns:
-        :py:class:`str`:
-            stripped stdout of the output
-
-    """
-    return subprocess.run(
-        args, check=True, stdout=-1, stderr=-1, cwd=cwd, text=True  # noqa: S603
-    ).stdout.strip()
-
-
 def _find_project_config_file(project_directory: Path) -> Path:
     try:
         if project_directory.is_dir():
