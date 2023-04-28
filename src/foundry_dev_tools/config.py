@@ -12,7 +12,6 @@ Usage:
 import inspect
 import logging
 import os
-import subprocess
 import warnings
 from collections import UserDict
 from configparser import ConfigParser
@@ -127,9 +126,10 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
             config_parser.read_file(file)
             if "default" in config_parser:
                 return_config.update(config_parser["default"])
-    try:
-        caller_filename = inspect.stack()[1].filename
-        project_config_file = _find_project_config_file(Path(caller_filename).parent)
+
+    caller_filename = inspect.stack()[1].filename
+    project_config_file = _find_project_config_file(Path(caller_filename).parent)
+    if project_config_file:
         project_config_parser = ConfigParser()
         with project_config_file.open(encoding="UTF-8") as file:
             project_config_parser.read_file(file)
@@ -141,8 +141,6 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
             )
             for key, value in project_config_parser.items("default"):
                 return_config[key] = value
-    except ValueError:
-        pass
 
     for key in config:
         if f"FOUNDRY_DEV_TOOLS_{key.upper()}" in os.environ:
@@ -319,7 +317,7 @@ class Config(UserDict):
         return cnf
 
 
-def _traverse_to_git_project_top_level_dir(git_dir: Path) -> Path:
+def _traverse_to_git_project_top_level_dir(git_dir: Path) -> "Path | None":
     if git_dir.joinpath(".git").is_dir():
         return git_dir
     for p in git_dir.resolve().parents:
@@ -328,36 +326,31 @@ def _traverse_to_git_project_top_level_dir(git_dir: Path) -> Path:
     return None
 
 
-def _find_project_config_file(project_directory: Path) -> Path:
-    try:
-        if project_directory.is_dir():
-            git_directory = _traverse_to_git_project_top_level_dir(project_directory)
-            project_config_file = git_directory / ".foundry_dev_tools"
+def _find_project_config_file(project_directory: Path) -> "Path | None":
+    if project_directory.is_dir():
+        git_directory = _traverse_to_git_project_top_level_dir(project_directory)
+        if not git_directory:
+            LOGGER.debug(
+                "Project-based config file could not be loaded, is project not managed with git?"
+            )
+            return None
 
-            if project_config_file.is_file():
-                return project_config_file
+        project_config_file = git_directory / ".foundry_dev_tools"
 
-            foundry_local_project_config_file = git_directory / ".foundry_local_config"
+        if project_config_file.is_file():
+            return project_config_file
 
-            if foundry_local_project_config_file.is_file():
-                warnings.warn(
-                    "Foundrylocal has been renamed to Foundry DevTools.\n"
-                    f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
-                    "The fallback to the old config file will be removed in the future!",
-                    category=DeprecationWarning,
-                )
-                return foundry_local_project_config_file
-        raise ValueError()
-    except FileNotFoundError as exc:
-        LOGGER.debug(
-            "Project-based config file could not be loaded due to missing git installation"
-        )
-        raise ValueError from exc
-    except subprocess.CalledProcessError as exc:
-        LOGGER.debug(
-            "Project-based config file could not be loaded, is project not managed with git?"
-        )
-        raise ValueError from exc
+        foundry_local_project_config_file = git_directory / ".foundry_local_config"
+
+        if foundry_local_project_config_file.is_file():
+            warnings.warn(
+                "Foundrylocal has been renamed to Foundry DevTools.\n"
+                f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
+                "The fallback to the old config file will be removed in the future!",
+                category=DeprecationWarning,
+            )
+            return foundry_local_project_config_file
+    return None
 
 
 (

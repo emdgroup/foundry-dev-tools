@@ -2097,7 +2097,7 @@ def _get_palantir_oauth_token(
 
 
 def _request(*args, **kwargs):
-    return requests.request(*args, **kwargs, timeout=599)
+    return requests.request(*args, **kwargs, timeout=60)
 
 
 class FoundryDevToolsError(Exception):
