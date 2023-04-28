@@ -1,10 +1,9 @@
 """Token Provider for common UPTIMIZE AppService."""
 from abc import abstractmethod
-from typing import Optional
 
 from requests.structures import CaseInsensitiveDict
 
-APP_SERVICE_ACCESS_TOKEN_HEADER = "X-Foundry-AccessToken"
+APP_SERVICE_ACCESS_TOKEN_HEADER = "X-Foundry-AccessToken"  # noqa: S105
 
 
 class AbstractTokenProvider:
@@ -25,31 +24,29 @@ class AbstractTokenProvider:
         raise NotImplementedError
 
     @abstractmethod
-    def get_token(self) -> Optional[str]:
+    def get_token(self) -> "str | None":
         """This method returns the token from the token provider.
 
         This is an abstract method and needs to be overriden
         by a token provider implementation
 
         Returns:
-            Optional[str]:
+            str | None:
                 the token from the token provider implementation
         """
         raise NotImplementedError
 
 
-class AppServiceStreamlitTokenProvider(
-    AbstractTokenProvider
-):  # pylint: disable=too-few-public-methods,missing-class-docstring
+class AppServiceStreamlitTokenProvider(AbstractTokenProvider):
     """The streamlit token provider."""
 
     config_name = "streamlit"
 
-    def get_token(self) -> Optional[str]:
+    def get_token(self) -> "str | None":
         """Retrieves foundry user token from UPTIMIZE App Service header.
 
         Returns:
-            Optional[str]:
+            str | None:
                 Foundry token or None
         """
         try:
@@ -79,7 +76,6 @@ class AppServiceStreamlitTokenProvider(
                 request headers
 
         """
-        # pylint: disable=import-outside-toplevel,import-error,protected-access,no-name-in-module
         from streamlit.scriptrunner.script_run_context import get_script_run_ctx
         from streamlit.server.server import Server
 
@@ -97,24 +93,21 @@ class AppServiceStreamlitTokenProvider(
             :py:class:`~requests.structures.CaseInsensitiveDict`:
                 case-insensitive dict with request headers
         """
-        # pylint: disable=import-outside-toplevel,import-error,protected-access,no-name-in-module
         from streamlit.web.server.websocket_headers import _get_websocket_headers
 
         return CaseInsensitiveDict(_get_websocket_headers())
 
 
-class AppServiceDashTokenProvider(
-    AbstractTokenProvider
-):  # pylint: disable=too-few-public-methods,missing-class-docstring
+class AppServiceDashTokenProvider(AbstractTokenProvider):
     """The flask/dash tokenprovider."""
 
     config_name = "dash"
 
-    def get_token(self) -> Optional[str]:
+    def get_token(self) -> "str | None":
         """Retrieves foundry user token from UPTIMIZE App Service header.
 
         Returns:
-            Optional[str]:
+            str | None:
                 Foundry token or None
 
         """
@@ -131,10 +124,14 @@ class AppServiceDashTokenProvider(
                 flask/dash request headers for the current request
 
         """
-        # pylint: disable=import-outside-toplevel,import-error,protected-access,no-name-in-module
         from flask import request
 
         return request.headers
 
 
 TOKEN_PROVIDERS = [AppServiceStreamlitTokenProvider, AppServiceDashTokenProvider]
+__all__ = [
+    "TOKEN_PROVIDERS",
+    "AppServiceStreamlitTokenProvider",
+    "AppServiceDashTokenProvider",
+]

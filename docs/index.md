@@ -3,7 +3,6 @@
 :relative-images:
 ```
 
-
 ## Contents
 
 ```{toctree}
@@ -21,6 +20,7 @@ Changelog <changelog>
 ```
 
 # Reference
+
 ```{toctree}
 :maxdepth: 2
 :titlesonly:
@@ -33,9 +33,9 @@ transforms reference <api/transforms>
 
 ## Indices and tables
 
-* {ref}`genindex`
-* {ref}`modindex`
-* {ref}`search`
+- {ref}`genindex`
+- {ref}`modindex`
+- {ref}`search`
 
 [Sphinx]: http://www.sphinx-doc.org/
 [Markdown]: https://daringfireball.net/projects/markdown/

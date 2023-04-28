@@ -2,9 +2,9 @@
 
 ## Prerequisites
 
-* Python >=3.8
-* Git
-* Apache Spark (optional)
+- Python >=3.8
+- Git
+- Apache Spark (optional)
 
 ## Get the Foundry JSON Web Token
 
@@ -34,11 +34,13 @@ We recommend using a new [conda environment] or [python environment],
 after you activated it, just run:
 
 With pip:
+
 ```shell
 pip install foundry-dev-tools
 ```
 
 With conda or mamba on the conda-forge channel:
+
 ```shell
 conda install -c conda-forge foundry-dev-tools
 ```

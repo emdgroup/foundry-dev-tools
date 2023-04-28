@@ -12,8 +12,7 @@ import requests_mock
 from requests import HTTPError
 from requests_mock.adapter import ANY
 
-import foundry_dev_tools
-from foundry_dev_tools import FoundryRestClient
+import foundry_dev_tools.config
 from foundry_dev_tools.foundry_api_client import (
     BranchesAlreadyExistError,
     BranchNotFoundError,
@@ -23,8 +22,8 @@ from foundry_dev_tools.foundry_api_client import (
     DatasetNoReadAccessError,
     DatasetNotFoundError,
     FolderNotFoundError,
+    FoundryRestClient,
 )
-
 from tests.conftest import PatchConfig
 from tests.utils import (
     INTEGRATION_TEST_COMPASS_ROOT_PATH,
@@ -44,7 +43,7 @@ def test_get_config(is_integration_test, client):
     assert "foundry_url" in client._config
 
 
-@pytest.mark.no_patch_conf
+@pytest.mark.no_patch_conf()
 def test_sso_config(mocker, tmpdir):
     with PatchConfig(
         config_overwrite={
@@ -53,24 +52,24 @@ def test_sso_config(mocker, tmpdir):
             "grant_type": "authorization_code",
         }
     ):
-        if "jwt" in foundry_dev_tools.Configuration:
-            del foundry_dev_tools.Configuration["jwt"]
+        if "jwt" in foundry_dev_tools.config.Configuration:
+            del foundry_dev_tools.config.Configuration["jwt"]
         client = FoundryRestClient()
 
         mock_get_user_credentials = mocker.patch(
             "palantir_oauth_client.get_user_credentials"
         )
-        mock_get_user_credentials.return_value.token = "access-token"
+        mock_get_user_credentials.return_value.token = "access-token"  # noqa: S105
 
         assert client._headers()["Authorization"] == "Bearer access-token"
         assert client._headers()["User-Agent"].startswith("foundry-dev-tools")
 
 
-@pytest.mark.integration
-def test_monster_integration_test(client):
+@pytest.mark.integration()
+def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
     BRANCH = "master/with/slash"
     rnd = "".join(choice(ascii_uppercase) for i in range(5))
-    dataset_path = str(INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_{rnd}")
+    dataset_path = os.fspath(INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_{rnd}")
 
     ds = client.create_dataset(dataset_path)
     assert "rid" in ds
@@ -164,8 +163,8 @@ def test_monster_integration_test(client):
     assert retrieved_schema is not None
 
     stats = client.get_dataset_stats(ds["rid"], view=transaction_rid)
-    assert stats["sizeInBytes"] == 39
-    assert stats["numFiles"] == 3
+    assert stats["sizeInBytes"] == 39  # noqa: PLR2004, value is known
+    assert stats["numFiles"] == 3  # noqa: PLR2004, value is known
     assert stats["numTransactions"] == 1
     assert stats["hiddenFilesSizeInBytes"] == 0
     assert stats["numHiddenFiles"] == 0
@@ -184,7 +183,7 @@ def test_monster_integration_test(client):
     client.delete_dataset(ds["rid"])
     assert client.is_dataset_in_trash(dataset_path) is True
 
-    with pytest.warns(UserWarning) as warning:
+    with pytest.warns(UserWarning):
         client.get_dataset_details(dataset_path_or_rid=dataset_path)
 
     with pytest.raises(DatasetNotFoundError):
@@ -194,7 +193,6 @@ def test_monster_integration_test(client):
 def test_get_dataset_rid(mocker, is_integration_test, client, iris_dataset):
     if not is_integration_test:
         mock_get = mocker.patch("requests.request")
-        # mock_get.return_value = Mock(ok=True)
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
             "rid": iris_dataset[0],
@@ -276,10 +274,12 @@ def test_get_dataset_rid(mocker, is_integration_test, client, iris_dataset):
     assert rid == iris_dataset[0]
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_schema_inference(client):
     rnd = "".join(choice(ascii_uppercase) for i in range(5))
-    dataset_path = str(INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_schema_{rnd}")
+    dataset_path = os.fspath(
+        INTEGRATION_TEST_COMPASS_ROOT_PATH / f"test_api_schema_{rnd}"
+    )
 
     ds = client.create_dataset(dataset_path)
     client.create_branch(ds["rid"], "master")
@@ -472,20 +472,20 @@ def test_get_and_download_dataset_files(client, iris_dataset, tmpdir):
     assert list_of_files == ["iris.csv"]
     client.download_dataset_files(
         iris_dataset[0],
-        str(tmpdir),
+        os.fspath(tmpdir),
         list_of_files,
     )
     assert "iris.csv" in os.listdir(tmpdir)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_get_csv_of_dataset(client, iris_dataset):
     response = client.get_dataset_as_raw_csv(iris_dataset[0])
     iris = pd.read_csv(io.BytesIO(response.content))
     assert iris.shape == (150, 5)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_query_legacy_sql(client, iris_dataset, iris_no_schema_dataset):
     foundry_schema, data = client.query_foundry_sql_legacy(
         f"SELECT * FROM `{iris_dataset[0]}` LIMIT 100"
@@ -508,7 +508,7 @@ def test_query_legacy_sql(client, iris_dataset, iris_no_schema_dataset):
         )
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_query_sql(client, mocker, iris_dataset):
     iris_rid = iris_dataset[0]
     spy = mocker.spy(FoundryRestClient, "query_foundry_sql_legacy")
@@ -521,7 +521,7 @@ def test_query_sql(client, mocker, iris_dataset):
         return_type="arrow",
     )
     assert pa_table.shape == (100, 5)
-    assert pa_table.num_columns == 5
+    assert pa_table.num_columns == 5  # noqa: PLR2004
     spy.assert_not_called()
 
     iris_fallback = client.query_foundry_sql(
@@ -559,11 +559,11 @@ def test_raise_for_status_prints_details(mocker, capsys):
     with pytest.raises(HTTPError):
         client.get_dataset("test")
     captured = capsys.readouterr()
-    assert captured.out == "message\nissue_text\n"
-    assert captured.err == ""
+    assert captured.err == "message\nissue_text\n"
+    assert not captured.out
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_get_folder_children(client, mocker, iris_dataset):
     children = client.get_child_objects_of_folder(
         folder_rid=INTEGRATION_TEST_COMPASS_ROOT_RID
@@ -626,12 +626,12 @@ def test_download_dataset_files_temporary(
         dataset_rid=complex_dataset_fixture,
         view="master",
     ) as temp_dir:
-        assert os.path.exists(temp_dir) is True
+        assert Path(temp_dir).exists()
         _ = pd.read_parquet(temp_dir)
         _ = parquet.ParquetDataset(
             [x for x in Path(temp_dir).glob("**/*") if x.is_file()]
         ).read()
-    assert os.path.exists(temp_dir) is False
+    assert not Path(temp_dir).exists()
     spy.assert_called()
     spy.reset_mock()
 
@@ -639,9 +639,9 @@ def test_download_dataset_files_temporary(
         dataset_rid=iris_dataset[0],
         view="master",
     ) as temp_dir:
-        assert os.path.exists(temp_dir) is True
+        assert Path(temp_dir).exists()
         _ = pd.read_csv(os.sep.join([temp_dir, "iris.csv"]))
-    assert os.path.exists(temp_dir) is False
+    assert not Path(temp_dir).exists()
     spy.assert_called()
     spy.reset_mock()
 
@@ -650,14 +650,14 @@ def test_download_dataset_files_temporary(
         files=["iris.csv"],
         view="master",
     ) as temp_dir:
-        assert os.path.exists(temp_dir) is True
+        assert Path(temp_dir).exists()
         iris = pd.read_csv(os.sep.join([temp_dir, "iris.csv"]))
-    assert os.path.exists(temp_dir) is False
+    assert Path(temp_dir).exists() is False
     assert iris.shape == (150, 5)
     spy.assert_not_called()
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_remove_file_in_open_transaction(client, empty_dataset):
     rid = empty_dataset[0]
 
@@ -681,7 +681,7 @@ def test_remove_file_in_open_transaction(client, empty_dataset):
     client.abort_transaction(rid, transaction_rid)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_remove_file_from_previous_transaction(client, empty_dataset):
     rid = empty_dataset[0]
 
@@ -720,7 +720,7 @@ def test_download_dataset_file_returns_bytes(client, iris_dataset):
     assert iris.shape == (150, 5)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_get_dataset_details_identical_path_rid(client, iris_dataset):
     by_path = client.get_dataset_details(dataset_path_or_rid=iris_dataset[1])
 
@@ -731,7 +731,7 @@ def test_get_dataset_details_identical_path_rid(client, iris_dataset):
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_details",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_details",
     MagicMock(
         return_value={
             "rid": "ri.foundry.main.dataset.1234",
@@ -784,7 +784,7 @@ def test_get_dataset_details_identical_path_rid(client, iris_dataset):
     ),
 )
 def test_get_dataset_details_throws_on_no_read_permissions():
-    from foundry_dev_tools import FoundryRestClient
+    from foundry_dev_tools.foundry_api_client import FoundryRestClient
 
     client = FoundryRestClient()
     with pytest.raises(DatasetNoReadAccessError):
@@ -823,7 +823,7 @@ def test_quoting_of_filenames():
             history[1].query
             == "logicalPath=All+123+-+BLUB+Extract_new+%28Export+2021-12-21+18_25%29-20211221.140314.csv"
         )
-        m.get(url=ANY, status_code=200, body=io.BytesIO("some-content".encode("UTF-8")))
+        m.get(url=ANY, status_code=200, body=io.BytesIO(b"some-content"))
         client.download_dataset_file(
             dataset_rid="rid",
             output_directory=None,

@@ -1,6 +1,7 @@
 # Foundry DevTools fsspec implementation
 
 ## In combination with fsspec:
+
 ```pycon
 >>> import fsspec
 >>> dataset_rid = 'ri.foundry.main.dataset.15461bb5-be92-4ad9-aa3e-07c16175e713'
@@ -10,6 +11,7 @@
 ```
 
 ## Use in combination with pandas:
+
 ```pycon
 >>> import pandas as pd
 >>> df = pd.read_csv(f"foundry://{dataset_rid}/test1.csv")

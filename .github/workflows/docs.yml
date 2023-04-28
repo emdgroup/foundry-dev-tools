@@ -24,8 +24,9 @@ jobs:
       - uses: actions/setup-python@v4
         with: {python-version: "3.11"}
       - name: Build Docs
-        run: >-
-          pipx run tox -e docs
+        run: |
+          pip install tox
+          tox -e docs
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v1
         with:

@@ -2,21 +2,115 @@
 requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "foundry-dev-tools"
+readme = "README.md"
+description = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
+requires-python = ">=3.8,<4"
+authors = [
+  { name = "Nicolas Renkamp", email = "nicolas.renkamp@merckgroup.com" },
+  { name = "Jonas Wunderlich", email = "jonas.wunderlich@merckgroup.com" },
+]
+license = { text = "Apache-2.0" }
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Programming Language :: Python",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+  "pyarrow",
+  "pandas",
+  "requests",
+  "fs",
+  "backoff",
+  "palantir-oauth-client",
+]
+dynamic = ["version"]
+
+[project.entry-points."fsspec.specs"]
+foundry = "foundry_dev_tools.fsspec_impl.FoundryFileSystem"
+
+[project.optional-dependencies]
+integration = ["dask", "fastparquet"]
+testing = [
+  "pytest",
+  "pytest-mock",
+  "pytest-spark",
+  "requests-mock",
+  "fsspec",
+  "timeflake",
+]
+transforms = ["pyspark>=3.0.0"]
+
+[project.urls]
+Homepage = "https://emdgroup.github.io/foundry-dev-tools"
+Documentation = "https://emdgroup.github.io/foundry-dev-tools"
+Source = "https://github.com/emdgroup/foundry-dev-tools"
+Tracker = "https://github.com/emdgroup/foundry-dev-tools/issues"
+Changelog = "https://emdgroup.github.io/foundry-dev-tools/changelog.html"
+
+[tool.setuptools]
+zip-safe = false
+platforms = ["any"]
+
 [tool.setuptools_scm]
-# For smarter version schemes and other configuration options,
-# check out https://github.com/pypa/setuptools_scm
 version_scheme = "post-release"
 
-[tool.ufmt]
-excludes = [
-    "docs",
+[tool.pytest.ini_options]
+addopts = "--verbose"
+norecursedirs = ["dist", "build", ".tox"]
+testpaths = "tests"
+markers = [
+  "no_patch_conf: don't use autouse config patch fixture",
+  "integration: mark test to run only integration tests",
+  "performance: mark test to run only performance tests",
 ]
 
-[tool.pylint.BASIC]
-good-names = ["fs", "i", "j"]
+[tool.ruff]
+select = [
+  "E",
+  "F",
+  "W",
+  "PL",
+  "D",
+  "UP",
+  "B",
+  "S",
+  "RUF",
+  "A",
+  "C4",
+  "ICN",
+  "PT",
+  "RET",
+  "SIM",
+  "PTH",
+  "ERA",
+  "TCH",
+  "I",
+]
+line-length = 120
+ignore = ["PLR0913", "D104", "D105", "D107", "B028"]
+unfixable = ["ERA"] # don't delete commented out code automatically
+src = ["src"]
+exclude = ["docs"]
 
-[tool.pylint.FORMAT]
-max-line-length = 120
+[tool.ruff.per-file-ignores]
+"tests/*" = [
+  "S101",
+  "S311",
+  "D",
+  "S608",
+] # assert, non crypto random and potential sql injection is okay in unit tests and not using docstrings in tests
 
-[tool.usort.known]
-first_party = ["foundry_dev_tools"]
+[tool.ruff.pydocstyle]
+convention = "google"

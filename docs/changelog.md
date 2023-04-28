@@ -26,7 +26,6 @@ and this project adheres to [Semantic Versioning].
 
 - pandas<2 restriction, as pyspark 3.4 supports it (#13)
 
-
 ## [1.0.7] - 2023-04-05
 
 ### Added

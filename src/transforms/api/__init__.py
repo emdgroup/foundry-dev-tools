@@ -3,7 +3,7 @@
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
 
-"""  # pylint: disable=line-too-long
+"""  # noqa: E501
 
 from ._configure import configure
 from ._dataset import Input, Markings, OrgMarkings, Output

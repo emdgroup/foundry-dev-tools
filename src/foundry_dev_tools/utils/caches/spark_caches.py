@@ -6,9 +6,9 @@ File based spark cache
 import json
 import os
 import shutil
+import sys
 from collections.abc import MutableMapping
 from pathlib import Path
-from typing import Tuple
 
 from foundry_dev_tools.utils.caches.metadata_store import DatasetMetadataStore
 from foundry_dev_tools.utils.converter.foundry_spark import (
@@ -28,13 +28,11 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
     DEFAULT_FORMAT = "parquet"
     STORE_LAST_N_TRANSACTIONS = 2
 
-    def __init__(
-        self, cache_dir: str, clear_cache: bool = False, **kwargs
-    ):  # pylint: disable=unused-argument
+    def __init__(self, cache_dir: str, clear_cache: bool = False, **kwargs):
         self._cache_dir = cache_dir
         if clear_cache:
             shutil.rmtree(self._cache_dir, ignore_errors=True)
-        os.makedirs(self._cache_dir, exist_ok=True)
+        Path(self._cache_dir).mkdir(parents=True, exist_ok=True)
         self.metadata_store = DatasetMetadataStore(self._cache_dir)
 
     def __setitem__(self, key: dict, value: "pyspark.sql.dataframe.DataFrame") -> None:
@@ -55,8 +53,8 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
 
         """
         if schema is not None:
-            with open(
-                os.sep.join([path, "_schema.json"]), "w", encoding="UTF-8"
+            with Path(path).joinpath("_schema.json").open(
+                mode="w", encoding="UTF-8"
             ) as file:
                 json.dump(schema, file)
         self.metadata_store[dataset_identity["dataset_path"]] = dataset_identity
@@ -95,8 +93,8 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
 
     def _load_spark_schema(
         self, path: str
-    ) -> Tuple["pyspark.sql.types.StructType", dict]:
-        with open(os.sep.join([path, "_schema.json"]), "r", encoding="UTF-8") as file:
+    ) -> "tuple[pyspark.sql.types.StructType, dict]":
+        with Path(path).joinpath("_schema.json").open(encoding="UTF-8") as file:
             spark_or_foundry_schema = json.load(file)
         if "fieldSchemaList" not in spark_or_foundry_schema:
             legacy_read_options = {"header": "true"}
@@ -134,8 +132,7 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
                 path to dataset in cache
 
         """
-        path = get_dataset_path(self.get_cache_dir(), dataset_identity)
-        return path
+        return get_dataset_path(self.get_cache_dir(), dataset_identity)
 
     def get_cache_dir(self) -> str:
         """Returns cache directory.
@@ -161,10 +158,11 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
             KeyError: if dataset with dataset_path_or_rid not in cache
 
         """
-        if "ri.foundry.main.dataset" in dataset_path_or_rid:
-            search_key = "dataset_rid"
-        else:
-            search_key = "dataset_path"
+        search_key = (
+            "dataset_rid"
+            if "ri.foundry.main.dataset" in dataset_path_or_rid
+            else "dataset_path"
+        )
         all_cache_entries = self.metadata_store.values()
         maybe_dataset = list(
             filter(
@@ -190,7 +188,7 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
 
         """
         path = get_dataset_path(self.get_cache_dir(), dataset_identity)
-        if os.path.isfile(os.sep.join([path, "_schema.json"])):
+        if Path(path).joinpath("_schema.json").is_file():
             return True
         return False
 
@@ -201,16 +199,23 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
         all_transactions = [x.name for x in dataset_root_folder.iterdir() if x.is_dir()]
         # transaction rid's are sortable by time
         all_transactions_sorted = sorted(all_transactions, reverse=True)
-        assert (
+        if (
             all_transactions_sorted[0].rsplit(".", 1)[0]
-            == dataset_identity["last_transaction_rid"]
-        ), "Cache dir not in sync with db."
+            != dataset_identity["last_transaction_rid"]
+        ):
+            print(all_transactions_sorted[0], file=sys.stderr)
+            print(dataset_identity["last_transaction_rid"], file=sys.stderr)
+            raise RuntimeError(
+                "Cache dir not in sync with db.\n"
+                f"Please delete the cache dir ({self.get_cache_dir()})"
+                "and restart the transform."
+            )
 
         transaction_to_delete = all_transactions_sorted[
             self.STORE_LAST_N_TRANSACTIONS :
         ]
         for transaction in transaction_to_delete:
-            directory_path = str(
+            directory_path = os.fspath(
                 Path(self.get_cache_dir())
                 / dataset_identity["dataset_rid"]
                 / transaction
@@ -244,9 +249,8 @@ def _validate_cache_key(key: dict):
 
 def _infer_dataset_format(cache_dir: str, dataset_identity: dict):
     path = os.sep.join([cache_dir, dataset_identity["dataset_rid"]])
-    last_transaction_rid = _filter_unknown_files((os.listdir(path)))[0]
-    file_format = last_transaction_rid.split(".")[-1]
-    return file_format
+    last_transaction_rid = _filter_unknown_files(os.listdir(path))[0]
+    return last_transaction_rid.split(".")[-1]
 
 
 def get_dataset_path(cache_dir: str, dataset_identity: dict) -> str:
@@ -280,8 +284,8 @@ def _read(
     return _read_csv(path, schema=schema, read_options=read_options)
 
 
-def _load_spark_schema(path: str) -> Tuple["pyspark.sql.types.StructType", dict]:
-    with open(os.sep.join([path, "_schema.json"]), "r", encoding="UTF-8") as file:
+def _load_spark_schema(path: str) -> "tuple[pyspark.sql.types.StructType, dict]":
+    with Path(path).joinpath("_schema.json").open(encoding="UTF-8") as file:
         spark_or_foundry_schema = json.load(file)
     if "fieldSchemaList" not in spark_or_foundry_schema:
         legacy_read_options = {"header": "true"}

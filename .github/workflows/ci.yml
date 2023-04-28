@@ -13,9 +13,7 @@ on:
     - cron: '0 0 1,16 * *'
 
 concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.ref_type }}-
-    ${{ github.event.pull_request.number || github.sha }}
+  group: check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,15 +26,16 @@ jobs:
         with: {fetch-depth: 0}  # deep clone for setuptools-scm
       - uses: actions/setup-python@v4
         id: setup-python
-        with: {python-version: "3.11"}
+        with: 
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Run static analysis and format checkers
         run: |
-          pip install .[testing,transforms]
-          pipx run --python '${{ steps.setup-python.outputs.python-path }}' tox -e lint
+          pip install .[testing,transforms] tox
+          tox -e lint
       - name: Build package distribution files
-        run: >-
-          pipx run --python '${{ steps.setup-python.outputs.python-path }}'
-          tox -e clean,build
+        run: tox -e clean,build
       - name: Record the path of wheel distribution
         id: wheel-distribution
         run: echo "path=$(ls dist/*.whl)" >> $GITHUB_OUTPUT
@@ -52,6 +51,7 @@ jobs:
   test:
     needs: prepare
     strategy:
+      fail-fast: false # always test both versions
       matrix:
         python:
         - "3.8"
@@ -63,12 +63,15 @@ jobs:
         id: setup-python
         with:
           python-version: ${{ matrix.python }}
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
+      - name: Install tox
+        run: pip install tox
       - name: Run tests
         run: >-
-          pipx run --python '${{ steps.setup-python.outputs.python-path }}'
           tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
           -- -rFEx --durations 10 --color yes  # pytest args
 
@@ -79,13 +82,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: {python-version: "3.11"}
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
+      - name: Install Tox
+        run: pip install tox
       - name: Publish Package
         env:
           TWINE_REPOSITORY: pypi
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: pipx run tox -e publish
+        run: tox -e publish

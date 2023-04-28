@@ -1,21 +1,23 @@
 """Module contains the fsspec implementation for Palantir Foundry."""
 import sys
 from datetime import datetime
-from typing import Optional, Union
+from urllib.parse import urlparse
 
 import backoff
 from fs.opener.parse import parse_fs_url
 from fsspec import AbstractFileSystem
 from fsspec.spec import AbstractBufferedFile
 
-from . import FoundryRestClient
-from .foundry_api_client import DatasetHasOpenTransactionError, FoundryDevToolsError
+from foundry_dev_tools.foundry_api_client import (
+    DatasetHasOpenTransactionError,
+    FoundryDevToolsError,
+    FoundryRestClient,
+)
 
 DEFAULT_BRANCH = "master"
 
 
-class FoundryFileSystem(AbstractFileSystem):  # noqa
-    # pylint:disable=abstract-method
+class FoundryFileSystem(AbstractFileSystem):
     """fsspec implementation for the Palantir Foundry Filesystem.
 
     Args:
@@ -36,12 +38,11 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
         self,
         dataset: str,
         branch: str = DEFAULT_BRANCH,
-        token: str = None,
+        token: "str | None" = None,
         transaction_backoff: bool = True,
         skip_instance_cache: bool = False,
         **kwargs,
     ):
-        # pylint: disable=too-many-arguments
         super().__init__(skip_instance_cache=skip_instance_cache, **kwargs)
         self.token = token
         self.dataset_identity = self.api.get_dataset_identity(
@@ -68,15 +69,11 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
         return FoundryRestClient()
 
     @classmethod
-    def _strip_protocol(cls, path):
+    def _strip_protocol(cls, path: str):
         """Return only subpath from foundry://<branch>:<token>@<dataset-rid>/<subpath e.g. test.txt>."""
-        if "foundry://" in path:
-            no_foundry = path.lstrip("foundry").lstrip("://")
-            if "/" in no_foundry:
-                return no_foundry[
-                    no_foundry.index("/") + 1 :
-                ]  # everything after dataset_rid/ is the path
-            return ""  # no subpath passed
+        if path.startswith("foundry://"):
+            parsed = urlparse(path)
+            return parsed.path.lstrip("/")
         return path
 
     @staticmethod
@@ -85,17 +82,15 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
         return_kwargs = {"dataset": parsed.resource.split("/")[0]}
         if "ri.foundry.main.dataset" not in return_kwargs["dataset"]:
             raise FoundryDatasetPathInUrlNotSupportedError()
-        potential_token = parsed.password if parsed.password != "" else None
+        potential_token = parsed.password if parsed.password else None
         if potential_token:
             return_kwargs["token"] = potential_token
-        potential_branch = (
-            parsed.username if bool(parsed.username and parsed.username != "") else None
-        )
+        potential_branch = parsed.username if parsed.username else None
         if potential_branch:
             return_kwargs["branch"] = potential_branch
         return return_kwargs
 
-    def ls(self, path: str, detail: bool = True, **kwargs):
+    def ls(self, path: str, detail: bool = True, exclude_hidden_files: bool = True):
         """List files in the path specified.
 
         Args:
@@ -109,7 +104,6 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
             list:
                 list of files in `path`
         """
-        exclude_hidden_files = kwargs.pop("exclude_hidden_files", True)
         if path in (self.dataset_identity["dataset_path"], "", "**/**", "/."):
             # root
             path = None
@@ -154,7 +148,6 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
         cache_options=None,
         **kwargs,
     ):
-        # pylint: disable=too-many-arguments
         if "cache_type" in kwargs:
             kwargs.pop("cache_type")
         if self._intrans:
@@ -171,9 +164,9 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
 
     def rm(
         self,
-        path: Union[str, list],
+        path: "str | list",
         recursive: bool = False,
-        maxdepth: Optional[int] = None,
+        maxdepth: "int | None" = None,
     ):
         """Delete files.
 
@@ -183,7 +176,7 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
             recursive (bool):
                 If file(s) are directories, recursively delete contents and then
                 also remove the directory
-            maxdepth (Optional[int]):
+            maxdepth (int | None):
                 Depth to pass to walk for finding files to delete, if recursive.
                 If None, there will be no limit and infinite recursion may be
                 possible.
@@ -209,34 +202,27 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
                     transaction_id=transaction.transaction_rid,
                     logical_paths=expanded_path,
                 )
-        else:
-            if self.transaction.transaction_type == "DELETE":
-                self.api.add_files_to_delete_transaction(
+        elif self.transaction.transaction_type == "DELETE":
+            self.api.add_files_to_delete_transaction(
+                dataset_rid=self.dataset_identity["dataset_rid"],
+                transaction_id=self._transaction.transaction_rid,
+                logical_paths=expanded_path,
+            )
+        elif self.transaction.transaction_type == "UPDATE":
+            files_created_in_this_transaction = [f.path for f in self.transaction.files]
+            for path_to_delete in reversed(expanded_path):
+                if not any(
+                    bool(path_to_delete in file)
+                    for file in files_created_in_this_transaction
+                ):
+                    raise FoundryDeleteInNotSupportedTransactionError(path_to_delete)
+                self.api.remove_dataset_file(
                     dataset_rid=self.dataset_identity["dataset_rid"],
                     transaction_id=self._transaction.transaction_rid,
-                    logical_paths=expanded_path,
+                    logical_path=path_to_delete,
                 )
-            elif self.transaction.transaction_type == "UPDATE":
-                files_created_in_this_transaction = [
-                    f.path for f in self.transaction.files
-                ]
-                for path_to_delete in reversed(expanded_path):
-                    if not any(
-                        (
-                            bool(path_to_delete in file)
-                            for file in files_created_in_this_transaction
-                        )
-                    ):
-                        raise FoundryDeleteInNotSupportedTransactionError(
-                            path_to_delete
-                        )
-                    self.api.remove_dataset_file(
-                        dataset_rid=self.dataset_identity["dataset_rid"],
-                        transaction_id=self._transaction.transaction_rid,
-                        logical_path=path_to_delete,
-                    )
-            else:
-                raise FoundryDeleteInNotSupportedTransactionError(expanded_path)
+        else:
+            raise FoundryDeleteInNotSupportedTransactionError(expanded_path)
 
     @property
     def transaction(self):
@@ -249,9 +235,7 @@ class FoundryFileSystem(AbstractFileSystem):  # noqa
             self._transaction = FoundryTransaction(self)
         return self._transaction
 
-    def start_transaction(
-        self, transaction_type="UPDATE"
-    ):  # pylint: disable=arguments-differ
+    def start_transaction(self, transaction_type="UPDATE"):
         """Begin write transaction for deferring files, non-context version."""
         self._intrans = True
         self._transaction = FoundryTransaction(self, transaction_type=transaction_type)
@@ -277,8 +261,10 @@ class FoundryFile(AbstractBufferedFile):
         size=None,
         **kwargs,
     ):
-        # pylint: disable=too-many-arguments
-        assert cache_type == "all", "Only the AllBytes cache is supported"
+        if cache_type != "all":
+            raise ValueError(
+                "cache_type can only be 'all', Only the AllBytes cache is supported"
+            )
         if "a" in mode:
             raise NotImplementedError(
                 "appending to a file not implemented in FoundryFileSystem"
@@ -296,7 +282,8 @@ class FoundryFile(AbstractBufferedFile):
         )
 
     def _fetch_range(self, start, end):
-        assert start == 0, "Only reading of the complete file is supported"
+        if start != 0:
+            raise ValueError("Only reading of the complete file is supported")
         return self.fs.api.download_dataset_file(
             dataset_rid=self.fs.dataset_identity["dataset_rid"],
             output_directory=None,
@@ -306,20 +293,23 @@ class FoundryFile(AbstractBufferedFile):
 
     def _initiate_upload(self):
         """Internal function to start a file upload."""
-        if not self.fs._intrans:  # pylint: disable=protected-access
+        if not self.fs._intrans:
             transaction = self.fs.start_transaction()
             transaction.start()
 
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload."""
-        assert final is True, "chunked uploading not supported"
+        if not final:
+            raise ValueError("chunked uploading not supported")
         self.buffer.seek(0)
-        assert (
-            self.fs._transaction is not None  # pylint: disable=protected-access
-        ), "multiple threads, same dataset? use skip_instance_cache"
+        if not self.fs._transaction:
+            raise AssertionError(
+                "multiple threads accessing the same dataset? "
+                "use skip_instance_cache when creating the FoundryFileSystem"
+            )
         self.fs.api.upload_dataset_file(
             dataset_rid=self.fs.dataset_identity["dataset_rid"],
-            transaction_rid=self.fs._transaction.transaction_rid,  # pylint: disable=protected-access
+            transaction_rid=self.fs._transaction.transaction_rid,
             path_in_foundry_dataset=self.path,
             path_or_buf=self.buffer,
         )
@@ -338,7 +328,8 @@ class FoundryFileSystemError(FoundryDevToolsError):
 
 
 class FoundrySimultaneousOpenTransactionError(FoundryFileSystemError):
-    # pylint: disable=missing-class-docstring
+    """Thrown when a dataset already has an open tranasaction."""
+
     def __init__(self, dataset_rid: str, open_transaction_rid):
         super().__init__(
             f"Dataset {dataset_rid} already has open transaction {open_transaction_rid}"
@@ -348,7 +339,8 @@ class FoundrySimultaneousOpenTransactionError(FoundryFileSystemError):
 
 
 class FoundryDeleteInNotSupportedTransactionError(FoundryFileSystemError):
-    # pylint: disable=missing-class-docstring
+    """Thrown when trying to delete files in an UPDATE/SNAPSHOT transaction."""
+
     def __init__(self, path: str):
         super().__init__(
             f"You are trying to delete the file(s) {path} while an UPDATE/SNAPSHOT transaction is open. "
@@ -358,7 +350,8 @@ class FoundryDeleteInNotSupportedTransactionError(FoundryFileSystemError):
 
 
 class FoundryDatasetPathInUrlNotSupportedError(FoundryFileSystemError):
-    # pylint: disable=missing-class-docstring
+    """Thrown when using the path to a dataset instead of the rid."""
+
     def __init__(self):
         super().__init__(
             "Using the dataset path in the fsspec url is not supported. Please pass the dataset rid, e.g. "
@@ -410,7 +403,7 @@ class FoundryTransaction:
                     branch=self_i.fs.dataset_identity["branch"],
                 )
                 self_i.files = []  # clean up after previous failed completions
-                self_i.fs._intrans = True  # pylint: disable=protected-access
+                self_i.fs._intrans = True
             except DatasetHasOpenTransactionError as exception:
                 raise FoundrySimultaneousOpenTransactionError(
                     dataset_rid=exception.dataset_rid,
@@ -442,7 +435,7 @@ class FoundryTransaction:
                 transaction_id=self.transaction_rid,
             )
         self.files = []
-        self.fs._intrans = False  # pylint: disable=protected-access
+        self.fs._intrans = False
 
 
 def _correct_directories(file_details, subfolder_prefix=""):

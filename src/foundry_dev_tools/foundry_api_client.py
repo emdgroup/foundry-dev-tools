@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 """Contains FoundryRestClient and FoundrySqlClient and exception classes.
 
 One of the gaols of this module is to be self-contained so that it can be
@@ -16,21 +15,28 @@ import multiprocessing
 import os
 import platform
 import shutil
+import sys
 import tempfile
 import time
 import warnings
 from contextlib import contextmanager
+from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
-from os import makedirs, path, remove, sep
 from pathlib import Path
-from typing import AnyStr, IO, Iterator, List, Optional, Tuple, Union
+from typing import IO, TYPE_CHECKING, AnyStr
 from urllib.parse import quote, quote_plus
 
+import palantir_oauth_client
 import requests
 
-import foundry_dev_tools
-from foundry_dev_tools import __version__ as fdt_version
+import foundry_dev_tools.config
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    import pandas as pd
+    import pyarrow as pa
+    import pyspark
 # On Python 3.8 on macOS, the default start method for new processes was
 #  switched to 'spawn' by default due to 'fork' potentially causing crashes.
 # These crashes haven't yet been observed with libE, but with 'spawn' runs,
@@ -43,20 +49,27 @@ if platform.system() == "Darwin":
 
 LOGGER = logging.getLogger(__name__)
 
+# duplicate code from __init__.py
+# if we import __version__ from __init__.py
+# we will have a circular import
+# which may have unintended side effects
+try:
+    FDT_VERSION = version(__name__)
+except PackageNotFoundError:  # pragma: no cover
+    FDT_VERSION = "unknown"
+
 
 @contextmanager
 def _poolcontext(*args, **kwargs):
-    # pylint: disable=missing-function-docstring,consider-using-with
     pool = multiprocessing.Pool(*args, **kwargs)
     yield pool
     pool.terminate()
 
 
 class FoundryRestClient:
-    # pylint: disable=too-many-public-methods, too-many-instance-attributes
     """Zero dependency python client for Foundry's REST APIs."""
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: "dict | None" = None):
         """Create an instance of FoundryRestClient.
 
         Args:
@@ -76,7 +89,7 @@ class FoundryRestClient:
             >>> fc = FoundryRestClient(config={'jwt': '<token>'})
             >>> fc = FoundryRestClient(config={'client_id': '<client_id>'})
         """
-        self._config = foundry_dev_tools.Configuration.get_config(config)
+        self._config = foundry_dev_tools.config.Configuration.get_config(config)
         api_base = self._config["foundry_url"]
         self.catalog = f"{api_base}/foundry-catalog/api"
         self.compass = f"{api_base}/compass/api"
@@ -90,7 +103,7 @@ class FoundryRestClient:
     def _headers(self):
         return {
             "User-Agent": requests.utils.default_user_agent(
-                f"foundry-dev-tools/{fdt_version}/python-requests"
+                f"foundry-dev-tools/{FDT_VERSION}/python-requests"
             ),
             "Content-Type": "application/json",
             "Authorization": f"Bearer {_get_auth_token(self._config)}",
@@ -119,7 +132,10 @@ class FoundryRestClient:
             verify=self._verify(),
             json={"path": dataset_path},
         )
-        if response.status_code == 400 and "DuplicateDatasetName" in response.text:
+        if (
+            response.status_code == requests.codes.bad
+            and "DuplicateDatasetName" in response.text
+        ):
             rid = self.get_dataset_rid(dataset_path=dataset_path)
             raise DatasetAlreadyExistsError(dataset_path=dataset_path, dataset_rid=rid)
         _raise_for_status_verbose(response)
@@ -144,7 +160,7 @@ class FoundryRestClient:
             headers=self._headers(),
             verify=self._verify(),
         )
-        if response.status_code == 204 and response.text == "":
+        if response.status_code == requests.codes.no_content and not response.text:
             raise DatasetNotFoundError(dataset_rid, response=response)
         _raise_for_status_verbose(response)
         return response.json()
@@ -166,7 +182,10 @@ class FoundryRestClient:
             verify=self._verify(),
             json={"rid": dataset_rid},
         )
-        if response.status_code == 400 and "DatasetsNotFound" in response.text:
+        if (
+            response.status_code == requests.codes.bad
+            and "DatasetsNotFound" in response.text
+        ):
             raise DatasetNotFoundError(dataset_rid, response=response)
         _raise_for_status_verbose(response)
         self.move_resource_to_trash(resource_id=dataset_rid)
@@ -185,7 +204,7 @@ class FoundryRestClient:
             verify=self._verify(),
             data=f'["{resource_id}"]',
         )
-        if response_trash.status_code != 204:
+        if response_trash.status_code != requests.codes.no_content:
             raise KeyError(
                 f"Issue while moving resource '{resource_id}' to foundry trash."
             )
@@ -195,8 +214,8 @@ class FoundryRestClient:
         self,
         dataset_rid: str,
         branch: str,
-        parent_branch: str = None,
-        parent_branch_id: str = None,
+        parent_branch: "str | None" = None,
+        parent_branch_id: "str | None" = None,
     ) -> dict:
         """Creates a new branch in a dataset.
 
@@ -221,13 +240,16 @@ class FoundryRestClient:
             verify=self._verify(),
             json={"parentBranchId": parent_branch, "parentRef": parent_branch_id},
         )
-        if response.status_code == 400 and "BranchesAlreadyExist" in response.text:
+        if (
+            response.status_code == requests.codes.bad
+            and "BranchesAlreadyExist" in response.text
+        ):
             raise BranchesAlreadyExistError(dataset_rid, branch, response=response)
         _raise_for_status_verbose(response)
         return response.json()
 
     def update_branch(
-        self, dataset_rid: str, branch: str, parent_branch: str = None
+        self, dataset_rid: str, branch: str, parent_branch: "str | None" = None
     ) -> dict:
         """Updates the latest transaction of branch 'branch' to the latest transaction of branch 'parent_branch'.
 
@@ -283,7 +305,7 @@ class FoundryRestClient:
             headers=self._headers(),
             verify=self._verify(),
         )
-        if response.status_code == 204 and response.text == "":
+        if response.status_code == requests.codes.no_content and not response.text:
             raise BranchNotFoundError(dataset_rid, branch, response=None)
         _raise_for_status_verbose(response)
         return response.json()
@@ -317,12 +339,18 @@ class FoundryRestClient:
             verify=self._verify(),
             json={"branchId": f"{branch}", "record": {}},
         )
-        if response.status_code == 400 and "BranchesNotFound" in response.text:
+        if (
+            response.status_code == requests.codes.bad
+            and "BranchesNotFound" in response.text
+        ):
             raise BranchNotFoundError(dataset_rid, branch, response=response)
-        if response.status_code == 400 and "InvalidArgument" in response.text:
+        if (
+            response.status_code == requests.codes.bad
+            and "InvalidArgument" in response.text
+        ):
             raise DatasetNotFoundError(dataset_rid, response=response)
         if (
-            response.status_code == 400
+            response.status_code == requests.codes.bad
             and "SimultaneousOpenTransactionsNotAllowed" in response.text
         ):
             open_transaction_rid = response.json()["parameters"]["openTransactionRid"]
@@ -384,7 +412,7 @@ class FoundryRestClient:
         _raise_for_status_verbose(response)
 
     def add_files_to_delete_transaction(
-        self, dataset_rid: str, transaction_id: str, logical_paths: List[str]
+        self, dataset_rid: str, transaction_id: str, logical_paths: "list[str]"
     ):
         """Adds files in an open DELETE transaction.
 
@@ -426,7 +454,7 @@ class FoundryRestClient:
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
-        if response.status_code != 204:
+        if response.status_code != requests.codes.no_content:
             raise KeyError(
                 f"{dataset_rid} issue while committing transaction {transaction_id}"
             )
@@ -451,7 +479,7 @@ class FoundryRestClient:
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
-        if response.status_code != 204:
+        if response.status_code != requests.codes.no_content:
             raise KeyError(
                 f"{dataset_rid} issue while aborting transaction {transaction_id}"
             )
@@ -503,7 +531,7 @@ class FoundryRestClient:
 
     def get_dataset_last_transaction_rid(
         self, dataset_rid: str, branch: str = "master"
-    ) -> Optional[str]:
+    ) -> "str | None":
         """Returns the last transaction of a dataset / branch combination.
 
         Args:
@@ -511,7 +539,7 @@ class FoundryRestClient:
             branch (str): Branch
 
         Returns:
-            Optional[str]:
+            str | None:
                 last_transaction_rid as string or None if dataset has no transaction.
 
         """
@@ -524,7 +552,7 @@ class FoundryRestClient:
         self,
         dataset_rid: str,
         transaction_rid: str,
-        path_or_buf: Union[str, Path, IO[AnyStr]],
+        path_or_buf: "str | Path | IO[AnyStr]",
         path_in_foundry_dataset: str,
     ):
         """Uploads a file like object to a path in a foundry dataset.
@@ -544,7 +572,7 @@ class FoundryRestClient:
             if hasattr(f, "read")
             else original_open(f, *args, **kwargs)
         )
-        with open(path_or_buf, "rb") as file:
+        with open(path_or_buf, "rb") as file:  # noqa: PTH123
             response = _request(
                 "POST",
                 f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/"
@@ -558,7 +586,7 @@ class FoundryRestClient:
             )
         builtins.open = original_open
         _raise_for_status_verbose(response)
-        if response.status_code != 204:
+        if response.status_code != requests.codes.no_content:
             raise ValueError(
                 f"Issue while uploading file {path_or_buf} "
                 f"to dataset: {dataset_rid}, "
@@ -572,14 +600,14 @@ class FoundryRestClient:
         dataset_rid: str,
         transaction_rid: str,
         path_file_dict: dict,
-        parallel_processes: int = None,
+        parallel_processes: "int | None" = None,
     ):
         """Uploads multiple local files to a foundry dataset.
 
         Args:
             dataset_rid (str): Unique identifier of the dataset
             transaction_rid (str): transaction id
-            parallel_processes (Optional[int): Set number of threads for upload
+            parallel_processes (int | None): Set number of threads for upload
             path_file_dict (dict): A dictionary with the following structure:
 
         .. code-block:: python
@@ -647,7 +675,7 @@ class FoundryRestClient:
                 params={"path": dataset_path_or_rid, "decoration": "path"},
             )
         _raise_for_status_verbose(response)
-        if response.status_code != 200:
+        if response.status_code != requests.codes.ok:
             raise DatasetNotFoundError(dataset_path_or_rid, response=response)
         as_json = response.json()
         if as_json["directlyTrashed"]:
@@ -655,8 +683,8 @@ class FoundryRestClient:
         return as_json
 
     def get_child_objects_of_folder(
-        self, folder_rid: str, page_size: int = None
-    ) -> Iterator[dict]:
+        self, folder_rid: str, page_size: "int | None" = None
+    ) -> "Iterator[dict]":
         """Returns the child objects of a compass folder.
 
         Args:
@@ -680,12 +708,11 @@ class FoundryRestClient:
                 params=query_params,
                 verify=self._verify(),
             )
-            if response.status_code == 404:
+            if response.status_code == requests.codes.not_found:
                 raise FolderNotFoundError(folder_rid, response=response)
             _raise_for_status_verbose(response)
             response_as_json = response.json()
-            for value in response_as_json["values"]:
-                yield value
+            yield from response_as_json["values"]
             if response_as_json["nextPageToken"] is None:
                 break
 
@@ -820,19 +847,19 @@ class FoundryRestClient:
             headers=self._headers(),
             verify=self._verify(),
         )
-        if response.status_code == 403:
+        if response.status_code == requests.codes.forbidden:
             raise DatasetNotFoundError(dataset_rid, response=response)
-        if response.status_code == 204:
+        if response.status_code == requests.codes.no_content:
             # here we don't know if schema does not exist or branch does not exist
             # we ask api for branch information, if branch does not exist, exception is thrown
             self.get_branch(dataset_rid, branch)
             raise DatasetHasNoSchemaError(dataset_rid, transaction_rid, branch)
-        if response.status_code == 404 or (
+        if response.status_code == requests.codes.not_found or (
             "errorName" in response.json()
             and response.json()["errorName"] == "Catalog:BranchesNotFound"
         ):
             raise BranchNotFoundError(dataset_rid, branch, response=response)
-        if response.status_code != 200:
+        if response.status_code != requests.codes.ok:
             raise KeyError(
                 f"{dataset_rid}, {branch}, {transaction_rid} combination not found"
             )
@@ -930,9 +957,11 @@ class FoundryRestClient:
         dataset_details = self.get_dataset_details(dataset_path_or_rid)
         dataset_rid = dataset_details["rid"]
         dataset_path = dataset_details["path"]
-        if check_read_access:
-            if "gatekeeper:view-resource" not in dataset_details["operations"]:
-                raise DatasetNoReadAccessError(dataset_rid)
+        if (
+            check_read_access
+            and "gatekeeper:view-resource" not in dataset_details["operations"]
+        ):
+            raise DatasetNoReadAccessError(dataset_rid)
         return {
             "dataset_path": dataset_path,
             "dataset_rid": dataset_rid,
@@ -946,12 +975,11 @@ class FoundryRestClient:
         dataset_rid: str,
         exclude_hidden_files: bool = True,
         view: str = "master",
-        logical_path: str = None,
+        logical_path: "str | None" = None,
         detail: bool = False,
         *,
         include_open_exclusive_transaction: bool = False,
     ) -> list:
-        # pylint: disable=too-many-arguments
         """Returns list of internal filenames of a dataset.
 
         Args:
@@ -991,10 +1019,9 @@ class FoundryRestClient:
                 },
             )
             _raise_for_status_verbose(response)
-            if response.status_code != 200:
+            if response.status_code != requests.codes.ok:
                 raise DatasetNotFoundError(dataset_rid, response=response)
-            response_json = response.json()
-            return response_json
+            return response.json()
 
         result = []
         batch_result = _inner_get(next_page_token=None)
@@ -1032,17 +1059,17 @@ class FoundryRestClient:
     def download_dataset_file(
         self,
         dataset_rid: str,
-        output_directory: Optional[str],
+        output_directory: "str | None",
         foundry_file_path: str,
         view: str = "master",
-    ) -> Union[str, bytes]:
+    ) -> "str | bytes":
         """Downloads a single foundry dataset file into a directory.
 
         Creates sub folder if necessary.
 
         Args:
             dataset_rid (str): the dataset rid
-            output_directory (Optional[str]): the local output directory for the file or None
+            output_directory (str | None): the local output directory for the file or None
                 if None is passed, byte content of file is returned
             foundry_file_path (str): the file_path on the foundry file system
             view (str): branch or transaction rid of the dataset
@@ -1056,41 +1083,28 @@ class FoundryRestClient:
             ValueError: If download failed
 
         """
-
         if output_directory is None:
             return self._download_dataset_file(
                 dataset_rid, view, foundry_file_path, stream=False
             ).content
-        file_directory = sep.join(
-            [output_directory, path.sep.join(foundry_file_path.split("/")[0:-1])]
-        )
-        makedirs(output_directory, exist_ok=True)
-        if "/" in foundry_file_path:
-            # check if file exists and is empty, in that case replace with folder
-            # can happen with empty s3 keys
-            if path.isfile(file_directory) and path.getsize(file_directory) == 0:
-                remove(file_directory)
-            makedirs(file_directory, exist_ok=True)
-        file_name = foundry_file_path.split("/")[-1]
-        local_file_path = os.path.normpath(sep.join([file_directory, file_name]))
+
+        local_path = Path(output_directory).joinpath(foundry_file_path)
+        file_dir = local_path.parent
+        if file_dir.is_file() and file_dir.stat().st_size == 0:
+            file_dir.unlink()
+        file_dir.mkdir(exist_ok=True, parents=True)
+        if local_path.is_dir():
+            return ""
         resp = self._download_dataset_file(
             dataset_rid, view, foundry_file_path, stream=True
         )
-        if path.isdir(local_file_path):
-            resp.close()
-            return ""
-        with open(local_file_path, "wb") as out_file:
-            if resp.status_code != 200:
-                raise ValueError(
-                    f"Issue while downloading {dataset_rid}, "
-                    f"file {foundry_file_path}, branch/transaction_rid {view}."
-                    f"Response status was {resp.status_code}"
-                )
+        _raise_for_status_verbose(resp)
+        with local_path.open(mode="wb") as out_file:
             resp.raw.decode_content = True
             shutil.copyfileobj(resp.raw, out_file)
 
         resp.close()
-        return local_file_path
+        return os.fspath(local_path)
 
     def _download_dataset_file(self, dataset_rid, view, foundry_file_path, stream=True):
         response = _request(
@@ -1107,20 +1121,19 @@ class FoundryRestClient:
         self,
         dataset_rid: str,
         output_directory: str,
-        files: list = None,
+        files: "list | None" = None,
         view: str = "master",
-        parallel_processes: int = None,
-    ) -> List[str]:
-        # pylint: disable=too-many-arguments, unused-argument
+        parallel_processes: "int | None" = None,
+    ) -> "list[str]":
         """Downloads files of a dataset (in parallel) to a local output directory.
 
         Args:
             dataset_rid (str): the dataset rid
-            files (Optional[list]): list of files or None, in which case all files are downloaded
+            files (list | None): list of files or None, in which case all files are downloaded
             output_directory (str): the output directory for the files
                 default value is calculated: multiprocessing.cpu_count() - 1
             view (str): branch or transaction rid of the dataset
-            parallel_processes (Optional[int]): Set number of threads for upload
+            parallel_processes (int | None): Set number of threads for upload
 
         Returns:
             List[str]:
@@ -1158,16 +1171,16 @@ class FoundryRestClient:
                         ),
                     )
                 )
-        return list(filter(lambda p: p != "", local_paths))
+        return list(filter(lambda p: p != "", local_paths))  # noqa: PLC1901
 
     @contextmanager
     def download_dataset_files_temporary(
         self,
         dataset_rid: str,
-        files: list = None,
+        files: "list | None" = None,
         view: str = "master",
-        parallel_processes: Optional[int] = None,
-    ) -> str:
+        parallel_processes: "int | None" = None,
+    ) -> "Iterator[str]":
         """Downloads all files of a dataset to a temporary directory.
 
         Which is deleted when the context is closed. Function returns the temporary directory.
@@ -1187,8 +1200,8 @@ class FoundryRestClient:
             view (str): branch or transaction rid of the dataset
             parallel_processes (int): Set number of threads for download
 
-        Returns:
-            str:
+        Yields:
+            Iterator[str]:
                 path to temporary folder containing root of dataset files
 
         """
@@ -1238,7 +1251,7 @@ class FoundryRestClient:
 
     def query_foundry_sql_legacy(
         self, query: str, branch: str = "master"
-    ) -> (dict, list):
+    ) -> "tuple[dict, list]":
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -1275,13 +1288,13 @@ class FoundryRestClient:
         )
 
         if (
-            response.status_code == 404
+            response.status_code == requests.codes.not_found
             and response.json()["errorName"] == "DataProxy:SchemaNotFound"
         ):
             dataset_rid = response.json()["parameters"]["datasetRid"]
             raise DatasetHasNoSchemaError(dataset_rid, branch=branch)
         if (
-            response.status_code == 400
+            response.status_code == requests.codes.bad
             and response.json()["errorName"]
             == "DataProxy:FallbackBranchesNotSpecifiedInQuery"
         ):
@@ -1299,11 +1312,11 @@ class FoundryRestClient:
 
     def query_foundry_sql(
         self, query, branch="master", return_type="pandas"
-    ) -> "pandas.core.frame.DataFrame | pyarrow.Table | pyspark.sql.DataFrame":
-        # pylint: disable=line-too-long
+    ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
         """Queries the Foundry SQL server with spark SQL dialect.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
+
         Example:
             client.query_foundry_sql("SELECT * FROM `/Global/Foundry Operations/Foundry Support/iris`")
 
@@ -1322,8 +1335,11 @@ class FoundryRestClient:
         Raises:
             ValueError: Only direct read eligible queries can be returned as arrow Table.
 
-        """
-        assert return_type in {"pandas", "arrow", "spark"}
+        """  # noqa: E501
+        if return_type not in {"pandas", "arrow", "spark"}:
+            raise AssertionError(
+                f"return_type ({return_type}) should be one of pandas, arrow or spark"
+            )
         foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
             return foundry_sql_client.query(query=query, return_type=return_type)
@@ -1336,14 +1352,13 @@ class FoundryRestClient:
             foundry_schema, data = self.query_foundry_sql_legacy(query, branch)
 
             if return_type == "pandas":
-                # pylint: disable=import-outside-toplevel
                 import pandas as pd
 
                 return pd.DataFrame(
                     data=data,
                     columns=[e["name"] for e in foundry_schema["fieldSchemaList"]],
                 )
-            # pylint: disable=import-outside-toplevel
+
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
                 foundry_sql_data_to_spark_dataframe,
@@ -1437,9 +1452,8 @@ class FoundryRestClient:
         redirect_uris: "list | None",
         logo_uri: "str | None",
         organization_rid: str,
-        allowed_organization_rids: list = None,
+        allowed_organization_rids: "list | None" = None,
     ) -> dict:
-        # pylint: disable=too-many-arguments
         """Creates Foundry Third Party application (TPA).
 
         https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/
@@ -1449,11 +1463,11 @@ class FoundryRestClient:
             client_type (str): Server Application (CONFIDENTIAL) or
                 Native or single-page application (PUBLIC)
             display_name (str): Display name of the TPA
-            description (Optional[str]): Long description of the TPA
+            description (str | None): Long description of the TPA
             grant_types (list): Usually, ["AUTHORIZATION_CODE", "REFRESH_TOKEN"] (authorization code grant)
                 or ["REFRESH_TOKEN", "CLIENT_CREDENTIALS"] (client credentials grant)
-            redirect_uris (Optional[list]): Redirect URLs of TPA, used in combination with AUTHORIZATION_CODE grant
-            logo_uri (Optional[str]): URI or embedded image 'data:image/png;base64,<...>'
+            redirect_uris (list | None): Redirect URLs of TPA, used in combination with AUTHORIZATION_CODE grant
+            logo_uri (str | None): URI or embedded image 'data:image/png;base64,<...>'
             organization_rid (str): Parent Organization of this TPA
             allowed_organization_rids (list): Passing None or empty list means TPA is activated for all
                 Foundry organizations
@@ -1478,13 +1492,20 @@ class FoundryRestClient:
             }
 
         """
-        assert client_type in ["CONFIDENTIAL", "PUBLIC"]
+        if client_type not in ["CONFIDENTIAL", "PUBLIC"]:
+            raise AssertionError(
+                f"client_type ({client_type}) needs to be one of CONFIDENTIAL or PUBLIC"
+            )
         for grant in grant_types:
-            assert grant in [
+            if grant not in [
                 "AUTHORIZATION_CODE",
                 "REFRESH_TOKEN",
                 "CLIENT_CREDENTIALS",
-            ]
+            ]:
+                raise AssertionError(
+                    f"grant ({grant}) needs to be one of "
+                    "AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
+                )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
         response = _request(
@@ -1530,9 +1551,8 @@ class FoundryRestClient:
         redirect_uris: "list | None",
         logo_uri: "str | None",
         organization_rid: str,
-        allowed_organization_rids: list = None,
+        allowed_organization_rids: "list | None" = None,
     ) -> dict:
-        # pylint: disable=too-many-arguments
         """Updates Foundry Third Party application (TPA).
 
         https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/
@@ -1571,13 +1591,20 @@ class FoundryRestClient:
             }
 
         """
-        assert client_type in ["CONFIDENTIAL", "PUBLIC"]
+        if client_type not in ["CONFIDENTIAL", "PUBLIC"]:
+            raise AssertionError(
+                f"client_type ({client_type}) needs to be one of CONFIDENTIAL or PUBLIC"
+            )
         for grant in grant_types:
-            assert grant in [
+            if grant not in [
                 "AUTHORIZATION_CODE",
                 "REFRESH_TOKEN",
                 "CLIENT_CREDENTIALS",
-            ]
+            ]:
+                raise AssertionError(
+                    f"grant ({grant}) needs to be one of "
+                    "AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
+                )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
         response = _request(
@@ -1683,10 +1710,9 @@ class FoundryRestClient:
 
 
 class FoundrySqlClient:
-    # pylint: disable=too-few-public-methods
     """Class to interact with Foundry's SQL Server using ARROW IPC Protocol."""
 
-    def __init__(self, config: dict = None, branch="master"):
+    def __init__(self, config: "dict | None" = None, branch="master"):
         """Construct an instance of FoundrySqlClient.
 
         Args:
@@ -1694,7 +1720,7 @@ class FoundrySqlClient:
             branch (str):  default = master, all queries will be executed against this default branch
 
         """
-        self._config = foundry_dev_tools.Configuration.get_config(config)
+        self._config = foundry_dev_tools.config.Configuration.get_config(config)
         self._requests_verify_value = _determine_requests_verify_value(self._config)
         self.foundry_sql_server_api = (
             f"{self._config['foundry_url']}/foundry-sql-server/api"
@@ -1711,7 +1737,7 @@ class FoundrySqlClient:
     def _get_initial_headers(self, session_authorization=None):
         return {
             "User-Agent": requests.utils.default_user_agent(
-                f"foundry-dev-tools/{fdt_version}/python-requests"
+                f"foundry-dev-tools/{FDT_VERSION}/python-requests"
             ),
             "Accept": "application/json",
             "Accept-Encoding": "gzip, deflate, br",
@@ -1720,7 +1746,7 @@ class FoundrySqlClient:
             "Authorization": f"Bearer {_get_auth_token(self._config)}",
         }
 
-    def _establish_session(self, branch="master") -> Tuple[str, str]:
+    def _establish_session(self, branch="master") -> "tuple[str, str]":
         response = _request(
             "POST",
             f"{self.foundry_sql_server_api}/sessions",
@@ -1783,7 +1809,7 @@ class FoundrySqlClient:
 
     def _read_results_arrow(
         self, statement_id: str
-    ) -> "pyarrow.ipc.RecordBatchStreamReader":
+    ) -> "pa.ipc.RecordBatchStreamReader":
         headers = self._headers
         headers["Accept"] = "application/octet-stream"
         headers["Content-Type"] = "application/json"
@@ -1818,14 +1844,14 @@ class FoundrySqlClient:
             # Ineligible types are array, map, and struct.
 
             raise FoundrySqlSerializationFormatNotImplementedError()
-        # pylint: disable=import-outside-toplevel
+
         import pyarrow as pa
 
         return pa.ipc.RecordBatchStreamReader(bytes_io)
 
     def query(
         self, query: str, timeout=600, return_type="pandas"
-    ) -> "pandas.core.frame.DataFrame | pyarrow.Table | pyspark.sql.DataFrame":
+    ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
         """Queries the foundry sql endpoint. Current dialect is hard-coded to SPARK.
 
         Example Queries:
@@ -1855,7 +1881,10 @@ class FoundrySqlClient:
 
 
         """
-        assert return_type in {"pandas", "arrow", "spark"}
+        if return_type not in {"pandas", "arrow", "spark"}:
+            raise AssertionError(
+                f"return_type ({return_type}) should be one of pandas, arrow or spark"
+            )
 
         response_json = self._prepare_and_execute(query)
         statement_id = response_json["statementId"]
@@ -1867,7 +1896,6 @@ class FoundrySqlClient:
         if return_type == "pandas":
             return arrow_stream_reader.read_pandas()
         if return_type == "spark":
-            # pylint: disable=import-outside-toplevel
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 arrow_stream_to_spark_dataframe,
             )
@@ -1878,43 +1906,22 @@ class FoundrySqlClient:
 
 def _transform_bad_request_response_to_exception(response):
     if (
-        response.status_code == 400
+        response.status_code == requests.codes.bad
         and response.json()["errorName"] == "FoundrySqlServer:InvalidDatasetNoSchema"
     ):
         raise DatasetHasNoSchemaError("SQL")
     if (
-        response.status_code == 400
+        response.status_code == requests.codes.bad
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetCannotAccess"
     ):
         raise BranchNotFoundError("SQL", "SQL")
     if (
-        response.status_code == 400
+        response.status_code == requests.codes.bad
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetPathNotFound"
     ):
         raise DatasetNotFoundError("SQL")
-
-
-def _is_palantir_oauth_client_installed():
-    try:
-        # pylint: disable=import-outside-toplevel,unused-import,import-error
-        import palantir_oauth_client
-
-        return palantir_oauth_client
-    except ImportError:
-        try:
-            # pylint: disable=import-outside-toplevel,import-error
-            import pyfoundry_auth
-
-            warnings.warn(
-                "\nPyFoundry Auth has been renamed to Palantir Oauth Client\n"
-                "Please uninstall pyfoundry-auth and install palantir-oauth-client\n",
-                DeprecationWarning,
-            )
-            return pyfoundry_auth
-        except ImportError:
-            return False
 
 
 def _raise_for_status_verbose(response: requests.Response):
@@ -1937,8 +1944,8 @@ def _raise_for_status_verbose(response: requests.Response):
                 response.headers["Server-Timing"],
             )
     except requests.exceptions.HTTPError as error:
-        print(error)
-        print(error.response.text)
+        print(error, file=sys.stderr)
+        print(error.response.text, file=sys.stderr)
         raise error
 
 
@@ -1963,7 +1970,6 @@ def lru_with_ttl(*, ttl_seconds: int, maxsize: int = 128):
     """
 
     def deco(wrapped_function):
-        # pylint: disable=unused-argument
         @functools.lru_cache(maxsize=maxsize)
         def cached_with_ttl(*args, ttl_hash, **kwargs):
             return wrapped_function(*args, **kwargs)
@@ -2048,7 +2054,7 @@ def _get_oauth2_client_credentials_token(
     """
     headers = {
         "User-Agent": requests.utils.default_user_agent(
-            f"foundry-dev-tools/{fdt_version}/python-requests"
+            f"foundry-dev-tools/{FDT_VERSION}/python-requests"
         ),
         "Authorization": "Basic "
         + base64.b64encode(bytes(client_id + ":" + client_secret, "ISO-8859-1")).decode(
@@ -2070,37 +2076,28 @@ def _get_oauth2_client_credentials_token(
 
 @lru_with_ttl(ttl_seconds=3600)
 def _get_palantir_oauth_token(
-    foundry_url: str, client_id: str, client_secret: str = None
+    foundry_url: str, client_id: str, client_secret: "str | None" = None
 ) -> str:
-    if oauth_provider := _is_palantir_oauth_client_installed():
-        credentials = oauth_provider.get_user_credentials(
-            scopes=[
-                "offline_access",
-                "compass:view",
-                "compass:edit",
-                "compass:discover",
-                "api:write-data",
-                "api:read-data",
-            ],
-            hostname=foundry_url,
-            client_id=client_id,
-            client_secret=client_secret,
-            use_local_webserver=False,
-        )
-
-    else:
-        raise ValueError(
-            "You provided a 'client_id' for Foundry SSO but "
-            "palantir-oauth-client is not installed.\n"
-        )
+    credentials = palantir_oauth_client.get_user_credentials(
+        scopes=[
+            "offline_access",
+            "compass:view",
+            "compass:edit",
+            "compass:discover",
+            "api:write-data",
+            "api:read-data",
+        ],
+        hostname=foundry_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        use_local_webserver=False,
+    )
 
     return credentials.token
 
 
 def _request(*args, **kwargs):
-    kwargs["timeout"] = 599
-    # pylint: disable=missing-timeout
-    return requests.request(*args, **kwargs)
+    return requests.request(*args, **kwargs, timeout=60)
 
 
 class FoundryDevToolsError(Exception):
@@ -2143,17 +2140,17 @@ class DatasetHasNoSchemaError(FoundryAPIError):
     def __init__(
         self,
         dataset_rid: str,
-        transaction_rid: Optional[str] = None,
-        branch: Optional[str] = None,
-        response: Optional[requests.Response] = None,
+        transaction_rid: "str | None" = None,
+        branch: "str | None" = None,
+        response: "requests.Response | None" = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset which has no schema
-             transaction_rid (Optional[str]): transaction_rid if available
-             branch (Optional[str]): dataset branch if available
-             response (Optional[requests.Response]): requests response if available
+             transaction_rid (str | None): transaction_rid if available
+             branch (str | None): dataset branch if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Dataset {dataset_rid} "
@@ -2179,16 +2176,16 @@ class BranchNotFoundError(FoundryAPIError):
         self,
         dataset_rid: str,
         branch: str,
-        transaction_rid: Optional[str] = None,
-        response: Optional[requests.Response] = None,
+        transaction_rid: "str | None" = None,
+        response: "requests.Response | None" = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset_rid for the branch that does not exist
              transaction_rid (str): transaction_rid if available
-             branch (Optional[str]): dataset branch
-             response (Optional[requests.Response]): requests response if available
+             branch (str | None): dataset branch
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Dataset {dataset_rid} "
@@ -2213,14 +2210,14 @@ class BranchesAlreadyExistError(FoundryAPIError):
         self,
         dataset_rid: str,
         branch_rid: str,
-        response: Optional[requests.Response] = None,
+        response: "requests.Response | None" = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset_rid for the branch that already exists
              branch_rid (str): dataset branch which already exists
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Branch {branch_rid} already exists in {dataset_rid}.\n"
@@ -2234,12 +2231,12 @@ class BranchesAlreadyExistError(FoundryAPIError):
 class DatasetNotFoundError(FoundryAPIError):
     """Exception is thrown when dataset does not exist."""
 
-    def __init__(self, dataset_rid: str, response: Optional[requests.Response] = None):
+    def __init__(self, dataset_rid: str, response: "requests.Response | None" = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset which can't be found
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Dataset {dataset_rid} not found.\n"
@@ -2261,12 +2258,12 @@ class DatasetAlreadyExistsError(FoundryAPIError):
 class FolderNotFoundError(FoundryAPIError):
     """Exception is thrown when compass folder does not exist."""
 
-    def __init__(self, folder_rid: str, response: Optional[requests.Response] = None):
+    def __init__(self, folder_rid: str, response: "requests.Response | None" = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              folder_rid (str): folder_rid which can't be found
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Compass folder {folder_rid} not found; "
@@ -2281,12 +2278,12 @@ class FolderNotFoundError(FoundryAPIError):
 class DatasetHasNoTransactionsError(FoundryAPIError):
     """Exception is thrown when dataset has no transactions."""
 
-    def __init__(self, dataset_rid: str, response: Optional[requests.Response] = None):
+    def __init__(self, dataset_rid: str, response: "requests.Response | None" = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset which has no transactions
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Dataset {dataset_rid} has no transactions.\n"
@@ -2297,15 +2294,14 @@ class DatasetHasNoTransactionsError(FoundryAPIError):
 
 
 class DatasetNoReadAccessError(FoundryAPIError):
-    """Exception is thrown when user is missing 'gatekeeper:view-resource' on the dataset,
-    which normally comes with the Viewer role."""
+    """Exception is thrown when user is missing 'gatekeeper:view-resource' on the dataset, which normally comes with the Viewer role."""  # noqa: E501
 
-    def __init__(self, dataset_rid: str, response: Optional[requests.Response] = None):
+    def __init__(self, dataset_rid: str, response: "requests.Response | None" = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset which can't be read
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"No read access to dataset {dataset_rid}.\n"
@@ -2322,14 +2318,14 @@ class DatasetHasOpenTransactionError(FoundryAPIError):
         self,
         dataset_rid: str,
         open_transaction_rid: str,
-        response: Optional[requests.Response] = None,
+        response: "requests.Response | None" = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
              dataset_rid (str): dataset which has an open transaction
              open_transaction_rid (str): transaction_rid which is open
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             f"Dataset {dataset_rid} already has open transaction {open_transaction_rid}.\n"
@@ -2343,11 +2339,11 @@ class DatasetHasOpenTransactionError(FoundryAPIError):
 class FoundrySqlQueryFailedError(FoundryAPIError):
     """Exception is thrown when SQL Query execution failed."""
 
-    def __init__(self, response: Optional[requests.Response] = None):
+    def __init__(self, response: "requests.Response | None" = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
-             response (Optional[requests.Response]): requests response if available
+             response (requests.Response | None): requests response if available
         """
         super().__init__(
             "Foundry SQL Query Failed\n"

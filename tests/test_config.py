@@ -4,9 +4,8 @@ import random
 import tempfile
 from unittest import mock
 
-import foundry_dev_tools
+import foundry_dev_tools.config
 from foundry_dev_tools.config import Config
-
 from tests.conftest import PatchConfig
 
 # fake home for full control over all config files and variables
@@ -19,25 +18,30 @@ RANDOM_NUMBER3 = random.randint(1, 12345)
 
 @mock.patch("pathlib.Path.home", return_value=FAKE_HOME)
 def test_config_precedence(tmp):
+    MAGIC = 999
     with PatchConfig(
         initial_config_overwrite={
             "jwt": "123",
             "foundry_url": "precedence-test-url",
-            "transforms_sql_dataset_size_threshold": "999",
+            "transforms_sql_dataset_size_threshold": str(MAGIC),
         }
     ):
         # test initial config overwrite
         assert (
-            foundry_dev_tools.INITIAL_CONFIG["jwt"]
-            == foundry_dev_tools.Configuration["jwt"]
+            foundry_dev_tools.config.INITIAL_CONFIG["jwt"]
+            == foundry_dev_tools.config.Configuration["jwt"]
             == "123"
         )
 
         # test type conversion
         assert (
-            foundry_dev_tools.INITIAL_CONFIG["transforms_sql_dataset_size_threshold"]
-            == foundry_dev_tools.Configuration["transforms_sql_dataset_size_threshold"]
-            == 999
+            foundry_dev_tools.config.INITIAL_CONFIG[
+                "transforms_sql_dataset_size_threshold"
+            ]
+            == foundry_dev_tools.config.Configuration[
+                "transforms_sql_dataset_size_threshold"
+            ]
+            == MAGIC
         )
 
         # test dynamic overwrite config, not overwriting static configs
@@ -46,15 +50,15 @@ def test_config_precedence(tmp):
 
         # initial configs and static configs stay untouched
         assert (
-            foundry_dev_tools.INITIAL_CONFIG["jwt"]
-            == foundry_dev_tools.Configuration["jwt"]
+            foundry_dev_tools.config.INITIAL_CONFIG["jwt"]
+            == foundry_dev_tools.config.Configuration["jwt"]
             == "123"
         )
 
         # change static config directly
-        foundry_dev_tools.Configuration["jwt"] = "789"
+        foundry_dev_tools.config.Configuration["jwt"] = "789"
         # initial config and the transforms config stay untouched
-        assert foundry_dev_tools.INITIAL_CONFIG["jwt"] == "123"
+        assert foundry_dev_tools.config.INITIAL_CONFIG["jwt"] == "123"
 
         # the dynamic config overwrites with its own supplied value
         assert config_overwrite["jwt"] == "456"
@@ -77,7 +81,7 @@ def test_env_variable_takes_precedence(tmp):
         read_initial=True,
     ):
         assert (
-            foundry_dev_tools.INITIAL_CONFIG["transforms_sql_sample_row_limit"]
+            foundry_dev_tools.config.INITIAL_CONFIG["transforms_sql_sample_row_limit"]
             == RANDOM_NUMBER1
         )
 
@@ -87,4 +91,26 @@ def test_env_variable_takes_precedence(tmp):
                 "transforms_sql_sample_row_limit"
             ]
             == RANDOM_NUMBER3
+        )
+
+
+@mock.patch("pathlib.Path.home", return_value=FAKE_HOME)
+@mock.patch.dict(
+    os.environ, {"FOUNDRY_DEV_TOOLS_JWT": "env_jwt_takes_precedence_over_config_files"}
+)
+def test_env_varibale_takes_precedence_over_config_files(tmp):
+    FDT_DIR = pathlib.Path.home().joinpath(".foundry-dev-tools")
+    FDT_DIR.mkdir(parents=True)
+    with FDT_DIR.joinpath("config").open(mode="w+") as fdt_conf_file:
+        fdt_conf_file.write(
+            "[default]\njwt=123456789\nfoundry_url=https://env_take_prec.lan/"
+        )
+    with PatchConfig(read_initial=True):
+        assert (
+            foundry_dev_tools.config.Configuration["jwt"]
+            == "env_jwt_takes_precedence_over_config_files"
+        )
+        assert (
+            foundry_dev_tools.config.INITIAL_CONFIG["jwt"]
+            == "env_jwt_takes_precedence_over_config_files"
         )

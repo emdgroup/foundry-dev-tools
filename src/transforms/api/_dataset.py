@@ -3,35 +3,34 @@
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
 
-"""  # pylint: disable=line-too-long
+"""  # noqa: E501
 
 import inspect
 import logging
-import pathlib
 import warnings
-from os import getcwd, path
-from subprocess import CalledProcessError
-from typing import Any, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Any
 
 import pyspark
 
-import foundry_dev_tools
-from foundry_dev_tools import CachedFoundryClient
-from foundry_dev_tools.config import execute_as_subprocess
+import foundry_dev_tools.config
+from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
+from foundry_dev_tools.config import _traverse_to_git_project_top_level_dir
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetHasNoSchemaError,
+    DatasetHasNoTransactionsError,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _as_list(list_or_single_item: Union[None, List[Any], Any]) -> List[Any]:
+def _as_list(list_or_single_item: "list[Any] | Any | None") -> "list[Any]":
     """Helper function turning single values or None into lists.
 
     Args:
-        list_or_single_item (Union[None, List[Any], Any]): item or list to return as a list
+        list_or_single_item (List[Any] | Any | None): item or list to return as a list
 
     Returns:
         list:
@@ -48,7 +47,7 @@ def _as_list(list_or_single_item: Union[None, List[Any], Any]) -> List[Any]:
     )
 
 
-class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+class Input:
     """Specification of a transform dataset input.
 
     The actual download is initialized when the Input class is constructed.
@@ -58,35 +57,34 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
 
     def __init__(
         self,
-        alias: Optional[str] = None,
-        branch: Optional[str] = None,
+        alias: "str | None" = None,
+        branch: "str | None" = None,
         description=None,
         stop_propagating=None,
         stop_requiring=None,
         checks=None,
     ):
-        # pylint: disable=unused-argument,too-many-arguments
         """Specification of a transform dataset input.
 
         Args:
-            alias (Optional[str]): Dataset rid or the absolute Compass path of the dataset.
+            alias (str | None): Dataset rid or the absolute Compass path of the dataset.
                 If not specified, parameter is unbound.
-            branch (Optional[str]): Branch name to resolve the input dataset to.
+            branch (str | None): Branch name to resolve the input dataset to.
                 If not specified, resolved at build-time.
-            stop_propagating (Optional[Markings]): not implemented in Foundry DevTools
-            stop_requiring (Optional[OrgMarkings]): not implemented in Foundry DevTools
+            stop_propagating (Markings | None): not implemented in Foundry DevTools
+            stop_requiring (OrgMarkings | None): not implemented in Foundry DevTools
             checks (List[Check], Check): not implemented in foundry-dev-tools
             description (str): not implemented in foundry-dev-tools
 
         """
         # extract caller filename to retrieve git information
-        caller_filename = inspect.stack()[1].__getattribute__("filename")
+        caller_filename = inspect.stack()[1].filename
         LOGGER.debug("Input instantiated from %s", caller_filename)
-        self.config = foundry_dev_tools.Configuration.get_config()
+        self.config = foundry_dev_tools.config.Configuration.get_config()
         self._cached_client = CachedFoundryClient(self.config)
         self._cache = DiskPersistenceBackedSparkCache(**self.config)
         if branch is None:
-            branch = _get_branch(caller_filename)
+            branch = _get_branch(Path(caller_filename))
 
         if (
             "transforms_freeze_cache" not in self.config
@@ -102,7 +100,7 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
 
     def _online(
         self, alias, branch
-    ) -> Tuple[Optional[pyspark.sql.DataFrame], dict, str]:
+    ) -> "tuple[pyspark.sql.DataFrame | None, dict, str]":
         try:
             dataset_identity = self._cached_client.api.get_dataset_identity(
                 alias, branch
@@ -118,6 +116,8 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
             dataset_identity = self._cached_client.api.get_dataset_identity(
                 alias, branch
             )
+        if dataset_identity["last_transaction_rid"] is None:
+            raise DatasetHasNoTransactionsError(alias)
         if self._dataset_has_schema(dataset_identity, branch):
             return (
                 self._retrieve_spark_df(dataset_identity, branch),
@@ -137,7 +137,7 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
 
     def _offline(
         self, alias: str, branch: str
-    ) -> Tuple[Optional[pyspark.sql.DataFrame], dict, str]:
+    ) -> "tuple[pyspark.sql.DataFrame | None, dict, str]":
         dataset_identity = self._cache.get_dataset_identity_not_branch_aware(alias)
         if self._cache.dataset_has_schema(dataset_identity):
             return self._cache[dataset_identity], dataset_identity, branch
@@ -168,7 +168,7 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
     def _read_spark_df_with_sql_query(
         self, dataset_path: str, branch="master"
     ) -> pyspark.sql.DataFrame:
-        query = f"SELECT * FROM `{dataset_path}`"
+        query = f"SELECT * FROM `{dataset_path}`"  # noqa: S608
         if (
             "transforms_sql_sample_select_random" in self.config
             and self.config["transforms_sql_sample_select_random"] is True
@@ -210,7 +210,7 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
             warnings.warn(
                 f"Retrieving subset ({self.config['transforms_sql_sample_row_limit']} rows) of dataset '{dataset_name}'"
                 f" with rid '{dataset_identity['dataset_rid']}' "
-                f"because dataset size {size_in_mega_bytes_rounded} megabytes > "
+                f"because dataset size {size_in_mega_bytes_rounded} megabytes >= "
                 f"{self.config['transforms_sql_dataset_size_threshold']} megabytes "
                 f"(as defined in config['transforms_sql_dataset_size_threshold'])."
             )
@@ -240,27 +240,28 @@ class Input:  # pylint: disable=too-few-public-methods,too-many-instance-attribu
         return self._dataset_identity
 
 
-def _get_branch(caller_filename: str) -> str:
-    git_dir = path.dirname(caller_filename)
-
-    if git_dir == "" or not path.exists(git_dir):
+def _get_branch(caller_filename: Path) -> str:
+    git_dir = _traverse_to_git_project_top_level_dir(caller_filename)
+    if not git_dir:
         # fallback for VS Interactive Console
         # or Jupyter lab on Windows
-        git_dir = getcwd()
+        git_dir = Path.cwd()
 
-    try:
-        branch = execute_as_subprocess(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=pathlib.Path(git_dir)
-        )
-    except (FileNotFoundError, CalledProcessError):
-        warnings.warn(
-            "Could not detect git branch of project, falling back to 'master'."
-        )
-        branch = "master"
-    return branch
+    head_file = git_dir.joinpath(".git", "HEAD")
+    if head_file.is_file():
+        with head_file.open() as hf:
+            ref = hf.read().strip()
+
+        if ref.startswith("ref: refs/heads/"):
+            return ref[16:]
+
+        return "HEAD"  # immitate behaviour of `git rev-parse --abbrev-ref HEAD`
+
+    warnings.warn("Could not detect git branch of project, falling back to 'master'.")
+    return "master"
 
 
-class Output:  # pylint: disable=too-few-public-methods
+class Output:
     """Specification of a transform dataset output.
 
     Writing the Output back to Foundry is not implemented.
@@ -269,32 +270,27 @@ class Output:  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        alias: Optional[str] = None,
-        sever_permissions: Optional[bool] = False,
-        description: Optional[str] = None,
+        alias: "str | None" = None,
+        sever_permissions: "bool | None" = False,
+        description: "str | None" = None,
         checks=None,
     ):
-        # pylint: disable=unused-argument,too-many-arguments
         """Specification of a transform output.
 
         Args:
-            alias (Optional[str]): Dataset rid or the absolute Compass path of the dataset.
+            alias (str | None): Dataset rid or the absolute Compass path of the dataset.
                 If not specified, parameter is unbound.
-            sever_permissions (Optional[bool]): not implemented in foundry-dev-tools
-            description (Optional[str]): not implemented in foundry-dev-tools
+            sever_permissions (bool | None): not implemented in foundry-dev-tools
+            description (str | None): not implemented in foundry-dev-tools
             checks (List[Check], Check): not implemented in foundry-dev-tools
         """
         self.alias = alias
 
 
 class UnmarkingDef:
-    # pylint: disable=too-few-public-methods
     """Base class for unmarking datasets configuration."""
 
-    def __init__(
-        self, marking_ids: Union[List[str], str], on_branches: Union[List[str], str]
-    ):
-        # pylint: disable=unused-argument,too-many-arguments
+    def __init__(self, marking_ids: "list[str] | str", on_branches: "list[str] | str"):
         """Default constructor.
 
         Args:
@@ -306,7 +302,6 @@ class UnmarkingDef:
 
 
 class Markings(UnmarkingDef):
-    # pylint: disable=too-few-public-methods
     """Specification of a marking that stops propagating from input.
 
     The actual marking removal is not implemented.
@@ -314,7 +309,6 @@ class Markings(UnmarkingDef):
 
 
 class OrgMarkings(UnmarkingDef):
-    # pylint: disable=too-few-public-methods
     """Specification of a marking that is no longer required on the output.
 
     The actual marking requirement check is not implemented.

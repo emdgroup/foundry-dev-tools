@@ -3,9 +3,10 @@
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
 
-"""  # pylint: disable=line-too-long
+"""  # noqa: E501
+import warnings
 
-from transforms.api import Input, Output
+from transforms.api._dataset import Input, Output
 from transforms.api._transform import Transform
 
 
@@ -112,21 +113,17 @@ def incremental(
     snapshot_inputs=None,
     allow_retention=False,
 ):
-    # pylint: disable=unused-argument
     """Not implemented in local.
 
     Args:
-        require_incremental:
-        semantic_version:
-        snapshot_inputs:
-        allow_retention:
+        require_incremental: not implemented
+        semantic_version: not implemented
+        snapshot_inputs: not implemented
+        allow_retention: not implemented
 
     Returns:
         _transform:
     """
-    # pylint: disable=import-outside-toplevel
-    import warnings
-
     warnings.warn("@incremental functionality not implemented in Foundry DevTools")
 
     def _transform(compute_func):

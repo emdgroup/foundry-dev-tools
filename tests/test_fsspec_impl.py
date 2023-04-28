@@ -12,19 +12,19 @@ import pytest
 from fsspec import register_implementation
 from pandas._testing import assert_frame_equal
 
-import foundry_dev_tools.config
-from foundry_dev_tools import FoundryRestClient
-from foundry_dev_tools.foundry_api_client import DatasetHasOpenTransactionError
+from foundry_dev_tools.foundry_api_client import (
+    DatasetHasOpenTransactionError,
+    FoundryRestClient,
+)
 from foundry_dev_tools.fsspec_impl import (
-    _correct_directories,
-    _file_or_directory,
-    _get_top_level_folder,
     FoundryDatasetPathInUrlNotSupportedError,
     FoundryDeleteInNotSupportedTransactionError,
     FoundryFileSystem,
     FoundrySimultaneousOpenTransactionError,
+    _correct_directories,
+    _file_or_directory,
+    _get_top_level_folder,
 )
-
 from tests.utils import generic_upload_dataset_if_not_exists
 
 register_implementation("foundry", FoundryFileSystem)
@@ -71,7 +71,13 @@ def fsspec_write_test_folder(is_integration_test):
         )
         yield fsspec_write_test_folder
     else:
-        yield "fsspec_write_test_folder-rid", "fsspec_write_test_folder-path", None, "fsspec_write_test_folder-branch", False
+        yield (
+            "fsspec_write_test_folder-rid",
+            "fsspec_write_test_folder-path",
+            None,
+            "fsspec_write_test_folder-branch",
+            False,
+        )
 
 
 def folder_setup(rid: str):
@@ -141,7 +147,7 @@ def test_file_or_directory_test():
 
 
 def test_correct_for_folder():
-    input = [
+    _input = [
         {
             "logicalPath": "empty_file.txt",
             "physicalPath": "transaction-1",
@@ -198,7 +204,7 @@ def test_correct_for_folder():
         },
     ]
 
-    res = _correct_directories(input)
+    res = _correct_directories(_input)
 
     assert {
         "name": "empty_file.txt",
@@ -232,11 +238,12 @@ def test_correct_for_folder():
         "transaction_rid": "t1",
         "is_open": False,
     } in res
-    assert len(res) == 4
+    EXPECTED_LENGTH = 4
+    assert len(res) == EXPECTED_LENGTH
 
 
 def test_correct_for_folder_in_subfolder_file():
-    input = [
+    _input = [
         {
             "logicalPath": "folder/sub_folder/1_in_folder.txt",
             "physicalPath": "93e9675d-1c5c-4cd7-ac01-a5a7d98ef25f/000000d5-c4e6-150d-a606-32540fd23fe2/",
@@ -257,7 +264,7 @@ def test_correct_for_folder_in_subfolder_file():
         },
     ]
 
-    res = _correct_directories(input, subfolder_prefix="folder/sub_folder")
+    res = _correct_directories(_input, subfolder_prefix="folder/sub_folder")
 
     assert {
         "name": "folder/sub_folder/1_in_folder.txt",
@@ -278,7 +285,7 @@ def test_correct_for_folder_in_subfolder_file():
 
 
 def test_correct_subfolder():
-    input = [
+    _input = [
         {
             "logicalPath": "folder/sub_folder/1_in_folder.txt",
             "physicalPath": "93e9675d-1c5c-4cd7-ac01-a5a7d98ef25f/000000d5-c4e6-150d-a606-32540fd23fe2/",
@@ -308,7 +315,7 @@ def test_correct_subfolder():
         },
     ]
 
-    res = _correct_directories(input, subfolder_prefix="folder")
+    res = _correct_directories(_input, subfolder_prefix="folder")
 
     assert {
         "name": "folder/sub_folder",
@@ -330,10 +337,11 @@ def test_correct_subfolder():
 
 
 def test_correct_subfolder_removesuffix():
-    input = [
+    _input = [
         {
             "logicalPath": "data/LipidsDataset/test/biological_data.jbl",
-            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/ca2d4ed0-38b3-4fb5-937c-87925c76eb5a",
+            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/ca2d4ed0-38b3-4f"
+            "b5-937c-87925c76eb5a",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.0000013b-7c77-7852-997d-e7df7a003d49",
             "fileMetadata": {"length": 2939},
@@ -342,7 +350,8 @@ def test_correct_subfolder_removesuffix():
         },
         {
             "logicalPath": "data/LipidsDataset/test/experiment_definition.jbl",
-            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/623dab8f-8ded-45b2-bcf5-3363d4570fbf",
+            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/623dab8f-8ded-45"
+            "b2-bcf5-3363d4570fbf",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.0000013b-7c77-7852-997d-e7df7a003d49",
             "fileMetadata": {"length": 2710},
@@ -351,7 +360,8 @@ def test_correct_subfolder_removesuffix():
         },
         {
             "logicalPath": "data/LipidsDataset/test/ionisable_lipids.jbl",
-            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/c7c0d168-3369-41f6-9e23-8b5dafb7e238",
+            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/c7c0d168-3369-41"
+            "f6-9e23-8b5dafb7e238",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.0000013b-7c77-7852-997d-e7df7a003d49",
             "fileMetadata": {"length": 3005},
@@ -360,7 +370,8 @@ def test_correct_subfolder_removesuffix():
         },
         {
             "logicalPath": "data/LipidsDataset/test/pc_data.jbl",
-            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/db3aadbf-f892-4960-b23e-a8129f2afe0a",
+            "physicalPath": "d63c3ad9-89ef-49f4-a380-b7698ed7c978/0000013b-7c77-7852-997d-e7df7a003d49/db3aadbf-f892-49"
+            "60-b23e-a8129f2afe0a",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.0000013b-7c77-7852-997d-e7df7a003d49",
             "fileMetadata": {"length": 1887},
@@ -369,7 +380,7 @@ def test_correct_subfolder_removesuffix():
         },
     ]
 
-    res = _correct_directories(input, subfolder_prefix="data/LipidsDataset")
+    res = _correct_directories(_input, subfolder_prefix="data/LipidsDataset")
     assert {
         "name": "data/LipidsDataset/test",
         "size": 0,
@@ -393,21 +404,15 @@ def test_strip_protocol():
         )
         == "test.csv"
     )
-    assert (
-        FoundryFileSystem._strip_protocol(
-            "foundry://ri.foundry.main.dataset.fee62053-77ed-4617-bd01-fc2538366c3f/"
-        )
-        == ""
+    assert not FoundryFileSystem._strip_protocol(
+        "foundry://ri.foundry.main.dataset.fee62053-77ed-4617-bd01-fc2538366c3f/"
     )
-    assert (
-        FoundryFileSystem._strip_protocol(
-            "foundry://ri.foundry.main.dataset.fee62053-77ed-4617-bd01-fc2538366c3f"
-        )
-        == ""
+    assert not FoundryFileSystem._strip_protocol(
+        "foundry://ri.foundry.main.dataset.fee62053-77ed-4617-bd01-fc2538366c3f"
     )
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_clean_snapshot_transaction(empty_dataset):
     rid = empty_dataset[0]
     fs = FoundryFileSystem(dataset=rid, branch="master")
@@ -416,7 +421,7 @@ def test_clean_snapshot_transaction(empty_dataset):
         assert transaction.transaction_type == "SNAPSHOT"
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_read_with_dataset_alias(fsspec_test_folder):
     base_path = fsspec_test_folder[1]
     fs = FoundryFileSystem(dataset=base_path, branch="master")
@@ -425,7 +430,7 @@ def test_read_with_dataset_alias(fsspec_test_folder):
         assert f.read().decode("UTF-8") == "content"
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_write(fsspec_write_test_folder):
     with fsspec.open(
         f"foundry://{fsspec_write_test_folder[0]}/test.txt",
@@ -440,7 +445,7 @@ def test_write(fsspec_write_test_folder):
     assert content == "content"
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_read_single_csv(fsspec_test_folder):
     df = pd.read_csv(
         f"foundry://{fsspec_test_folder[0]}/test1.csv",
@@ -454,7 +459,7 @@ def test_read_single_csv(fsspec_test_folder):
     assert df.shape == (1, 1)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_read_dask_pyarrow(complex_dataset_fixture):
     import dask
     import dask.dataframe as dd
@@ -471,7 +476,7 @@ def test_read_dask_pyarrow(complex_dataset_fixture):
     print(df.shape)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_read_dask_fastparquet(complex_dataset_fixture):
     import dask.dataframe as dd
 
@@ -485,7 +490,7 @@ def test_read_dask_fastparquet(complex_dataset_fixture):
     print(df.shape)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_read_write_parquet(fsspec_write_test_folder):
     df = pd.DataFrame(data={"col1": ["row1", "row2"]})
     df.to_parquet(f"foundry://{fsspec_write_test_folder[0]}/test.parquet")
@@ -495,7 +500,7 @@ def test_read_write_parquet(fsspec_write_test_folder):
     assert_frame_equal(from_foundry, df)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_write_transaction(random_file, fsspec_write_test_folder):
     random_file_1 = random_file.get()
     random_file_2 = random_file.get()
@@ -528,7 +533,7 @@ def test_write_transaction(random_file, fsspec_write_test_folder):
         assert not fs.exists(random_file_3)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_delete_simple(random_file, fsspec_write_test_folder):
     file = random_file.get()
     fs = FoundryFileSystem(
@@ -544,7 +549,7 @@ def test_delete_simple(random_file, fsspec_write_test_folder):
     assert not fs.exists(file)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_delete_simple_folder(random_file, fsspec_write_test_folder):
     random_folder = random_file.get()
     file1 = random_file.get()
@@ -572,7 +577,7 @@ def test_delete_simple_folder(random_file, fsspec_write_test_folder):
     assert not fs.exists(random_folder)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_delete_from_open_transaction(fsspec_write_test_folder):
     from_previous_t = (
         "".join(random.choices(string.ascii_uppercase + string.digits, k=5)) + ".txt"
@@ -597,7 +602,7 @@ def test_delete_from_open_transaction(fsspec_write_test_folder):
     assert not fs.exists(from_previous_t)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_delete_folder(random_file, fsspec_write_test_folder):
     random_folder = random_file.get()
     random_file = random_file.get()
@@ -617,7 +622,7 @@ def test_delete_folder(random_file, fsspec_write_test_folder):
     assert not fs.exists(file_in_folder)
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_transaction_already_open_throws(random_file, fsspec_write_test_folder):
     random_folder = random_file.get()
     fs = FoundryFileSystem(
@@ -628,25 +633,26 @@ def test_transaction_already_open_throws(random_file, fsspec_write_test_folder):
     with fs.transaction:
         with fs.open(random_folder, "w") as f:
             f.write("content")
-        with pytest.raises(FoundrySimultaneousOpenTransactionError) as exc_info:
-            with fsspec.open(
-                f"foundry://{fsspec_write_test_folder[0]}/test.txt",
-                "w",
-            ) as f:
-                f.write("content")
+        with pytest.raises(
+            FoundrySimultaneousOpenTransactionError
+        ) as exc_info, fsspec.open(
+            f"foundry://{fsspec_write_test_folder[0]}/test.txt",
+            "w",
+        ) as f:
+            f.write("content")
         assert exc_info.value.dataset_rid == fsspec_write_test_folder[0]
         assert exc_info.value.open_transaction_rid == fs._transaction.transaction_rid
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(),
 )
 def test_custom_token_is_used():
     fs = FoundryFileSystem(
         dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
         branch="master",
-        token="super-secret-token",
+        token="super-secret-token",  # noqa: S106
     )
     assert fs.api._config["jwt"] == "super-secret-token"
     assert fs.api._headers()["Authorization"] == "Bearer super-secret-token"
@@ -654,7 +660,7 @@ def test_custom_token_is_used():
     parsed = FoundryFileSystem._get_kwargs_from_urls(
         "foundry://:super-secret-token@ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234/test.txt"
     )
-    assert parsed["token"] == "super-secret-token"
+    assert parsed["token"] == "super-secret-token"  # noqa: S105
     assert (
         parsed["dataset"]
         == "ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234"
@@ -662,14 +668,14 @@ def test_custom_token_is_used():
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(),
 )
 def test_branch_extracted():
     parsed = FoundryFileSystem._get_kwargs_from_urls(
         "foundry://dev-iteration:super-secret-token@ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234/test.txt"
     )
-    assert parsed["token"] == "super-secret-token"
+    assert parsed["token"] == "super-secret-token"  # noqa: S105
     assert (
         parsed["dataset"]
         == "ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234"
@@ -699,7 +705,7 @@ def test_branch_extracted():
     parsed = FoundryFileSystem._get_kwargs_from_urls(
         "foundry://:super-secret-token@ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234/test.txt"
     )
-    assert parsed["token"] == "super-secret-token"
+    assert parsed["token"] == "super-secret-token"  # noqa: S105
     assert (
         parsed["dataset"]
         == "ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234"
@@ -733,25 +739,25 @@ def test_branch_extracted():
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(),
 )
 def test_appending_not_implemented_raises():
     fs = FoundryFileSystem(
         dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
         branch="master",
-        token="super-secret-token",
+        token="super-secret-token",  # noqa: S106
     )
     with pytest.raises(NotImplementedError):
         fs.open("test", mode="a")
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(),
 )
 @patch(
-    "foundry_dev_tools.FoundryRestClient.list_dataset_files",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.list_dataset_files",
     MagicMock(
         return_value=[
             {
@@ -776,7 +782,7 @@ def test_modified():
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(
         return_value={
             "dataset_path": "/path/to/ds",
@@ -791,7 +797,7 @@ def test_listdir_in_empty_dataset():
         fs.listdir("bla/blubdoesnotexists")
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_two_instances(random_file, fsspec_write_test_folder):
     random_file = random_file.get()
     fs = FoundryFileSystem(
@@ -817,16 +823,18 @@ def test_two_instances(random_file, fsspec_write_test_folder):
         assert fs_other_instance.exists(random_file) is False
 
     fs.delete(random_file)
-    with pytest.raises(FileNotFoundError):
-        with fs_other_instance.open(random_file, "r") as f:
-            f.read()
+    with pytest.raises(FileNotFoundError), fs_other_instance.open(
+        random_file, "r"
+    ) as f:
+        f.read()
 
 
 def test_slash_at_end():
     file_details = [
         {
             "logicalPath": "data/blah/data.csv",
-            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a25f-1c31-a804-8308b0d436dd/539aed08-a648-47d3-affc-51e4b6662203",
+            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a25f-1c31-a804-8308b0d436dd/539aed08-a648-47"
+            "d3-affc-51e4b6662203",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.000000e2-a25f-1c31-a804-8308b0d436dd",
             "fileMetadata": {"length": 4},
@@ -835,7 +843,8 @@ def test_slash_at_end():
         },
         {
             "logicalPath": "data/blub",
-            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a395-4c0a-87ce-a60f4d687d55/4948123a-8416-46b5-85aa-aa114f1b43bf",
+            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a395-4c0a-87ce-a60f4d687d55/4948123a-8416-46"
+            "b5-85aa-aa114f1b43bf",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.000000e2-a395-4c0a-87ce-a60f4d687d55",
             "fileMetadata": {"length": 0},
@@ -844,7 +853,8 @@ def test_slash_at_end():
         },
         {
             "logicalPath": "data/blub/data.csv",
-            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a396-ecf1-acaf-464bb5fe5a3e/675883b3-e481-4888-a12b-6707238f5a6a",
+            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a396-ecf1-acaf-464bb5fe5a3e/675883b3-e481-48"
+            "88-a12b-6707238f5a6a",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.000000e2-a396-ecf1-acaf-464bb5fe5a3e",
             "fileMetadata": {"length": 4},
@@ -853,7 +863,8 @@ def test_slash_at_end():
         },
         {
             "logicalPath": "data/blub/data2.csv",
-            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a398-a6f1-ac25-c650ea6dc4c8/6c78deed-b401-4ec2-aab7-bd18d517d225",
+            "physicalPath": "8324bd10-ffbe-411d-8d70-fe0ca752ab4d/000000e2-a398-a6f1-ac25-c650ea6dc4c8/6c78deed-b401-4e"
+            "c2-aab7-bd18d517d225",
             "physicalUri": None,
             "transactionRid": "ri.foundry.main.transaction.000000e2-a398-a6f1-ac25-c650ea6dc4c8",
             "fileMetadata": {"length": 4},
@@ -885,10 +896,10 @@ def test_slash_at_end():
 def test_get_top_level_folder():
     assert _get_top_level_folder("data/dog", "data/") == "dog"
     assert _get_top_level_folder("data/dog", "data") == "dog"
-    assert _get_top_level_folder("data/hubabubba", "data/hubabubba") == ""
+    assert not _get_top_level_folder("data/hubabubba", "data/hubabubba")
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_transaction_retry(random_file, fsspec_write_test_folder):
     file_in_thread = random_file.get()
     file = random_file.get()
@@ -912,9 +923,10 @@ def test_transaction_retry(random_file, fsspec_write_test_folder):
         branch="master",
         transaction_backoff=False,
     )
-    with pytest.raises(FoundrySimultaneousOpenTransactionError):
-        with fs_no_backoff.open(file, "w") as f:
-            f.write("content")
+    with pytest.raises(FoundrySimultaneousOpenTransactionError), fs_no_backoff.open(
+        file, "w"
+    ) as f:
+        f.write("content")
     fs = FoundryFileSystem(
         dataset=fsspec_write_test_folder[0],
         branch="master",
@@ -927,7 +939,7 @@ def test_transaction_retry(random_file, fsspec_write_test_folder):
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(
         return_value={
             "dataset_path": "/path/to/ds",
@@ -937,22 +949,20 @@ def test_transaction_retry(random_file, fsspec_write_test_folder):
     ),
 )
 def test_fsspec_api_client_not_cached(mocker):
-    with mocker.patch(
-        "foundry_dev_tools.Configuration.get_config",
+    mocker.patch(
+        "foundry_dev_tools.config.Configuration.get_config",
         side_effect=[
             {"jwt": "secret-token-ONE", "foundry_url": "https://test.com"},
             {"jwt": "secret-token-TWO", "foundry_url": "https://test.com"},
             {"jwt": "secret-token-THREE", "foundry_url": "https://test.com"},
         ],
-    ):
-        fs = FoundryFileSystem(
-            dataset="ri.foundry.main.dataset.1234-not-in-instance-cache"
-        )
-        assert fs.api._config["jwt"] == "secret-token-TWO"
-        assert fs.api._config["jwt"] == "secret-token-THREE"
+    )
+    fs = FoundryFileSystem(dataset="ri.foundry.main.dataset.1234-not-in-instance-cache")
+    assert fs.api._config["jwt"] == "secret-token-TWO"
+    assert fs.api._config["jwt"] == "secret-token-THREE"
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 def test_ls_trailing_slash_empty_folder(random_file, fsspec_write_test_folder):
     random_folder = random_file.get()
     file1 = random_file.get()
@@ -974,40 +984,41 @@ def test_ls_trailing_slash_empty_folder(random_file, fsspec_write_test_folder):
 
 
 @patch(
-    "foundry_dev_tools.FoundryRestClient.get_dataset_identity",
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
     MagicMock(),
 )
 def test_skip_instance_cache():
     fs = FoundryFileSystem(
         dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
         branch="master",
-        token="super-secret-token",
+        token="super-secret-token",  # noqa: S106
         skip_instance_cache=True,
     )
     fs2 = FoundryFileSystem(
         dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
         branch="master",
-        token="super-secret-token",
+        token="super-secret-token",  # noqa: S106
         skip_instance_cache=True,
     )
 
     fs3 = FoundryFileSystem(
         dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
         branch="master",
-        token="super-secret-token",
+        token="super-secret-token",  # noqa: S106
         skip_instance_cache=False,
     )
     fs4 = FoundryFileSystem(
         dataset="ri.foundry.main.dataset.fake1bb5-be92-4ad9-aa3e-07c161751234",
         branch="master",
-        token="super-secret-token",
+        token="super-secret-token",  # noqa: S106
         skip_instance_cache=False,
     )
-    fs.x = 123
-    fs2.x = 4567
-    fs3.x = 8901
-    fs4.x = 2345
-    assert fs.x == 123
-    assert fs2.x == 4567
-    assert fs3.x == 2345
-    assert fs4.x == 2345
+    fs.x = FS1 = 123
+    fs2.x = FS2 = 4567
+    fs3.x = FS3 = 8901
+    fs4.x = FS4 = 2345
+    assert fs.x == FS1
+    assert fs2.x == FS2
+    assert fs3.x != FS3
+    assert fs3.x == FS4
+    assert fs4.x == FS4

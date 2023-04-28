@@ -1,19 +1,19 @@
 """Foundry Clients developed at Merck KGaA, Darmstadt, Germany."""
-from transforms import __version__
+from importlib.metadata import PackageNotFoundError, version
 
-import foundry_dev_tools.config
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "unknown"
+from .cached_foundry_client import CachedFoundryClient
+from .config import FOUNDRY_DEV_TOOLS_DIRECTORY, INITIAL_CONFIG, Configuration
+from .foundry_api_client import FoundryRestClient
 
-(
-    INITIAL_CONFIG,
-    FOUNDRY_DEV_TOOLS_DIRECTORY,
-) = foundry_dev_tools.config.initial_config()
-Configuration = foundry_dev_tools.config.Config()
-
-from foundry_dev_tools.cached_foundry_client import (  # pylint: disable=C0413
-    CachedFoundryClient,
-)
-from foundry_dev_tools.foundry_api_client import (  # pylint: disable=C0413
-    FoundryRestClient,
-)
-
-__all__ = [__version__, "FoundryRestClient", "CachedFoundryClient", "Configuration"]
+__all__ = [
+    "__version__",
+    "FoundryRestClient",
+    "CachedFoundryClient",
+    "Configuration",
+    "INITIAL_CONFIG",
+    "FOUNDRY_DEV_TOOLS_DIRECTORY",
+]
