@@ -58,10 +58,16 @@ pip install -e .
 The python package [PySpark](https://pypi.org/project/pyspark/) is an optional dependency of Foundry DevTools.
 It is required to run `transforms` and the `CachedFoundryClient`, the PySpark version needs to be at least 3.0.
 
-If you install `foundry-dev-tools[tranforms]`, it will install pyspark as well:
+If you install `foundry-dev-tools[tranforms]`using `bash`, run the following command to install pyspark as well
 
 ```bash
 pip install foundry-dev-tools[transforms]
+```
+
+For `zsh` users (default for macOS and Kali Linux), run
+
+```zsh
+pip install 'foundry-dev-tools[transforms]'
 ```
 
 Alternative installation methods, or more information on how to get Spark running,
