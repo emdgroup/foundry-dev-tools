@@ -63,7 +63,6 @@ If you install `foundry-dev-tools[tranforms]`using `bash`, run the following com
 ```bash
 pip install foundry-dev-tools[transforms]
 ```
-
 For `zsh` users (default for macOS and Kali Linux), run
 ```zsh
 pip install 'foundry-dev-tools[transforms]'
