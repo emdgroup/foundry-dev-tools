@@ -44,6 +44,7 @@ TYPES = {
     "transforms_freeze_cache": bool,
     "transforms_output_folder": os.path.expanduser,
     "enable_runtime_token_providers": bool,
+    "scopes": str,
 }
 
 

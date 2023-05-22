@@ -35,7 +35,7 @@ def test_new_env_variable_takes_precedence(tmp):
     ):
         assert (
             foundry_dev_tools.config.Configuration["transforms_sql_sample_row_limit"]
-            == 9999  # noqa: PLR2004
+            == 9999
         )
 
 
@@ -53,7 +53,7 @@ def test_old_env_variable_fallback(tmp):
     ):
         assert (
             foundry_dev_tools.config.Configuration["transforms_sql_sample_row_limit"]
-            == 123  # noqa: PLR2004
+            == 123
         )
 
 

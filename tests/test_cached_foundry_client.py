@@ -113,7 +113,7 @@ def test_save_spark(upload_dataset_files):
     assert args[0] == DATASET_RID
     assert args[1] == TRANSACTION_RID
     # at least two files uploaded, one parquet and one _SUCCESS
-    assert len(args[2]) >= 2  # noqa: PLR2004
+    assert len(args[2]) >= 2
 
     assert dataset_rid == "ri.foundry.main.dataset.12345de3-b916-46ba-b097-c4326ea4342e"
     assert transaction_id == "transaction1"

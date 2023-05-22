@@ -163,8 +163,8 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
     assert retrieved_schema is not None
 
     stats = client.get_dataset_stats(ds["rid"], view=transaction_rid)
-    assert stats["sizeInBytes"] == 39  # noqa: PLR2004, value is known
-    assert stats["numFiles"] == 3  # noqa: PLR2004, value is known
+    assert stats["sizeInBytes"] == 39
+    assert stats["numFiles"] == 3
     assert stats["numTransactions"] == 1
     assert stats["hiddenFilesSizeInBytes"] == 0
     assert stats["numHiddenFiles"] == 0
@@ -521,7 +521,7 @@ def test_query_sql(client, mocker, iris_dataset):
         return_type="arrow",
     )
     assert pa_table.shape == (100, 5)
-    assert pa_table.num_columns == 5  # noqa: PLR2004
+    assert pa_table.num_columns == 5
     spy.assert_not_called()
 
     iris_fallback = client.query_foundry_sql(

@@ -37,6 +37,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.scripts]
+fdt = "foundry_dev_tools.cli.main:cli"
+
 [project.entry-points."fsspec.specs"]
 foundry = "foundry_dev_tools.fsspec_impl.FoundryFileSystem"
 
@@ -51,6 +54,7 @@ testing = [
   "timeflake",
 ]
 transforms = ["pyspark>=3.0.0"]
+cli = ["click", "inquirer", "websockets", "rich"]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
@@ -99,7 +103,7 @@ select = [
   "I",
 ]
 line-length = 120
-ignore = ["PLR0913", "D104", "D105", "D107", "B028"]
+ignore = ["PLR0913", "D104", "D105", "D107", "B028", "S603", "S607", "PLR2004"]
 unfixable = ["ERA"] # don't delete commented out code automatically
 src = ["src"]
 exclude = ["docs"]

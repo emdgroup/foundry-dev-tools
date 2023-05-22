@@ -126,14 +126,16 @@ class FoundryRestClient:
             >>> fc = FoundryRestClient(config={'client_id': '<client_id>'})
         """
         self._config = foundry_dev_tools.config.Configuration.get_config(config)
-        api_base = self._config["foundry_url"]
-        self.catalog = f"{api_base}/foundry-catalog/api"
-        self.compass = f"{api_base}/compass/api"
-        self.metadata = f"{api_base}/foundry-metadata/api"
-        self.data_proxy = f"{api_base}/foundry-data-proxy/api"
-        self.schema_inference = f"{api_base}/foundry-schema-inference/api"
-        self.multipass = f"{api_base}/multipass/api"
-        self.foundry_sql_server_api = f"{api_base}/foundry-sql-server/api"
+        self._api_base = self._config["foundry_url"]
+        self.catalog = f"{self._api_base}/foundry-catalog/api"
+        self.compass = f"{self._api_base}/compass/api"
+        self.metadata = f"{self._api_base}/foundry-metadata/api"
+        self.data_proxy = f"{self._api_base}/foundry-data-proxy/api"
+        self.schema_inference = f"{self._api_base}/foundry-schema-inference/api"
+        self.multipass = f"{self._api_base}/multipass/api"
+        self.foundry_sql_server_api = f"{self._api_base}/foundry-sql-server/api"
+        self.jemma = f"{self._api_base}/jemma/api"
+        self.builds2 = f"{self._api_base}/build2/api/info/builds2"
         self._requests_verify_value = _determine_requests_verify_value(self._config)
 
     def _headers(self):
@@ -1222,12 +1224,14 @@ class FoundryRestClient:
         Which is deleted when the context is closed. Function returns the temporary directory.
         Example usage:
 
+        >>> import parquet
+        >>> import pandas as pd
+        >>> from pathlib import Path
         >>> with client.download_dataset_files_temporary(dataset_rid='ri.foundry.main.dataset.1', view='master') as \
-            temp_folder:
+        >>> temp_folder:
         >>>     # Read using Pandas
         >>>     df = pd.read_parquet(temp_folder)
         >>>     # Read using pyarrow, here we pass only the files, which are normally in subfolder 'spark'
-        >>>     from pathlib import Path
         >>>     pq = parquet.ParquetDataset(path_or_paths=[x for x in Path(temp_dir).glob('**/*') if x.is_file()])
 
         Args:
@@ -1787,6 +1791,58 @@ class FoundryRestClient:
             headers=self._headers(),
             verify=self._verify(),
             json={"operations": operations, "resources": resources},
+        )
+        _raise_for_status_verbose(response)
+        return response.json()
+
+    def start_checks_and_build_for_commit(
+        self, repository_id: str, ref_name: str, commit_hash: str, file_paths: list
+    ) -> dict:
+        """Test."""
+        response = _request(
+            "POST",
+            f"{self.jemma}/builds",
+            headers=self._headers(),
+            verify=self._verify(),
+            json={
+                "jobs": [
+                    {
+                        "name": "Checks",
+                        "type": "exec",
+                        "parameters": {
+                            "repositoryTarget": {
+                                "repositoryRid": repository_id,
+                                "refName": ref_name,
+                                "commitHash": commit_hash,
+                            }
+                        },
+                        "reuseExistingJob": True,
+                    },
+                    {
+                        "name": "Build initialization",
+                        "type": "foundry-run-build",
+                        "parameters": {
+                            "fallbackBranches": [],
+                            "filePaths": file_paths,
+                            "rids": [],
+                            "buildParameters": {},
+                        },
+                        "reuseExistingJob": True,
+                    },
+                ],
+                "reuseExistingJobs": True,
+            },
+        )
+        _raise_for_status_verbose(response)
+        return response.json()
+
+    def get_build(self, build_rid: str) -> dict:
+        """Test."""
+        response = _request(
+            "GET",
+            f"{self.builds2}/{build_rid}",
+            headers=self._headers(),
+            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()

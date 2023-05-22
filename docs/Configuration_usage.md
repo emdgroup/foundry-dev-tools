@@ -1,7 +1,7 @@
 # Configuration
 
-By default, the code loads the configuration from the `~/.foundry-dev-tools/config` file.  
-If a project [specific config file](#Project-specific-configuration) exists in `your-project-dir/.foundry_dev_tools`, it takes precedence.  
+By default, the code loads the configuration from the '~/.foundry-dev-tools/config' file.  
+If a project [specific config file](#project-specific-configuration) exists in `your-project-dir/.foundry_dev_tools`, it takes precedence.  
 If a environment variable like `FOUNDRY_DEV_TOOLS_config_key` exists, `config_key` gets overwritten by this environment variable.  
 Afterwards, the logic falls back to a default value: ( overwrites > environment variable > project config file > config file > default)
 
