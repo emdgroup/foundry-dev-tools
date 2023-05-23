@@ -1935,7 +1935,7 @@ def _extract_branch_from_sql_error(response):
             .replace("]", "")
         )
     except Exception as e:
-        print(e)
+        print(e, file=sys.stderr)
         return None
 
 
