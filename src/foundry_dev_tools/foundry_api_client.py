@@ -1343,7 +1343,7 @@ class FoundryRestClient:
         foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
             return foundry_sql_client.query(query=query, return_type=return_type)
-        except FoundrySqlSerializationFormatNotImplementedError as exc:
+        except (FoundrySqlSerializationFormatNotImplementedError, ImportError) as exc:
             if return_type == "arrow":
                 raise ValueError(
                     "Only direct read eligible queries can be returned as arrow Table. "
@@ -1810,6 +1810,8 @@ class FoundrySqlClient:
     def _read_results_arrow(
         self, statement_id: str
     ) -> "pa.ipc.RecordBatchStreamReader":
+        import pyarrow as pa
+
         headers = self._headers
         headers["Accept"] = "application/octet-stream"
         headers["Content-Type"] = "application/json"
@@ -1844,8 +1846,6 @@ class FoundrySqlClient:
             # Ineligible types are array, map, and struct.
 
             raise FoundrySqlSerializationFormatNotImplementedError()
-
-        import pyarrow as pa
 
         return pa.ipc.RecordBatchStreamReader(bytes_io)
 

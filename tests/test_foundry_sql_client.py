@@ -176,6 +176,18 @@ def test_legacy_fallback(mocker, iris_dataset, client):
     assert iris.shape == (100, 5)
     spy.assert_called()
 
+    spy.reset_mock()
+    import sys
+
+    pyarrow = sys.modules["pyarrow"]
+    sys.modules["pyarrow"] = None
+
+    iris = client.query_foundry_sql(f"SELECT * FROM `{iris_dataset[1]}`")
+    assert iris.shape == (150, 5)
+    spy.assert_called()
+
+    sys.modules["pyarrow"] = pyarrow
+
 
 @pytest.mark.integration()
 def test_exceptions(iris_dataset, iris_no_schema_dataset):
