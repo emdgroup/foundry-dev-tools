@@ -1343,7 +1343,7 @@ class FoundryRestClient:
         foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
             return foundry_sql_client.query(query=query, return_type=return_type)
-        except FoundrySqlSerializationFormatNotImplementedError as exc:
+        except (FoundrySqlSerializationFormatNotImplementedError, ImportError) as exc:
             if return_type == "arrow":
                 raise ValueError(
                     "Only direct read eligible queries can be returned as arrow Table. "
@@ -1810,6 +1810,8 @@ class FoundrySqlClient:
     def _read_results_arrow(
         self, statement_id: str
     ) -> "pa.ipc.RecordBatchStreamReader":
+        import pyarrow as pa
+
         headers = self._headers
         headers["Accept"] = "application/octet-stream"
         headers["Content-Type"] = "application/json"
@@ -1844,8 +1846,6 @@ class FoundrySqlClient:
             # Ineligible types are array, map, and struct.
 
             raise FoundrySqlSerializationFormatNotImplementedError()
-
-        import pyarrow as pa
 
         return pa.ipc.RecordBatchStreamReader(bytes_io)
 
@@ -1915,13 +1915,28 @@ def _transform_bad_request_response_to_exception(response):
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetCannotAccess"
     ):
-        raise BranchNotFoundError("SQL", "SQL")
+        raise BranchNotFoundError(
+            response.json()["parameters"]["datasetRid"],
+            _extract_branch_from_sql_error(response),
+        )
     if (
         response.status_code == requests.codes.bad
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetPathNotFound"
     ):
-        raise DatasetNotFoundError("SQL")
+        raise DatasetNotFoundError(response.json()["parameters"]["path"])
+
+
+def _extract_branch_from_sql_error(response):
+    try:
+        return (
+            response.json()["parameters"]["userFriendlyMessage"]
+            .split("[")[1]
+            .replace("]", "")
+        )
+    except Exception as e:
+        print(e, file=sys.stderr)
+        return None
 
 
 def _raise_for_status_verbose(response: requests.Response):

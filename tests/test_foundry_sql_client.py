@@ -176,19 +176,44 @@ def test_legacy_fallback(mocker, iris_dataset, client):
     assert iris.shape == (100, 5)
     spy.assert_called()
 
+    spy.reset_mock()
+    import sys
+
+    pyarrow = sys.modules["pyarrow"]
+    sys.modules["pyarrow"] = None
+
+    iris = client.query_foundry_sql(f"SELECT * FROM `{iris_dataset[1]}`")
+    assert iris.shape == (150, 5)
+    spy.assert_called()
+
+    sys.modules["pyarrow"] = pyarrow
+
 
 @pytest.mark.integration()
 def test_exceptions(iris_dataset, iris_no_schema_dataset):
     sql_client1 = FoundrySqlClient(branch="doesNotExist")
-    with pytest.raises(BranchNotFoundError):
+    with pytest.raises(BranchNotFoundError) as exc:
         sql_client1.query(f"SELECT * FROM `{iris_dataset[1]}` LIMIT 100")
+    assert exc.value.dataset_rid == iris_dataset[0]
+    assert exc.value.branch == "doesNotExist"
 
     client = FoundrySqlClient()
     with pytest.raises(DatasetHasNoSchemaError):
         client.query(f"SELECT * FROM `{iris_no_schema_dataset[1]}` LIMIT 100")
 
-    with pytest.raises(DatasetNotFoundError):
+    with pytest.raises(DatasetNotFoundError) as exc:
         client.query("SELECT * FROM `/namespace1/does-not_exists/` LIMIT 100")
+    assert exc.value.dataset_rid == "/namespace1/does-not_exists/"
+
+    with pytest.raises(BranchNotFoundError) as exc:
+        client.query(
+            "SELECT * FROM `ri.foundry.main.dataset.1337fb9d-1234-43c7-b83f-768f2b843b94` LIMIT 100"
+        )
+    assert (
+        exc.value.dataset_rid
+        == "ri.foundry.main.dataset.1337fb9d-1234-43c7-b83f-768f2b843b94"
+    )
+    assert exc.value.branch == "master"
 
     with pytest.raises(FoundrySqlQueryFailedError):
         client.query(f"SELECT foo, bar, FROM `{iris_dataset[1]}` LIMIT 100")
