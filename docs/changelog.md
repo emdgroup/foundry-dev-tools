@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
-## [1.0.11] - 2023-05-16
+## [1.0.11] - 2023-05-23
 
 ### Changed
 - better SQL exceptions (#20)
