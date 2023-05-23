@@ -1915,13 +1915,28 @@ def _transform_bad_request_response_to_exception(response):
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetCannotAccess"
     ):
-        raise BranchNotFoundError("SQL", "SQL")
+        raise BranchNotFoundError(
+            response.json()["parameters"]["datasetRid"],
+            _extract_branch_from_sql_error(response),
+        )
     if (
         response.status_code == requests.codes.bad
         and response.json()["errorName"]
         == "FoundrySqlServer:InvalidDatasetPathNotFound"
     ):
-        raise DatasetNotFoundError("SQL")
+        raise DatasetNotFoundError(response.json()["parameters"]["path"])
+
+
+def _extract_branch_from_sql_error(response):
+    try:
+        return (
+            response.json()["parameters"]["userFriendlyMessage"]
+            .split("[")[1]
+            .replace("]", "")
+        )
+    except Exception as e:
+        print(e)
+        return None
 
 
 def _raise_for_status_verbose(response: requests.Response):
