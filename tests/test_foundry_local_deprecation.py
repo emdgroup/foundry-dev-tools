@@ -91,7 +91,7 @@ def test_old_config_directory_or_file_warning(tmp):
     with FAKE_GIT_DIR.joinpath(".foundry_local_config").open(mode="w+") as old_git_cfg:
         old_git_cfg.write("[default]\njwt=old_git_config_file\n")
     with mock.patch(
-        "foundry_dev_tools.config._traverse_to_git_project_top_level_dir",
+        "foundry_dev_tools.utils.repo._traverse_to_git_project_top_level_dir",
         return_value=FAKE_GIT_DIR,
     ):
         with pytest.deprecated_call(), PatchConfig(

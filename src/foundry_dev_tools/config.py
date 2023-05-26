@@ -16,8 +16,9 @@ import warnings
 from collections import UserDict
 from configparser import ConfigParser
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from foundry_dev_tools.utils.repo import find_project_config_file
 from foundry_dev_tools.utils.token_provider import TOKEN_PROVIDERS
 
 if TYPE_CHECKING:
@@ -120,7 +121,7 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
         "transforms_sql_dataset_size_threshold": 500,
     }
 
-    return_config = {}
+    return_config: "dict[str, Any]" = {}
     if foundry_dev_tools_config_file.exists():
         config_parser = ConfigParser()
         with foundry_dev_tools_config_file.open(encoding="UTF-8") as file:
@@ -129,7 +130,7 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
                 return_config.update(config_parser["default"])
 
     caller_filename = inspect.stack()[1].filename
-    project_config_file = _find_project_config_file(Path(caller_filename).parent)
+    project_config_file = find_project_config_file(Path(caller_filename).parent)
     if project_config_file:
         project_config_parser = ConfigParser()
         with project_config_file.open(encoding="UTF-8") as file:
@@ -316,42 +317,6 @@ class Config(UserDict):
             )
 
         return cnf
-
-
-def _traverse_to_git_project_top_level_dir(git_dir: Path) -> "Path | None":
-    if git_dir.joinpath(".git").is_dir():
-        return git_dir
-    for p in git_dir.resolve().parents:
-        if p.joinpath(".git").is_dir():
-            return p
-    return None
-
-
-def _find_project_config_file(project_directory: Path) -> "Path | None":
-    if project_directory.is_dir():
-        git_directory = _traverse_to_git_project_top_level_dir(project_directory)
-        if not git_directory:
-            LOGGER.debug(
-                "Project-based config file could not be loaded, is project not managed with git?"
-            )
-            return None
-
-        project_config_file = git_directory / ".foundry_dev_tools"
-
-        if project_config_file.is_file():
-            return project_config_file
-
-        foundry_local_project_config_file = git_directory / ".foundry_local_config"
-
-        if foundry_local_project_config_file.is_file():
-            warnings.warn(
-                "Foundrylocal has been renamed to Foundry DevTools.\n"
-                f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
-                "The fallback to the old config file will be removed in the future!",
-                category=DeprecationWarning,
-            )
-            return foundry_local_project_config_file
-    return None
 
 
 (
