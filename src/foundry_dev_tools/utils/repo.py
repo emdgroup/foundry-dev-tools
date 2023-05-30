@@ -7,13 +7,16 @@ from pathlib import Path
 LOGGER = logging.getLogger(__name__)
 
 
-def get_repo() -> "tuple[str,str,str]":
+def get_repo(repo_dir: "Path | None" = None) -> "tuple[str,str,str]":
     """Get the repository RID from the current working directory.
 
+    Args:
+        repo_dir (Path | None): the path to a (sub)directory of a git repo,
+            otherwise current working directory
     Returns:
         tuple[str,str,str]: repo_rid,git_ref,git_revision_hash
     """
-    if git_dir := traverse_to_git_project_top_level_dir(Path.cwd(), use_git=True):
+    if git_dir := git_toplevel_dir(repo_dir, use_git=True):
         gradle_props = git_dir.joinpath("gradle.properties")
         if gradle_props.is_file():
             try:
@@ -25,10 +28,12 @@ def get_repo() -> "tuple[str,str,str]":
                                 get_git_ref(git_dir),
                                 get_git_revision_hash(git_dir),
                             )
-            except:  # noqa
-                pass
+            except Exception as e:
+                raise Exception(
+                    "Can't get repository RID from the gradle.properties file. Malformed file?"
+                ) from e
             raise Exception(
-                "Can't get repository RID from the gradle.properties file. Malformed file?"
+                "Can't get repository RID from the gradle.properties file. Is this really a foundry repository?"
             )
         raise Exception(
             "There is no gradle.properties file at the top of the git repository, can't get repository RID."
@@ -39,12 +44,12 @@ def get_repo() -> "tuple[str,str,str]":
     )
 
 
-def get_git_ref(git_dir: "Path | None") -> str:
+def get_git_ref(git_dir: "Path | None" = None) -> str:
     """Get the branch ref in the supplied git directory.
 
     Args:
-        git_dir (Path | None): a Path to a git directory or None
-            if None it will use the current working directory
+        git_dir (Path | None): the path to a (sub)directory of a git repo,
+            otherwise current working directory
     """
     return (
         subprocess.check_output(
@@ -60,12 +65,12 @@ def get_git_ref(git_dir: "Path | None") -> str:
     )
 
 
-def get_git_revision_hash(git_dir: "Path | None") -> str:
+def get_git_revision_hash(git_dir: "Path | None" = None) -> str:
     """Get the git revision hash.
 
     Args:
-        git_dir (Path | None): a Path to a git directory or None
-            if None it will use the current working directory
+        git_dir (Path | None): the path to a (sub)directory of a git repo,
+            otherwise current working directory
     """
     return (
         subprocess.check_output(
@@ -81,14 +86,15 @@ def get_git_revision_hash(git_dir: "Path | None") -> str:
     )
 
 
-def traverse_to_git_project_top_level_dir(
-    git_dir: Path, use_git: bool = False
+def git_toplevel_dir(
+    git_dir: "Path | None" = None, use_git: bool = False
 ) -> "Path | None":
     """Get git top level directory.
 
     Args:
-        git_dir (Path): the path to a (sub)directory of a git repo
-        use_git (bool): if true use real git executable,
+        git_dir (Path | None): the path to a (sub)directory of a git repo,
+            otherwise current working directory
+        use_git (bool): if true call git executable with subprocess,
             otherwise use minimal python only implementation
 
     Returns:
@@ -104,6 +110,8 @@ def traverse_to_git_project_top_level_dir(
             .decode("utf-8")
             .strip()
         )
+    if git_dir is None:
+        git_dir = Path.cwd()
     if git_dir.joinpath(".git").is_dir():
         return git_dir
     for p in git_dir.resolve().parents:
@@ -113,40 +121,38 @@ def traverse_to_git_project_top_level_dir(
 
 
 def find_project_config_file(
-    project_directory: Path, use_git: bool = False
+    project_directory: "Path | None" = None, use_git: bool = False
 ) -> "Path | None":
     """Get the project config file in a git repo.
 
     Args:
-        project_directory (Path): the (sub)directory of the project
-        use_git (bool): passed to :py:meth:traverse_to_git_project_top_level_dir
+        project_directory (Path | None): the path to a (sub)directory of a git repo,
+            otherwise current working directory
+        use_git (bool): passed to :py:meth:git_toplevel_dir
 
     Returns:
         Path | None: Path to the project config or None if no file was found
     """
-    if project_directory.is_dir():
-        git_directory = traverse_to_git_project_top_level_dir(
-            project_directory, use_git=use_git
+    git_directory = git_toplevel_dir(project_directory, use_git=use_git)
+    if not git_directory:
+        LOGGER.debug(
+            "Project-based config file could not be loaded, is project not managed with git?"
         )
-        if not git_directory:
-            LOGGER.debug(
-                "Project-based config file could not be loaded, is project not managed with git?"
-            )
-            return None
+        return None
 
-        project_config_file = git_directory / ".foundry_dev_tools"
+    project_config_file = git_directory / ".foundry_dev_tools"
 
-        if project_config_file.is_file():
-            return project_config_file
+    if project_config_file.is_file():
+        return project_config_file
 
-        foundry_local_project_config_file = git_directory / ".foundry_local_config"
+    foundry_local_project_config_file = git_directory / ".foundry_local_config"
 
-        if foundry_local_project_config_file.is_file():
-            warnings.warn(
-                "Foundrylocal has been renamed to Foundry DevTools.\n"
-                f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
-                "The fallback to the old config file will be removed in the future!",
-                category=DeprecationWarning,
-            )
-            return foundry_local_project_config_file
+    if foundry_local_project_config_file.is_file():
+        warnings.warn(
+            "Foundrylocal has been renamed to Foundry DevTools.\n"
+            f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
+            "The fallback to the old config file will be removed in the future!",
+            category=DeprecationWarning,
+        )
+        return foundry_local_project_config_file
     return None
