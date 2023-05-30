@@ -1840,7 +1840,7 @@ class FoundryRestClient:
         """Test."""
         response = _request(
             "GET",
-            f"{self.builds2}/{build_rid}",
+            f"{self.builds2}/info/builds2/{build_rid}",
             headers=self._headers(),
             verify=self._verify(),
         )

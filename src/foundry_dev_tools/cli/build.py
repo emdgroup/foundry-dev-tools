@@ -96,7 +96,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
     )
 
 
-TRANSFORM_REGEX = re.compile("@transform|@transform_df")
+TRANSFORM_REGEX = re.compile("@transform|@transform_df|@transform_pandas")
 
 
 def is_transform_file(transform_file: Path) -> bool:
