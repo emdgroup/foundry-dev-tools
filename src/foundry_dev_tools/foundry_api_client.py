@@ -1798,7 +1798,7 @@ class FoundryRestClient:
     def start_checks_and_build_for_commit(
         self, repository_id: str, ref_name: str, commit_hash: str, file_paths: list
     ) -> dict:
-        """Test."""
+        """TODO."""
         response = _request(
             "POST",
             f"{self.jemma}/builds",
@@ -1837,7 +1837,7 @@ class FoundryRestClient:
         return response.json()
 
     def get_build(self, build_rid: str) -> dict:
-        """Test."""
+        """TODO."""
         response = _request(
             "GET",
             f"{self.builds2}/info/builds2/{build_rid}",

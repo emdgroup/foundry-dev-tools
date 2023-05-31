@@ -1,5 +1,4 @@
 """Build command and its utility functions."""
-import asyncio
 import codecs
 import json
 import logging
@@ -14,11 +13,13 @@ from urllib.parse import urlparse
 
 import click
 import inquirer
-import websockets
 from click import UsageError
 from rich import print as rprint
 from rich.logging import RichHandler
 from rich.markup import escape
+from websockets.exceptions import ConnectionClosed
+from websockets.sync.client import connect
+from websockets.typing import Subprotocol
 
 from foundry_dev_tools import Configuration, FoundryRestClient
 from foundry_dev_tools.utils.misc import TailHelper, print_horizontal_line
@@ -119,7 +120,7 @@ def is_transform_file(transform_file: Path) -> bool:
     return False
 
 
-async def tail_job_log(job_id: str, jwt: str):
+def tail_job_log(job_id: str, jwt: str):
     """Tails the job log.
 
     This method uses
@@ -134,13 +135,13 @@ async def tail_job_log(job_id: str, jwt: str):
     log.addHandler(rh)
     while connection_attempts < MAX_ATTEMPTS:
         try:
-            async with websockets.connect(
-                uri, subprotocols=[f"Bearer-{jwt}"]
-            ) as websocket:
-                log_message: str
-                while log_message := await websocket.recv():
+            with connect(uri, subprotocols=[Subprotocol(f"Bearer-{jwt}")]) as websocket:
+                while log_message := websocket.recv():
                     try:
-                        log.handle(create_log_record(log_message))
+                        if isinstance(log_message, bytes):
+                            log.handle(create_log_record(log_message.decode("UTF-8")))
+                        else:
+                            log.handle(create_log_record(log_message))
                     except Exception as e:
                         print(
                             "fdt build >>> This shouldn't happen, "
@@ -148,11 +149,11 @@ async def tail_job_log(job_id: str, jwt: str):
                             "fdt build >>> Will output the log message in plain:"
                         )
                         print(log_message)
-        except websockets.ConnectionClosed as e:
-            if e.code == 1000:
+        except ConnectionClosed as cce:
+            if cce.code == 1000:
                 rprint("Spark Job Completed.")
                 break
-            if e.code == 1011 and "connection with spark module failed" in e.reason:
+            if cce.code == 1011 and "connection with spark module failed" in cce.reason:
                 rprint("Spark Job Completed Already, too late to tail logs.")
                 break
 
@@ -221,11 +222,11 @@ def _get_logs(all_job_logs: dict, rid: str) -> "list[str] | None":
     "--transforms",
     help="The transforms python file path e.g. transforms-python/src/myproject/datasets/transform1.py\n"
     "Can be supplied multiple times\n"
-    "If not provided you can choose (one of) the transform(s) edited in the last commit.",  # TODO
+    "If not provided you can choose (one of) the transform(s) edited in the last commit.",
     multiple=True,
 )
 def build_cli(transforms):
-    """Command to start a build and tail it logs.
+    """Command to start a build and tail the logs.
 
     This command can be run with `fdt build`
 
@@ -282,13 +283,11 @@ def build_cli(transforms):
                 f"{build_id} to track Build."
             )
             print_horizontal_line(print_handler=rprint)
-            asyncio.run(
-                tail_job_log(
-                    job_id=client.get_build(build_id)["jobRids"][0].replace(
-                        "ri.foundry.main.job.", ""
-                    ),
-                    jwt=client._headers()["Authorization"].replace("Bearer ", ""),
-                )
+            tail_job_log(
+                job_id=client.get_build(build_id)["jobRids"][0].replace(
+                    "ri.foundry.main.job.", ""
+                ),
+                jwt=client._headers()["Authorization"].replace("Bearer ", ""),
             )
             # TODO: print status of build, or URL again, something something
             break
