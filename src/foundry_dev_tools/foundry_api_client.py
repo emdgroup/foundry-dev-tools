@@ -19,7 +19,7 @@ import tempfile
 import time
 import warnings
 from contextlib import contextmanager
-from enum import StrEnum
+from enum import Enum
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
@@ -68,7 +68,37 @@ def _poolcontext(*args, **kwargs):
     pool.terminate()
 
 
-class SQLReturnType(StrEnum):
+class StrEnumBackport(str, Enum):
+    """Enum where members are also (and must be) strings.
+
+    Taken from the in 3.11 introduced StrEnum
+    https://github.com/python/cpython/blob/3b0747af909cf680543fd9f290bdae8ac6ed155e/Lib/enum.py#L1261
+    """
+
+    def __new__(cls, *values):  # noqa: D102
+        # Values must already be of type `str`.
+        if len(values) > 3:  # noqa: PLR2004
+            raise TypeError(f"too many arguments for str(): {values!r}")
+        # it must be a string
+        if len(values) == 1 and not isinstance(values[0], str):
+            raise TypeError(f"{values[0]!r} is not a string")
+        # check that encoding argument is a string
+        if len(values) >= 2 and not isinstance(values[1], str):  # noqa: PLR2004
+            raise TypeError(f"encoding must be a string, not {values[1]!r}")
+            # check that errors argument is a string
+        if len(values) == 3 and not isinstance(values[2], str):  # noqa: PLR2004
+            raise TypeError("errors must be a string, not %r" % (values[2]))
+        value = str(*values)
+        member = str.__new__(cls, value)
+        member._value_ = value
+        return member
+
+    def _generate_next_value_(name, start, count, last_values):
+        """Return the lower-cased version of the member name."""
+        return name.lower()
+
+
+class SQLReturnType(StrEnumBackport):
     """The return_types for sql queries.
 
     PANDAS, PD: :external+pandas:py:class:`pandas.DataFrame` (pandas)
