@@ -19,7 +19,7 @@ import tempfile
 import time
 import warnings
 from contextlib import contextmanager
-from enum import Enum, EnumType
+from enum import Enum, EnumMeta
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
@@ -68,7 +68,7 @@ def _poolcontext(*args, **kwargs):
     pool.terminate()
 
 
-class EnumContainsMeta(EnumType):
+class EnumContainsMeta(EnumMeta):
     """Metaclass for the SQLReturnType.
 
     It implements a proper __contains__ like 3.12 does.
@@ -77,7 +77,7 @@ class EnumContainsMeta(EnumType):
     def __contains__(cls, value):
         """Backported a __contains__ from 3.12."""
         if sys.version_info >= (3, 12):
-            return Enum.__contains__(cls, value)
+            return EnumMeta.__contains__(cls, value)
         if isinstance(value, cls) and value._name_ in cls._member_map_:
             return True
         return value in cls._value2member_map_
