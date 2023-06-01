@@ -514,7 +514,6 @@ def test_query_sql(client, mocker, iris_dataset):
     spy = mocker.spy(FoundryRestClient, "query_foundry_sql_legacy")
 
     iris_pdf = client.query_foundry_sql(f"SELECT * FROM `{iris_rid}` LIMIT 100")
-
     assert iris_pdf.shape == (100, 5)
 
     pa_table = client.query_foundry_sql(

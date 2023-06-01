@@ -210,7 +210,7 @@ def foundry_sql_data_to_spark_dataframe(
     """Converts the result of a foundry sql API query to a spark dataframe.
 
     Args:
-        data (list,list): list of list of data
+        data (List[List]): list of list of data
         spark_schema (:external+spark:py:class:`~pyspark.sql.types.StructType`): the spark schema to apply
 
     Returns:

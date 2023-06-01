@@ -19,6 +19,7 @@ import tempfile
 import time
 import warnings
 from contextlib import contextmanager
+from enum import StrEnum
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
@@ -67,6 +68,25 @@ def _poolcontext(*args, **kwargs):
     pool.terminate()
 
 
+class SQLReturnType(StrEnum):
+    """The return_types for sql queries.
+
+    PANDAS, PD: :external+pandas:py:class:`pandas.DataFrame` (pandas)
+    ARROW, PYARROW, PA: :external+pyarrow:py:class:`pyarrow.Table` (arrow)
+    SPARK, PYSPARK: :external+spark:py:class:`~pyspark.sql.DataFrame` (spark)
+    RAW: Tuple of (foundry_schema, data) (raw) (can only be used in legacy)
+    """
+
+    PANDAS = "pandas"
+    PD = PANDAS
+    SPARK = "spark"
+    PYSPARK = SPARK
+    ARROW = "arrow"
+    PYARROW = ARROW
+    PA = ARROW
+    RAW = "raw"
+
+
 class FoundryRestClient:
     """Zero dependency python client for Foundry's REST APIs."""
 
@@ -98,9 +118,7 @@ class FoundryRestClient:
         self.data_proxy = f"{api_base}/foundry-data-proxy/api"
         self.schema_inference = f"{api_base}/foundry-schema-inference/api"
         self.multipass = f"{api_base}/multipass/api"
-        self.foundry_sql_server_api = (
-            f"{self._config['foundry_url']}/foundry-sql-server/api"
-        )
+        self.foundry_sql_server_api = f"{api_base}/foundry-sql-server/api"
         self._requests_verify_value = _determine_requests_verify_value(self._config)
 
     def _headers(self):
@@ -1256,7 +1274,7 @@ class FoundryRestClient:
         self,
         query: str,
         branch: str = "master",
-        return_type="raw",
+        return_type: SQLReturnType = SQLReturnType.RAW,
         timeout: int = 600,
     ) -> "tuple[dict, List[List]] | pd.core.frame.DataFrame | pyspark.sql.DataFrame | pa.Table":
         """Queries the dataproxy query API with spark SQL.
@@ -1268,9 +1286,7 @@ class FoundryRestClient:
         Args:
             query (str): the sql query
             branch (str): the branch of the dataset / query
-            return_type (str, tuple[dict, List[List]] |  pandas | arrow | spark): Whether to return
-                :external+pandas:py:class:`pandas.DataFrame`, :external+pyarrow:py:class:`pyarrow.Table` or
-                :external+spark:py:class:`~pyspark.sql.DataFrame` or a Tuple of (foundry_schema, data)
+            return_type (SQLReturnType): See :py:class:foundry_dev_tools.foundry_api_client.SQLReturnType
             timeout (int): the query timeout, default value is 600 seconds
 
         Returns:
@@ -1286,12 +1302,15 @@ class FoundryRestClient:
              df = pd.DataFrame(data=data, columns=[e['name'] for e in foundry_schema['fieldSchemaList']])
 
         Raises:
+            ValueError: if return_type is not in :py:class:SQLReturnType
             DatasetHasNoSchemaError: if dataset has no schema
             BranchNotFoundError: if branch was not found
         """
-        if return_type not in {"raw", "pandas", "arrow", "spark"}:
-            raise AssertionError(
-                f"return_type ({return_type}) should be one of raw, pandas, arrow or spark"
+        # if return_type is a str this will also work, this will get fixed in python 3.12
+        # where we would be able to use `return_type not in SQLReturnType`
+        if return_type not in list(SQLReturnType):
+            raise ValueError(
+                f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
         response = _request(
             "POST",
@@ -1324,9 +1343,9 @@ class FoundryRestClient:
 
         _raise_for_status_verbose(response)
         response_json = response.json()
-        if return_type == "raw":
+        if return_type == SQLReturnType.RAW:
             return response_json["foundrySchema"], response_json["rows"]
-        if return_type == "pandas" or return_type == "arrow":
+        if return_type == SQLReturnType.PANDAS or return_type == SQLReturnType.ARROW:
             import pandas as pd
 
             pdf = pd.DataFrame(
@@ -1335,14 +1354,13 @@ class FoundryRestClient:
                     e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]
                 ],
             )
-            if return_type == "pandas":
+            if return_type == SQLReturnType.PANDAS:
                 return pdf
-            if return_type == "arrow":
+            if return_type == SQLReturnType.ARROW:
                 import pyarrow as pa
 
                 return pa.Table.from_pandas(pdf)
-            return None
-        if return_type == "spark":
+        elif return_type == SQLReturnType.SPARK:
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
                 foundry_sql_data_to_spark_dataframe,
@@ -1358,9 +1376,9 @@ class FoundryRestClient:
 
     def query_foundry_sql(
         self,
-        query,
-        branch="master",
-        return_type="pandas",
+        query: str,
+        branch: str = "master",
+        return_type: SQLReturnType = SQLReturnType.PANDAS,
         timeout: int = 600,
     ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
         """Queries the Foundry SQL server with spark SQL dialect.
@@ -1380,9 +1398,7 @@ class FoundryRestClient:
         Args:
             query (str): The SQL Query in Foundry Spark Dialect (use backticks instead of quotes)
             branch (str): The branch of the dataset / query
-            return_type (str, pandas | arrow | spark): Whether to return
-                :external+pandas:py:class:`pandas.DataFrame`, :external+pyarrow:py:class:`pyarrow.Table` or
-                :external+spark:py:class:`~pyspark.sql.DataFrame`
+            return_type (SQLReturnType): See :py:class:foundry_dev_tools.foundry_api_client.SQLReturnType
             timeout (int): Query Timeout, default value is 600 seconds
 
         Returns:
@@ -1394,21 +1410,31 @@ class FoundryRestClient:
             ValueError: Only direct read eligible queries can be returned as arrow Table.
 
         """  # noqa: E501
-        if return_type not in {"pandas", "arrow", "spark"}:
-            raise AssertionError(
-                f"return_type ({return_type}) should be one of pandas, arrow or spark"
+        # if return_type is a str this will also work, this will get fixed in python 3.12
+        # where we would be able to use `return_type not in SQLReturnType`
+        if return_type not in list(SQLReturnType):
+            raise ValueError(
+                f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
-        try:
-            return self._query_fsql(query=query, branch=branch, return_type=return_type)
-        except (FoundrySqlSerializationFormatNotImplementedError, ImportError) as exc:
-            if return_type == "arrow":
-                raise ValueError(
-                    "Only direct read eligible queries can be returned as arrow Table. "
-                    "Consider using setting return_type to 'pandas'."
-                ) from exc
-            return self.query_foundry_sql_legacy(
-                query=query, branch=branch, return_type=return_type, timeout=timeout
-            )
+        if return_type != SQLReturnType.RAW:
+            try:
+                return self._query_fsql(
+                    query=query, branch=branch, return_type=return_type
+                )
+            except (
+                FoundrySqlSerializationFormatNotImplementedError,
+                ImportError,
+            ) as exc:
+                if return_type == SQLReturnType.ARROW:
+                    raise ValueError(
+                        "Only direct read eligible queries can be returned as arrow Table. "
+                        "Consider using setting return_type to 'pandas'."
+                    ) from exc
+
+        warnings.warn("Falling back to query_foundry_sql_legacy!")
+        return self.query_foundry_sql_legacy(
+            query=query, branch=branch, return_type=return_type, timeout=timeout
+        )
 
     def get_user_info(self) -> dict:
         """Returns the multipass user info.
@@ -1828,7 +1854,7 @@ class FoundryRestClient:
             # The query does not select from a column with a type that is ineligible for direct read.
             # Ineligible types are array, map, and struct.
 
-            # Mai 2023: ARROW_V1 seems to consistently return ARROW format and not fallback to JSON.
+            # May 2023: ARROW_V1 seems to consistently return ARROW format and not fallback to JSON.
 
             raise FoundrySqlSerializationFormatNotImplementedError()
 
@@ -1837,13 +1863,15 @@ class FoundryRestClient:
     def _query_fsql(
         self,
         query: str,
-        branch="master",
-        return_type: str = "pandas",
+        branch: str = "master",
+        return_type: SQLReturnType = SQLReturnType.PANDAS,
         timeout: int = 600,
     ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
-        if return_type not in {"pandas", "arrow", "spark"}:
-            raise AssertionError(
-                f"return_type ({return_type}) should be one of pandas, arrow or spark"
+        # if return_type is a str this will also work, this will get fixed in python 3.12
+        # where we would be able to use `return_type not in SQLReturnType`
+        if return_type not in list(SQLReturnType):
+            raise ValueError(
+                f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
 
         response_json = self._execute_fsql_query(query, branch=branch, timeout=timeout)
@@ -1856,9 +1884,9 @@ class FoundryRestClient:
             )
 
         arrow_stream_reader = self._read_fsql_query_results_arrow(query_id=query_id)
-        if return_type == "pandas":
+        if return_type == SQLReturnType.PANDAS:
             return arrow_stream_reader.read_pandas()
-        if return_type == "spark":
+        if return_type == SQLReturnType.SPARK:
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 arrow_stream_to_spark_dataframe,
             )
