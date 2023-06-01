@@ -530,7 +530,7 @@ def test_query_sql(client, mocker, iris_dataset):
     assert iris_fallback.shape == (100, 5)
     # The order by should trigger a computation in spark and today 18/10/2022
     # the Foundry SQL server does not return ARROW but JSON
-    spy.assert_called()
+    spy.assert_not_called()
 
     spy.reset_mock()
 
@@ -542,7 +542,19 @@ def test_query_sql(client, mocker, iris_dataset):
     ), f"Still multiple classes: {iris_where['is_setosa'].unique()}"
     # The order by should trigger a computation in spark and today 18/10/2022
     # the Foundry SQL server does not return ARROW but JSON
+    spy.assert_not_called()
+
+    spy.reset_mock()
+    import sys
+
+    pyarrow = sys.modules["pyarrow"]
+    sys.modules["pyarrow"] = None
+
+    iris = client.query_foundry_sql(f"SELECT * FROM `{iris_dataset[1]}`")
+    assert iris.shape == (150, 5)
     spy.assert_called()
+
+    sys.modules["pyarrow"] = pyarrow
 
 
 def test_raise_for_status_prints_details(mocker, capsys):

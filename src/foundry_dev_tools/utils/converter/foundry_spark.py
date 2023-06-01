@@ -1,7 +1,7 @@
 """Helper function for conversion of data structures."""
 
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from foundry_dev_tools.utils.importer import import_optional_dependency
 from foundry_dev_tools.utils.spark import get_spark_session
@@ -205,12 +205,12 @@ def _parse_complex_type(field) -> dict:
 
 
 def foundry_sql_data_to_spark_dataframe(
-    data: "tuple[list, list]", spark_schema: "pyspark.sql.types.StructType"
+    data: "List[List]", spark_schema: "pyspark.sql.types.StructType"
 ) -> "pyspark.sql.DataFrame":
     """Converts the result of a foundry sql API query to a spark dataframe.
 
     Args:
-        data (list,list): list of list of data
+        data (List[List]): list of list of data
         spark_schema (:external+spark:py:class:`~pyspark.sql.types.StructType`): the spark schema to apply
 
     Returns:
