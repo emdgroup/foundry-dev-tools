@@ -1,3 +1,6 @@
+import json
+import logging
+import os
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -126,6 +129,77 @@ CHECK_JOB_CUSTOM_METADATA = {
     "cpuModel": "Dummy CPU 4GHz",
 }
 
+CHECK_LOGS = [
+    "Checks...",
+    "Running 1234",
+    "",
+    "Downloading something",
+    "Unpacking something",
+    "",
+    "Something Something",
+    "Checking...",
+    "Checks passed",
+]
+
+
+BUILD_INIT_LOGS = "Starting Builds..."
+
+STARTED_BUILD_RID = "ri.foundry.main.build.0e7ca16b-49f1-4b2d-953e-21b18bc7c560"
+
+SPARK_LOGS = [
+    "Hello!",
+    "[/ESCAPE ME]",
+    json.dumps(
+        {
+            "level": "ERROR",
+            "origin": "origin",
+            "message": "%s happened! %s",
+            "time": "2000-01-01T00:00:00.000000Z",
+            "stacktrace": "Stacktrace:\nSomething somethiing\nError {exception_message} here:\nline 20",
+            "unsafeParams": {
+                "exception_message": "Some Error",
+                "param_0": "Something",
+                "param_1": "[/ESCAPE ME TOO!]",
+            },
+        }
+    ),
+]
+EXPECTED_SPARK_LOG_RECORDS = [
+    logging.LogRecord(
+        name="",
+        level=logging.INFO,
+        pathname="spark",
+        lineno=0,
+        msg="Hello!",
+        args=(),
+        exc_info=None,
+        func=None,
+        sinfo=None,
+    ),
+    logging.LogRecord(
+        name="",
+        level=logging.INFO,
+        pathname="spark",
+        lineno=0,
+        msg="\\[/ESCAPE ME]",
+        args=(),
+        exc_info=None,
+        func=None,
+        sinfo=None,
+    ),
+    logging.LogRecord(
+        name="origin",
+        level=logging.ERROR,
+        pathname="origin",
+        lineno=0,
+        msg="[bold]%s happened! %s[/bold]",
+        args=("Something", "\\[/ESCAPE ME TOO!]"),
+        exc_info=None,
+        func=None,
+        sinfo="Stacktrace:\nSomething somethiing\nError Some Error here:\nline 20",
+    ),
+]
+
 
 def simulate_build_log():
     blog = BUILD_LOG_RESPONSE.copy()
@@ -134,19 +208,7 @@ def simulate_build_log():
     # checks logs
     blog["allJobLogs"][CHECK_JOB_RID]["logsByStep"] = [
         {
-            "logs": "\n".join(
-                [
-                    "Checks...",
-                    "Running 1234",
-                    "",
-                    "Downloading something",
-                    "Unpacking something",
-                    "",
-                    "Something Something",
-                    "Checking...",
-                    "Checks passed",
-                ]
-            ),
+            "logs": os.linesep.join(CHECK_LOGS),
             "isTruncated": False,
         }
     ]
@@ -166,9 +228,7 @@ def simulate_build_log():
     blog["allJobs"][1]["sratedAt"] = "2000-01-01T00:10:00.000000000Z"
     blog["allJobs"][1]["completedAt"] = "2000-01-01T00:10:10.000000000Z"
     blog["allJobStatusReports"][BUILD_JOB_RID]["jobCustomMetadata"] = {
-        "startedBuildIds": [
-            "ri.foundry.main.build.0e7ca16b-49f1-4b2d-953e-21b18bc7c560"
-        ]
+        "startedBuildIds": [STARTED_BUILD_RID]
     }
     blog["allJobStatusReports"][BUILD_JOB_RID]["jobStatus"] = "SUCCEEDED"
     blog["allJobStatusReports"][BUILD_JOB_RID]["stepStatusReports"] = [
@@ -176,7 +236,7 @@ def simulate_build_log():
     ]
     blog["allJobLogs"][BUILD_JOB_RID]["logsByStep"] = [
         {
-            "logs": "Starting Builds...",
+            "logs": BUILD_INIT_LOGS,
             "isTruncated": False,
         }
     ]
@@ -235,19 +295,19 @@ class WebSocketMock:
     },
 )
 @mock.patch(
-    "foundry_dev_tools.cli.build.FoundryRestClient.start_checks_and_build_for_commit",
+    "foundry_dev_tools.cli.build.FoundryRestClient.start_checks_and_build",
     side_effect=simulate_build_log(),
 )
 @mock.patch(
     "foundry_dev_tools.cli.build.connect",
     return_value=WebSocketMock(
-        ["Hi i'm spark!", "Let's build a dataset", "{}"],
+        SPARK_LOGS,
         websockets.frames.Close(1000, "close"),
     ),
 )
 @mock.patch("foundry_dev_tools.utils.misc.print_horizontal_line")
-def test_build(a, b, c, d, e, f):
-    from foundry_dev_tools.cli.build import build_cli
+def test_build(a, b, c, d, e, f, caplog):
+    from foundry_dev_tools.cli.build import _build_url_message, build_cli
 
     runner = CliRunner()
     result = runner.invoke(
@@ -258,6 +318,29 @@ def test_build(a, b, c, d, e, f):
         ],  # to skip the prompt
         catch_exceptions=False,
     )
-    print(result.stdout_bytes.decode("UTF-8"))
-    print(result.stderr_bytes.decode("UTF-8"), file=sys.stderr)
+    if result.stderr_bytes:
+        print(result.stderr, file=sys.stderr)
+    assert result.stdout_bytes
+    output = result.stdout.replace(os.linesep, "")
+    print(output)
+    logs_wo_line = "".join(CHECK_LOGS)
+    assert output.startswith(logs_wo_line)
+    output = output[len(logs_wo_line) :]
+    assert output.startswith(BUILD_INIT_LOGS)
+    output = output[len(BUILD_INIT_LOGS) :]
+    build_url_message = _build_url_message(STARTED_BUILD_RID)
+    assert output.startswith(build_url_message)
+    # after that we log in the websocket handler
+    log_records = caplog.get_records("call")
+    assert len(log_records) == len(SPARK_LOGS)
+    for i in range(len(EXPECTED_SPARK_LOG_RECORDS)):
+        assert EXPECTED_SPARK_LOG_RECORDS[i].name == log_records[i].name
+        assert EXPECTED_SPARK_LOG_RECORDS[i].levelno == log_records[i].levelno
+        assert EXPECTED_SPARK_LOG_RECORDS[i].filename == log_records[i].filename
+        assert EXPECTED_SPARK_LOG_RECORDS[i].lineno == log_records[i].lineno
+
+        assert EXPECTED_SPARK_LOG_RECORDS[i].msg == log_records[i].msg
+        assert EXPECTED_SPARK_LOG_RECORDS[i].args == log_records[i].args
+        assert EXPECTED_SPARK_LOG_RECORDS[i].exc_info == log_records[i].exc_info
+        assert EXPECTED_SPARK_LOG_RECORDS[i].stack_info == log_records[i].stack_info
     assert result.exit_code == 0

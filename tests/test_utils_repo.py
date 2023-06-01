@@ -29,32 +29,14 @@ def test_get_repo(tmpdir: "py.path.LocalPath"):
     git_dir = Path(tmpdir)
     subprocess.check_call(["git", "init"], cwd=git_dir)
     with git_dir.joinpath("gradle.properties").open("w+") as gradle_prop:
-        gradle_prop.write(
-            "\n".join(
-                [
-                    "condaSolveImplementation = mamba",
-                    "enableLegacyFallback = false",
-                    "forceCondaAutoconfiguration = true",
-                    "org.gradle.caching = true",
-                    "org.gradle.vfs.watch = false",
-                    "rootProjectName = example Repo",
-                    "systemProp.http.connectionTimeout = 1234",
-                    "systemProp.http.socketTimeout = 4321",
-                    "systemProp.org.gradle.internal.http.connectionTimeout = 12345",
-                    "systemProp.org.gradle.internal.http.socketTimeout = 1234",
-                    "transformsDefaultBranchName = master",
-                    "transformsLangPythonPluginVersion = 1.234.5",
-                    "transformsRepoOrg = Example Org",
-                    "transformsRepoPath = /some/long/path Repo",
-                    "transformsRepoProject = example-repo",
-                    f"transformsRepoRid = {repo_rid}",
-                    "transformsVersion = 9.876.5",
-                ]
-            )
-        )
+        gradle_prop.write(f"transformsRepoRid = {repo_rid}")
     GIT_ENV = {
         "HOME": str(git_dir),
         "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_COMMITTER_NAME": "pytest get_repo test",
+        "GIT_COMMITTER_EMAIL": "pytest@get_repo.py",
+        "GIT_AUTHOR_NAME": "pytest get_repo test",
+        "GIT_AUTHOR_EMAIL": "pytest@get_repo.py",
     }  # should use default configs
     subprocess.check_call(["git", "add", "gradle.properties"], cwd=git_dir, env=GIT_ENV)
     subprocess.check_call(

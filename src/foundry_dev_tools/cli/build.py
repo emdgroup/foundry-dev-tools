@@ -25,6 +25,12 @@ from foundry_dev_tools import Configuration, FoundryRestClient
 from foundry_dev_tools.utils.misc import TailHelper, print_horizontal_line
 from foundry_dev_tools.utils.repo import get_repo
 
+log = logging.getLogger("fdt_build")
+log.setLevel(logging.DEBUG)
+rh = RichHandler(logging.DEBUG, markup=True)
+rh.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
+log.addHandler(rh)
+
 
 def create_log_record(log_message: str) -> logging.LogRecord:
     """Parses the log message from the spark logs.
@@ -66,7 +72,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
                 lineno=0,
                 msg=f"[bold]{escape(log_data['message'])}[/bold]",
                 args=tuple(
-                    value
+                    escape(value)
                     for key, value in log_data["unsafeParams"].items()
                     if key.startswith("param_")
                 ),
@@ -128,11 +134,6 @@ def tail_job_log(job_id: str, jwt: str):
     MAX_ATTEMPTS = 30
     connection_attempts = 0
     uri = f"wss://{urlparse(Configuration['foundry_url']).hostname}/spark-reporter/ws/logs/driver/{job_id}"
-    log = logging.getLogger("fdt_build")
-    log.setLevel(logging.DEBUG)
-    rh = RichHandler(logging.DEBUG, markup=True)
-    rh.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
-    log.addHandler(rh)
     while connection_attempts < MAX_ATTEMPTS:
         try:
             with connect(uri, subprotocols=[Subprotocol(f"Bearer-{jwt}")]) as websocket:
@@ -216,6 +217,13 @@ def _get_logs(all_job_logs: dict, rid: str) -> "list[str] | None":
     return None
 
 
+def _build_url_message(build_id: str):
+    return (
+        f"Open {Configuration['foundry_url']}/workspace/data-integration/job-tracker/builds/"
+        f"{build_id} to track Build."
+    )
+
+
 @click.command("build")
 @click.option(
     "-t",
@@ -253,7 +261,7 @@ def build_cli(transforms):
         raise UsageError("No transform files provided.")
 
     def _req():
-        return client.start_checks_and_build_for_commit(
+        return client.start_checks_and_build(
             repository_id=repo,
             ref_name=ref_name,
             commit_hash=commit_hash,
@@ -278,10 +286,7 @@ def build_cli(transforms):
             .get("startedBuildIds", [None])[0]
         ):
             print_horizontal_line(print_handler=rprint)
-            rprint(
-                f"Open {Configuration['foundry_url']}/workspace/data-integration/job-tracker/builds/"
-                f"{build_id} to track Build."
-            )
+            rprint(_build_url_message(build_id))
             print_horizontal_line(print_handler=rprint)
             tail_job_log(
                 job_id=client.get_build(build_id)["jobRids"][0].replace(
