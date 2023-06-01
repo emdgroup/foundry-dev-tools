@@ -1408,9 +1408,7 @@ class FoundryRestClient:
 
         Example:
             df1 = client.query_foundry_sql("SELECT * FROM `/Global/Foundry Operations/Foundry Support/iris`")
-
-            query = ("SELECT col1 FROM `{start_transaction_rid}:{end_transaction_rid}@{branch}`.`{dataset_path_or_rid}`"
-                  "WHERE filterColumns = 'value1' LIMIT 1")
+            query = ("SELECT col1 FROM `{start_transaction_rid}:{end_transaction_rid}@{branch}`.`{dataset_path_or_rid}` WHERE filterColumns = 'value1' LIMIT 1")
             df2 = client.query_foundry_sql(query)
 
         Args:
