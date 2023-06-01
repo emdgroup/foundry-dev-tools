@@ -1,3 +1,4 @@
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from unittest import mock
@@ -258,4 +259,5 @@ def test_build(a, b, c, d, e, f):
         catch_exceptions=False,
     )
     print(result.stdout_bytes.decode("UTF-8"))
+    print(result.stderr_bytes.decode("UTF-8"), file=sys.stderr)
     assert result.exit_code == 0

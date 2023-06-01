@@ -295,5 +295,6 @@ def build_cli(transforms):
             job_stat_rep.get("jobStatus", {}) == "FAILED"
             for job_stat_rep in response_json.get("allJobStatusReports", {}).values()
         ):
+            raise SystemExit(1)
             break
         time.sleep(2)

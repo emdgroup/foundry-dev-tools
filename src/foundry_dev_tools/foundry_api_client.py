@@ -1795,10 +1795,24 @@ class FoundryRestClient:
         _raise_for_status_verbose(response)
         return response.json()
 
-    def start_checks_and_build_for_commit(
-        self, repository_id: str, ref_name: str, commit_hash: str, file_paths: list
+    def start_checks_and_build(
+        self,
+        repository_id: str,
+        ref_name: str,
+        commit_hash: str,
+        file_paths: "List[str]",
     ) -> dict:
-        """TODO."""
+        """Starts checks and builds.
+
+        Args:
+            repository_id (str): the repository id where the transform is located
+            ref_name (str): the git ref_name for the branch
+            commit_hash (str): the git commit hash
+            file_paths (List[str]): a list of python transform files
+
+        Returns:
+            dict: the JSON API response
+        """
         response = _request(
             "POST",
             f"{self.jemma}/builds",
@@ -1837,7 +1851,14 @@ class FoundryRestClient:
         return response.json()
 
     def get_build(self, build_rid: str) -> dict:
-        """TODO."""
+        """Get information about the build.
+
+        Args:
+            build_rid (str): the build RID
+
+        Returns:
+            dict: the JSON API response
+        """
         response = _request(
             "GET",
             f"{self.builds2}/info/builds2/{build_rid}",
