@@ -9,7 +9,6 @@ import base64
 import builtins
 import functools
 import io
-import json
 import logging
 import multiprocessing
 import os
@@ -23,13 +22,15 @@ from contextlib import contextmanager
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, AnyStr
+from typing import IO, TYPE_CHECKING, AnyStr, List
 from urllib.parse import quote, quote_plus
 
 import palantir_oauth_client
 import requests
 
 import foundry_dev_tools.config
+
+DEFAULT_REQUESTS_CONNECT_TIMEOUT = 10
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -97,7 +98,9 @@ class FoundryRestClient:
         self.data_proxy = f"{api_base}/foundry-data-proxy/api"
         self.schema_inference = f"{api_base}/foundry-schema-inference/api"
         self.multipass = f"{api_base}/multipass/api"
-        self._api_base = api_base
+        self.foundry_sql_server_api = (
+            f"{self._config['foundry_url']}/foundry-sql-server/api"
+        )
         self._requests_verify_value = _determine_requests_verify_value(self._config)
 
     def _headers(self):
@@ -1250,8 +1253,12 @@ class FoundryRestClient:
         return response
 
     def query_foundry_sql_legacy(
-        self, query: str, branch: str = "master"
-    ) -> "tuple[dict, list]":
+        self,
+        query: str,
+        branch: str = "master",
+        return_type="raw",
+        timeout: int = 600,
+    ) -> "tuple[dict, List[List]] | pd.core.frame.DataFrame | pyspark.sql.DataFrame | pa.Table":
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -1261,6 +1268,10 @@ class FoundryRestClient:
         Args:
             query (str): the sql query
             branch (str): the branch of the dataset / query
+            return_type (str, tuple[dict, List[List]] |  pandas | arrow | spark): Whether to return
+                :external+pandas:py:class:`pandas.DataFrame`, :external+pyarrow:py:class:`pyarrow.Table` or
+                :external+spark:py:class:`~pyspark.sql.DataFrame` or a Tuple of (foundry_schema, data)
+            timeout (int): the query timeout, default value is 600 seconds
 
         Returns:
             Tuple (dict, list):
@@ -1278,6 +1289,10 @@ class FoundryRestClient:
             DatasetHasNoSchemaError: if dataset has no schema
             BranchNotFoundError: if branch was not found
         """
+        if return_type not in {"raw", "pandas", "arrow", "spark"}:
+            raise AssertionError(
+                f"return_type ({return_type}) should be one of raw, pandas, arrow or spark"
+            )
         response = _request(
             "POST",
             f"{self.data_proxy}/dataproxy/queryWithFallbacks",
@@ -1285,6 +1300,7 @@ class FoundryRestClient:
             verify=self._verify(),
             params={"fallbackBranchIds": [branch]},
             json={"query": query},
+            read_timeout=timeout,
         )
 
         if (
@@ -1308,24 +1324,66 @@ class FoundryRestClient:
 
         _raise_for_status_verbose(response)
         response_json = response.json()
-        return response_json["foundrySchema"], response_json["rows"]
+        if return_type == "raw":
+            return response_json["foundrySchema"], response_json["rows"]
+        if return_type == "pandas" or return_type == "arrow":
+            import pandas as pd
+
+            pdf = pd.DataFrame(
+                data=response_json["rows"],
+                columns=[
+                    e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]
+                ],
+            )
+            if return_type == "pandas":
+                return pdf
+            if return_type == "arrow":
+                import pyarrow as pa
+
+                return pa.Table.from_pandas(pdf)
+            return None
+        if return_type == "spark":
+            from foundry_dev_tools.utils.converter.foundry_spark import (
+                foundry_schema_to_spark_schema,
+                foundry_sql_data_to_spark_dataframe,
+            )
+
+            return foundry_sql_data_to_spark_dataframe(
+                data=response_json["rows"],
+                spark_schema=foundry_schema_to_spark_schema(
+                    response_json["foundrySchema"]
+                ),
+            )
+        return None
 
     def query_foundry_sql(
-        self, query, branch="master", return_type="pandas"
+        self,
+        query,
+        branch="master",
+        return_type="pandas",
+        timeout: int = 600,
     ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
         """Queries the Foundry SQL server with spark SQL dialect.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
 
+        Falls back to query_foundry_sql_legacy in case pyarrow is not installed or the query does not return
+        Arrow Format.
+
         Example:
-            client.query_foundry_sql("SELECT * FROM `/Global/Foundry Operations/Foundry Support/iris`")
+            df1 = client.query_foundry_sql("SELECT * FROM `/Global/Foundry Operations/Foundry Support/iris`")
+
+            query = ("SELECT col1 FROM `{start_transaction_rid}:{end_transaction_rid}@{branch}`.`{dataset_path_or_rid}`"
+                  "WHERE filterColumns = 'value1' LIMIT 1")
+            df2 = client.query_foundry_sql(query)
 
         Args:
-            query (str): the sql query
-            branch (str): the branch of the dataset / query
+            query (str): The SQL Query in Foundry Spark Dialect (use backticks instead of quotes)
+            branch (str): The branch of the dataset / query
             return_type (str, pandas | arrow | spark): Whether to return
                 :external+pandas:py:class:`pandas.DataFrame`, :external+pyarrow:py:class:`pyarrow.Table` or
                 :external+spark:py:class:`~pyspark.sql.DataFrame`
+            timeout (int): Query Timeout, default value is 600 seconds
 
         Returns:
             :external+pandas:py:class:`~pandas.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`:
@@ -1340,33 +1398,16 @@ class FoundryRestClient:
             raise AssertionError(
                 f"return_type ({return_type}) should be one of pandas, arrow or spark"
             )
-        foundry_sql_client = FoundrySqlClient(config=self._config, branch=branch)
         try:
-            return foundry_sql_client.query(query=query, return_type=return_type)
+            return self._query_fsql(query=query, branch=branch, return_type=return_type)
         except (FoundrySqlSerializationFormatNotImplementedError, ImportError) as exc:
             if return_type == "arrow":
                 raise ValueError(
                     "Only direct read eligible queries can be returned as arrow Table. "
                     "Consider using setting return_type to 'pandas'."
                 ) from exc
-            foundry_schema, data = self.query_foundry_sql_legacy(query, branch)
-
-            if return_type == "pandas":
-                import pandas as pd
-
-                return pd.DataFrame(
-                    data=data,
-                    columns=[e["name"] for e in foundry_schema["fieldSchemaList"]],
-                )
-
-            from foundry_dev_tools.utils.converter.foundry_spark import (
-                foundry_schema_to_spark_schema,
-                foundry_sql_data_to_spark_dataframe,
-            )
-
-            return foundry_sql_data_to_spark_dataframe(
-                data=data,
-                spark_schema=foundry_schema_to_spark_schema(foundry_schema),
+            return self.query_foundry_sql_legacy(
+                query=query, branch=branch, return_type=return_type, timeout=timeout
             )
 
     def get_user_info(self) -> dict:
@@ -1708,94 +1749,37 @@ class FoundryRestClient:
         _raise_for_status_verbose(response)
         return response.json()
 
-
-class FoundrySqlClient:
-    """Class to interact with Foundry's SQL Server using ARROW IPC Protocol."""
-
-    def __init__(self, config: "dict | None" = None, branch="master"):
-        """Construct an instance of FoundrySqlClient.
-
-        Args:
-            config (dict): configuration dictionary, equivalent to FoundryRestClient
-            branch (str):  default = master, all queries will be executed against this default branch
-
-        """
-        self._config = foundry_dev_tools.config.Configuration.get_config(config)
-        self._requests_verify_value = _determine_requests_verify_value(self._config)
-        self.foundry_sql_server_api = (
-            f"{self._config['foundry_url']}/foundry-sql-server/api"
-        )
-        self._headers = self._get_initial_headers(session_authorization=None)
-        self.branch = branch
-        self.session_id, self.session_auth_token = self._establish_session(
-            branch=branch
-        )
-        self._headers = self._get_initial_headers(
-            session_authorization=self.session_auth_token
-        )
-
-    def _get_initial_headers(self, session_authorization=None):
-        return {
-            "User-Agent": requests.utils.default_user_agent(
-                f"foundry-dev-tools/{FDT_VERSION}/python-requests"
-            ),
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Content-Type": "application/json",
-            "Session-Authorization": session_authorization,
-            "Authorization": f"Bearer {_get_auth_token(self._config)}",
-        }
-
-    def _establish_session(self, branch="master") -> "tuple[str, str]":
+    def _execute_fsql_query(self, query: str, branch="master", timeout=600) -> dict:
         response = _request(
             "POST",
-            f"{self.foundry_sql_server_api}/sessions",
-            headers=self._headers,
-            verify=self._requests_verify_value,
-            json={
-                "configuration": {
-                    "fallbackBranchIds": [branch],
-                    "queryTimeoutMillis": None,
-                },
-                "protocolVersion": None,
-            },
-        )
-        _raise_for_status_verbose(response)
-        response_json = response.json()
-        session_id = response_json["sessionId"]
-        session_auth_token = response_json["sessionAuthToken"]
-        return session_id, session_auth_token
-
-    def _prepare_and_execute(self, query: str) -> dict:
-        response = _request(
-            "POST",
-            f"{self.foundry_sql_server_api}/sessions/"
-            f"{self.session_id}/prepare-and-execute-statement",
-            headers=self._headers,
+            f"{self.foundry_sql_server_api}/queries/execute",
+            headers=self._headers(),
             verify=self._requests_verify_value,
             json={
                 "dialect": "SPARK",
+                "fallbackBranchIds": [branch],
                 "parameters": {
                     "type": "unnamedParameterValues",
                     "unnamedParameterValues": [],
                 },
                 "query": query,
-                "serializationProtocol": "ARROW",
+                "serializationProtocol": "ARROW_V1",
+                "timeout": timeout,
             },
         )
         _transform_bad_request_response_to_exception(response)
         _raise_for_status_verbose(response)
         return response.json()
 
-    def _poll_for_query_completion(self, initial_response_json: dict, timeout=600):
+    def _poll_fsql_query_status(self, initial_response_json: dict, timeout=600):
         start_time = time.time()
-        statement_id = initial_response_json["statementId"]
+        query_id = initial_response_json["queryId"]
         response_json = initial_response_json
         while response_json["status"]["type"] == "running":
             response = _request(
-                "POST",
-                f"{self.foundry_sql_server_api}/" f"statements/{statement_id}/status",
-                headers=self._headers,
+                "GET",
+                f"{self.foundry_sql_server_api}/queries/{query_id}/status",
+                headers=self._headers(),
                 verify=self._requests_verify_value,
                 json={},
             )
@@ -1807,12 +1791,12 @@ class FoundrySqlClient:
                 raise FoundrySqlQueryClientTimedOutError(timeout)
             time.sleep(0.2)
 
-    def _read_results_arrow(
-        self, statement_id: str
+    def _read_fsql_query_results_arrow(
+        self, query_id: str
     ) -> "pa.ipc.RecordBatchStreamReader":
         import pyarrow as pa
 
-        headers = self._headers
+        headers = self._headers()
         headers["Accept"] = "application/octet-stream"
         headers["Content-Type"] = "application/json"
         # Couldn't get preload_content=False and gzip content-encoding to work together
@@ -1827,9 +1811,8 @@ class FoundrySqlClient:
         # and noticed that preloading content is significantly faster than stream=True
 
         response = _request(
-            "POST",
-            f"{self.foundry_sql_server_api}/" f"statements/{statement_id}/results",
-            data=json.dumps({}).encode("utf-8"),
+            "GET",
+            f"{self.foundry_sql_server_api}/queries/{query_id}/results",
             headers=headers,
         )
         bytes_io = io.BytesIO(response.content)
@@ -1845,54 +1828,34 @@ class FoundrySqlClient:
             # The query does not select from a column with a type that is ineligible for direct read.
             # Ineligible types are array, map, and struct.
 
+            # Mai 2023: ARROW_V1 seems to consistently return ARROW format and not fallback to JSON.
+
             raise FoundrySqlSerializationFormatNotImplementedError()
 
         return pa.ipc.RecordBatchStreamReader(bytes_io)
 
-    def query(
-        self, query: str, timeout=600, return_type="pandas"
+    def _query_fsql(
+        self,
+        query: str,
+        branch="master",
+        return_type: str = "pandas",
+        timeout: int = 600,
     ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
-        """Queries the foundry sql endpoint. Current dialect is hard-coded to SPARK.
-
-        Example Queries:
-
-        .. code-block:: python
-
-         # direct read if dataset is backed by parquet files, no size limit
-         df1 = client.query(f'SELECT * FROM `{dataset_path}`')
-
-         query = ("SELECT col1 FROM `{start_transaction_rid}:{end_transaction_rid}@{branch}`.`{dataset_path_or_rid}`"
-                  "WHERE filterColumns = 'value1' LIMIT 1")
-         df2 = client.query(query)
-
-        Args:
-            query (str): Query
-            timeout (float): default value 600 seconds
-            return_type (str: pandas | arrow | spark): return type, one of pandas, arrow or spark.
-                Whether to return :external+pandas:py:class:`~pandas.DataFrame`,
-                :external+spark:py:class:`~pyspark.sql.DataFrame`
-                or :external+pyarrow:py:class:`~pyarrow.Table`
-
-        Returns:
-             :external+pandas:py:class:`~pandas.DataFrame` | :external+spark:py:class:`~pyspark.sql.DataFrame` |
-                :external+pyarrow:py:class:`~pyarrow.Table`:
-                A pandas dataframe, pyspark dataframe or pyarrow Table with the result
-
-
-
-        """
         if return_type not in {"pandas", "arrow", "spark"}:
             raise AssertionError(
                 f"return_type ({return_type}) should be one of pandas, arrow or spark"
             )
 
-        response_json = self._prepare_and_execute(query)
-        statement_id = response_json["statementId"]
+        response_json = self._execute_fsql_query(query, branch=branch, timeout=timeout)
+        query_id = response_json["queryId"]
+        status = response_json["status"]
 
-        self._poll_for_query_completion(
-            initial_response_json=response_json, timeout=timeout
-        )
-        arrow_stream_reader = self._read_results_arrow(statement_id)
+        if status != {"ready": {}, "type": "ready"}:
+            self._poll_fsql_query_status(
+                initial_response_json=response_json, timeout=timeout
+            )
+
+        arrow_stream_reader = self._read_fsql_query_results_arrow(query_id=query_id)
         if return_type == "pandas":
             return arrow_stream_reader.read_pandas()
         if return_type == "spark":
@@ -2112,7 +2075,15 @@ def _get_palantir_oauth_token(
 
 
 def _request(*args, **kwargs):
-    return requests.request(*args, **kwargs, timeout=60)
+    if "read_timeout" in kwargs:
+        read_timeout = kwargs["read_timeout"]
+        del kwargs["read_timeout"]
+        return requests.request(
+            *args,
+            **kwargs,
+            timeout=(DEFAULT_REQUESTS_CONNECT_TIMEOUT, read_timeout),
+        )
+    return requests.request(*args, **kwargs, timeout=DEFAULT_REQUESTS_CONNECT_TIMEOUT)
 
 
 class FoundryDevToolsError(Exception):
