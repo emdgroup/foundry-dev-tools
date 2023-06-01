@@ -1345,22 +1345,25 @@ class FoundryRestClient:
         response_json = response.json()
         if return_type == SQLReturnType.RAW:
             return response_json["foundrySchema"], response_json["rows"]
-        if return_type == SQLReturnType.PANDAS or return_type == SQLReturnType.ARROW:
+        if return_type == SQLReturnType.PANDAS:
             import pandas as pd
 
-            pdf = pd.DataFrame(
+            return pd.DataFrame(
                 data=response_json["rows"],
                 columns=[
                     e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]
                 ],
             )
-            if return_type == SQLReturnType.PANDAS:
-                return pdf
-            if return_type == SQLReturnType.ARROW:
-                import pyarrow as pa
+        if return_type == SQLReturnType.ARROW:
+            import pyarrow as pa
 
-                return pa.Table.from_pandas(pdf)
-        elif return_type == SQLReturnType.SPARK:
+            return pa.table(
+                data=response_json["rows"],
+                names=[
+                    e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]
+                ],
+            )
+        if return_type == SQLReturnType.SPARK:
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
                 foundry_sql_data_to_spark_dataframe,
