@@ -19,7 +19,7 @@ import tempfile
 import time
 import warnings
 from contextlib import contextmanager
-from enum import Enum
+from enum import Enum, EnumType
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
@@ -68,37 +68,22 @@ def _poolcontext(*args, **kwargs):
     pool.terminate()
 
 
-class StrEnumBackport(str, Enum):
-    """Enum where members are also (and must be) strings.
+class EnumContainsMeta(EnumType):
+    """Metaclass for the SQLReturnType.
 
-    Taken from the in 3.11 introduced StrEnum
-    https://github.com/python/cpython/blob/3b0747af909cf680543fd9f290bdae8ac6ed155e/Lib/enum.py#L1261
+    It implements a proper __contains__ like 3.12 does.
     """
 
-    def __new__(cls, *values):  # noqa: D102
-        # Values must already be of type `str`.
-        if len(values) > 3:  # noqa: PLR2004
-            raise TypeError(f"too many arguments for str(): {values!r}")
-        # it must be a string
-        if len(values) == 1 and not isinstance(values[0], str):
-            raise TypeError(f"{values[0]!r} is not a string")
-        # check that encoding argument is a string
-        if len(values) >= 2 and not isinstance(values[1], str):  # noqa: PLR2004
-            raise TypeError(f"encoding must be a string, not {values[1]!r}")
-            # check that errors argument is a string
-        if len(values) == 3 and not isinstance(values[2], str):  # noqa: PLR2004
-            raise TypeError("errors must be a string, not %r" % (values[2]))
-        value = str(*values)
-        member = str.__new__(cls, value)
-        member._value_ = value
-        return member
-
-    def _generate_next_value_(name, start, count, last_values):
-        """Return the lower-cased version of the member name."""
-        return name.lower()
+    def __contains__(cls, value):
+        """Backported a __contains__ from 3.12."""
+        if sys.version_info >= (3, 12):
+            return Enum.__contains__(cls, value)
+        if isinstance(value, cls) and value._name_ in cls._member_map_:
+            return True
+        return value in cls._value2member_map_
 
 
-class SQLReturnType(StrEnumBackport):
+class SQLReturnType(str, Enum, metaclass=EnumContainsMeta):
     """The return_types for sql queries.
 
     PANDAS, PD: :external+pandas:py:class:`pandas.DataFrame` (pandas)
@@ -1338,7 +1323,7 @@ class FoundryRestClient:
         """
         # if return_type is a str this will also work, this will get fixed in python 3.12
         # where we would be able to use `return_type not in SQLReturnType`
-        if return_type not in list(SQLReturnType):
+        if return_type not in SQLReturnType:
             raise ValueError(
                 f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
@@ -1445,7 +1430,7 @@ class FoundryRestClient:
         """  # noqa: E501
         # if return_type is a str this will also work, this will get fixed in python 3.12
         # where we would be able to use `return_type not in SQLReturnType`
-        if return_type not in list(SQLReturnType):
+        if return_type not in SQLReturnType:
             raise ValueError(
                 f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
@@ -1902,7 +1887,7 @@ class FoundryRestClient:
     ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
         # if return_type is a str this will also work, this will get fixed in python 3.12
         # where we would be able to use `return_type not in SQLReturnType`
-        if return_type not in list(SQLReturnType):
+        if return_type not in SQLReturnType:
             raise ValueError(
                 f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
