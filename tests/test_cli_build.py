@@ -1,19 +1,24 @@
 import json
 import logging
 import os
+import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
 import websockets.exceptions
 import websockets.frames
+from click import UsageError
 from click.testing import CliRunner
 
 if TYPE_CHECKING:
     from types import TracebackType
     from typing import Sequence
+
+    import py.path
 
 CHECK_JOB_RID = "ri.jemma.main.job.2d82040d-050b-41ed-9133-838329e3eff2"
 BUILD_JOB_RID = "ri.jemma.main.job.7d57542d-98b0-4c13-b064-e9aab3d22e81"
@@ -344,3 +349,40 @@ def test_build(a, b, c, d, e, f, caplog):
         assert EXPECTED_SPARK_LOG_RECORDS[i].exc_info == log_records[i].exc_info
         assert EXPECTED_SPARK_LOG_RECORDS[i].stack_info == log_records[i].stack_info
     assert result.exit_code == 0
+
+
+def test_get_transform(tmpdir: "py.path.LocalPath"):
+    GIT_ENV = {
+        "HOME": str(tmpdir),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_COMMITTER_NAME": "pytest get_transform test",
+        "GIT_COMMITTER_EMAIL": "pytest@get_transform.py",
+        "GIT_AUTHOR_NAME": "pytest get_transform test",
+        "GIT_AUTHOR_EMAIL": "pytest@get_transform.py",
+    }  # should use default configs
+    with tmpdir.as_cwd():
+        subprocess.check_call(["git", "init"], env=GIT_ENV)
+        t = Path("transform-python/examples/dataset.py")
+        t.parent.mkdir(parents=True)
+        with t.open("w+") as tfile:
+            tfile.write("@transform_df")
+        subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
+        subprocess.check_call(["git", "commit", "-m", "transform commit"], env=GIT_ENV)
+        from foundry_dev_tools.cli.build import get_transform
+
+        tfiles = [os.fspath(t)]
+        assert get_transform(tfiles) == tfiles
+        with pytest.raises(
+            UsageError,
+            match="not_existing_file is not a transforms file or does not exist.",
+        ):
+            get_transform([*tfiles, "not_existing_file"])
+        assert get_transform() == tfiles
+        with tmpdir.join("get_transform.txt").open("w+") as gttxt:
+            gttxt.write("something something")
+        subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
+        subprocess.check_call(
+            ["git", "commit", "-m", "no transform in last commit"], env=GIT_ENV
+        )
+        with pytest.raises(UsageError, match="No transform files in the last commit."):
+            get_transform()

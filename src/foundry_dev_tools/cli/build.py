@@ -165,7 +165,7 @@ def tail_job_log(job_id: str, jwt: str):
             time.sleep(2)
 
 
-def get_transform(transforms: "list[str] | None") -> List[str]:
+def get_transform(transforms: "list[str] | None" = None) -> List[str]:
     """Get transform files.
 
     Either checks if the supplied files are transform files
@@ -185,14 +185,7 @@ def get_transform(transforms: "list[str] | None") -> List[str]:
         return transforms
 
     diff_files = (
-        subprocess.check_output(
-            [
-                "git",
-                "diff",
-                "--name-only",
-                "HEAD~1",
-            ]
-        )
+        subprocess.check_output(["git", "log", "-1", "--name-only", "--pretty="])
         .decode("ascii")
         .splitlines(False)
     )
