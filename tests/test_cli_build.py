@@ -13,7 +13,8 @@ import websockets.exceptions
 import websockets.frames
 from click import UsageError
 from click.testing import CliRunner
-from conftest import PatchConfig
+
+from .conftest import PatchConfig
 
 if TYPE_CHECKING:
     from types import TracebackType
