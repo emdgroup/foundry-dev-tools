@@ -135,7 +135,7 @@ class FoundryRestClient:
         self.multipass = f"{self._api_base}/multipass/api"
         self.foundry_sql_server_api = f"{self._api_base}/foundry-sql-server/api"
         self.jemma = f"{self._api_base}/jemma/api"
-        self.builds2 = f"{self._api_base}/build2/api/info/builds2"
+        self.builds2 = f"{self._api_base}/build2/api"
         self._requests_verify_value = _determine_requests_verify_value(self._config)
 
     def _headers(self):
