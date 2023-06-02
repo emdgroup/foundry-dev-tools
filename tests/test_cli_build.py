@@ -13,6 +13,7 @@ import websockets.exceptions
 import websockets.frames
 from click import UsageError
 from click.testing import CliRunner
+from conftest import PatchConfig
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -312,43 +313,46 @@ class WebSocketMock:
 )
 @mock.patch("foundry_dev_tools.utils.misc.print_horizontal_line")
 def test_build(a, b, c, d, e, f, caplog):
-    from foundry_dev_tools.cli.build import _build_url_message, build_cli
+    with PatchConfig(
+        {"jwt": "test_build_jwt", "foundry_url": "https://test_build.url"}
+    ):
+        from foundry_dev_tools.cli.build import _build_url_message, build_cli
 
-    runner = CliRunner()
-    result = runner.invoke(
-        build_cli,
-        [
-            "-t",
-            "transforms-python/src/myproject/datasets/examples.py",
-        ],  # to skip the prompt
-        catch_exceptions=False,
-    )
-    if result.stderr_bytes:
-        print(result.stderr, file=sys.stderr)
-    assert result.stdout_bytes
-    output = result.stdout.replace(os.linesep, "")
-    print(output)
-    logs_wo_line = "".join(CHECK_LOGS)
-    assert output.startswith(logs_wo_line)
-    output = output[len(logs_wo_line) :]
-    assert output.startswith(BUILD_INIT_LOGS)
-    output = output[len(BUILD_INIT_LOGS) :]
-    build_url_message = _build_url_message(STARTED_BUILD_RID)
-    assert output.startswith(build_url_message)
-    # after that we log in the websocket handler
-    log_records = caplog.get_records("call")
-    assert len(log_records) == len(SPARK_LOGS)
-    for i in range(len(EXPECTED_SPARK_LOG_RECORDS)):
-        assert EXPECTED_SPARK_LOG_RECORDS[i].name == log_records[i].name
-        assert EXPECTED_SPARK_LOG_RECORDS[i].levelno == log_records[i].levelno
-        assert EXPECTED_SPARK_LOG_RECORDS[i].filename == log_records[i].filename
-        assert EXPECTED_SPARK_LOG_RECORDS[i].lineno == log_records[i].lineno
+        runner = CliRunner()
+        result = runner.invoke(
+            build_cli,
+            [
+                "-t",
+                "transforms-python/src/myproject/datasets/examples.py",
+            ],  # to skip the prompt
+            catch_exceptions=False,
+        )
+        if result.stderr_bytes:
+            print(result.stderr, file=sys.stderr)
+        assert result.stdout_bytes
+        output = result.stdout.replace(os.linesep, "")
+        print(output)
+        logs_wo_line = "".join(CHECK_LOGS)
+        assert output.startswith(logs_wo_line)
+        output = output[len(logs_wo_line) :]
+        assert output.startswith(BUILD_INIT_LOGS)
+        output = output[len(BUILD_INIT_LOGS) :]
+        build_url_message = _build_url_message(STARTED_BUILD_RID)
+        assert output.startswith(build_url_message)
+        # after that we log in the websocket handler
+        log_records = caplog.get_records("call")
+        assert len(log_records) == len(SPARK_LOGS)
+        for i in range(len(EXPECTED_SPARK_LOG_RECORDS)):
+            assert EXPECTED_SPARK_LOG_RECORDS[i].name == log_records[i].name
+            assert EXPECTED_SPARK_LOG_RECORDS[i].levelno == log_records[i].levelno
+            assert EXPECTED_SPARK_LOG_RECORDS[i].filename == log_records[i].filename
+            assert EXPECTED_SPARK_LOG_RECORDS[i].lineno == log_records[i].lineno
 
-        assert EXPECTED_SPARK_LOG_RECORDS[i].msg == log_records[i].msg
-        assert EXPECTED_SPARK_LOG_RECORDS[i].args == log_records[i].args
-        assert EXPECTED_SPARK_LOG_RECORDS[i].exc_info == log_records[i].exc_info
-        assert EXPECTED_SPARK_LOG_RECORDS[i].stack_info == log_records[i].stack_info
-    assert result.exit_code == 0
+            assert EXPECTED_SPARK_LOG_RECORDS[i].msg == log_records[i].msg
+            assert EXPECTED_SPARK_LOG_RECORDS[i].args == log_records[i].args
+            assert EXPECTED_SPARK_LOG_RECORDS[i].exc_info == log_records[i].exc_info
+            assert EXPECTED_SPARK_LOG_RECORDS[i].stack_info == log_records[i].stack_info
+        assert result.exit_code == 0
 
 
 def test_get_transform(tmpdir: "py.path.LocalPath"):
