@@ -361,16 +361,22 @@ def test_get_transform(tmpdir: "py.path.LocalPath"):
         "GIT_AUTHOR_EMAIL": "pytest@get_transform.py",
     }  # should use default configs
     with tmpdir.as_cwd():
+        from foundry_dev_tools.cli.build import TRANSFORM_DECORATORS, get_transform
+
         subprocess.check_call(["git", "init"], env=GIT_ENV)
-        t = Path("transform-python/examples/dataset.py")
-        t.parent.mkdir(parents=True)
-        with t.open("w+") as tfile:
-            tfile.write("@transform_df")
+        t = Path("transform-python/examples")
+        t.mkdir(parents=True)
+        tfiles = []
+        for decorator in TRANSFORM_DECORATORS:
+            transform_file = t.joinpath(f"{decorator}.py")
+            with transform_file.open("w+") as tfile:
+                tfile.write(
+                    f"from transforms.api import {decorator},Output\n\n@transform_df()\ndef test_transform():\n    pass"
+                )
+            tfiles.append(os.fspath(transform_file))
         subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
         subprocess.check_call(["git", "commit", "-m", "transform commit"], env=GIT_ENV)
-        from foundry_dev_tools.cli.build import get_transform
 
-        tfiles = [os.fspath(t)]
         assert get_transform(tfiles) == tfiles
         with pytest.raises(
             UsageError,

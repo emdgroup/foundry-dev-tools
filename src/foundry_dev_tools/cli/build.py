@@ -1,8 +1,8 @@
 """Build command and its utility functions."""
+import ast
 import codecs
 import json
 import logging
-import re
 import subprocess
 import sys
 import time
@@ -103,7 +103,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
     )
 
 
-TRANSFORM_REGEX = re.compile("@transform|@transform_df|@transform_pandas")
+TRANSFORM_DECORATORS = ["transform", "transform_df", "transform_pandas"]
 
 
 def is_transform_file(transform_file: Path) -> bool:
@@ -120,8 +120,13 @@ def is_transform_file(transform_file: Path) -> bool:
         return False
 
     with transform_file.open("r") as tf:
-        if TRANSFORM_REGEX.search(tf.read()):
-            return True
+        parse = ast.parse(tf.read())
+        for node in ast.walk(parse):
+            if isinstance(node, ast.FunctionDef) and any(
+                decorator.func.id in TRANSFORM_DECORATORS
+                for decorator in node.decorator_list
+            ):
+                return True
 
     return False
 
