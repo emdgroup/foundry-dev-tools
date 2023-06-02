@@ -315,7 +315,10 @@ class WebSocketMock:
 @mock.patch("foundry_dev_tools.utils.misc.print_horizontal_line")
 def test_build(a, b, c, d, e, f, caplog):
     with PatchConfig(
-        {"jwt": "test_build_jwt", "foundry_url": "https://test_build.url"}
+        initial_config_overwrite={
+            "jwt": "test_build_jwt",
+            "foundry_url": "https://test_build.url",
+        }
     ):
         from foundry_dev_tools.cli.build import _build_url_message, build_cli
 
