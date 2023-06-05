@@ -290,7 +290,6 @@ def build_cli(transform):
                 ),
                 jwt=client._headers()["Authorization"].replace("Bearer ", ""),
             )
-            # TODO: print status of build, or URL again, something something
             print_horizontal_line(print_handler=rprint)
             rprint(_build_url_message(build_id))
             print_horizontal_line(print_handler=rprint)
