@@ -1840,7 +1840,6 @@ class FoundryRestClient:
                             "filePaths": file_paths,
                             "rids": [],
                             "buildParameters": {},
-                            "finishOnFailure": True,
                         },
                         "reuseExistingJob": True,
                     },
