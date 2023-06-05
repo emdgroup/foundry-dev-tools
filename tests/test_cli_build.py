@@ -285,6 +285,7 @@ class WebSocketMock:
         "ri.stemma.main.repository.a0b5defa-82d9-4959-bdef-28e02e00cd48",
         "refs/heads/master",
         "52bdea68c6538acc79eb03bc33292314f97551f4",
+        Path.cwd(),
     ),
 )
 @mock.patch(
@@ -385,13 +386,13 @@ def test_get_transform(tmpdir: "py.path.LocalPath"):
         subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
         subprocess.check_call(["git", "commit", "-m", "transform commit"], env=GIT_ENV)
 
-        assert get_transform(tfiles) == tfiles
+        assert get_transform(Path.cwd(), tfiles) == tfiles
         with pytest.raises(
             UsageError,
             match="not_existing_file is not a transforms file or does not exist.",
         ):
-            get_transform([*tfiles, "not_existing_file"])
-        assert get_transform() == tfiles
+            get_transform(Path.cwd(), [*tfiles, "not_existing_file"])
+        assert get_transform(Path.cwd()) == tfiles
         with tmpdir.join("get_transform.txt").open("w+") as gttxt:
             gttxt.write("something something")
         subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
@@ -399,4 +400,4 @@ def test_get_transform(tmpdir: "py.path.LocalPath"):
             ["git", "commit", "-m", "no transform in last commit"], env=GIT_ENV
         )
         with pytest.raises(UsageError, match="No transform files in the last commit."):
-            get_transform()
+            get_transform(Path.cwd())
