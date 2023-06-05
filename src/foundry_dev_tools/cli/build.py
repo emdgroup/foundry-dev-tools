@@ -170,7 +170,7 @@ def tail_job_log(job_id: str, jwt: str):
             time.sleep(2)
 
 
-def get_transform(transforms: "list[str] | None" = None) -> List[str]:
+def get_transform(git_dir: Path, transforms: "list[str] | None" = None) -> List[str]:
     """Get transform files.
 
     Either checks if the supplied files are transform files
@@ -185,19 +185,22 @@ def get_transform(transforms: "list[str] | None" = None) -> List[str]:
     """
     if transforms:
         for t in transforms:
-            if not is_transform_file(Path(t)):
+            if not is_transform_file(git_dir.joinpath(t)):
                 raise UsageError(f"{t} is not a transforms file or does not exist.")
         return transforms
 
     diff_files = (
-        subprocess.check_output(["git", "log", "-1", "--name-only", "--pretty="])
+        subprocess.check_output(
+            ["git", "log", "-1", "--name-only", "--pretty="], cwd=git_dir
+        )
         .decode("ascii")
         .splitlines(False)
     )
+    print(diff_files)
     t_files = []
 
     for f in diff_files:
-        if is_transform_file(Path(f)):
+        if is_transform_file(git_dir.joinpath(f)):
             t_files.append(f)
     if len(t_files) == 0:
         raise UsageError("No transform files in the last commit.")
@@ -240,8 +243,8 @@ def build_cli(transforms):
         transforms (list[str]): the transform files supplied via the command line
     """
     client = FoundryRestClient()
-    repo, ref_name, commit_hash = get_repo()
-    transform_files = get_transform(transforms)
+    repo, ref_name, commit_hash, git_dir = get_repo()
+    transform_files = get_transform(git_dir, transforms)
 
     if (
         not transforms
@@ -286,6 +289,7 @@ def build_cli(transforms):
             print_horizontal_line(print_handler=rprint)
             rprint(_build_url_message(build_id))
             print_horizontal_line(print_handler=rprint)
+            rprint(escape(json.dumps(client.get_build(build_id))))
             tail_job_log(
                 job_id=client.get_build(build_id)["jobRids"][0].replace(
                     "ri.foundry.main.job.", ""
@@ -293,6 +297,7 @@ def build_cli(transforms):
                 jwt=client._headers()["Authorization"].replace("Bearer ", ""),
             )
             # TODO: print status of build, or URL again, something something
+            rprint(escape(json.dumps(client.get_build(build_id))))
             break
         if any(
             job_stat_rep.get("jobStatus", {}) == "FAILED"

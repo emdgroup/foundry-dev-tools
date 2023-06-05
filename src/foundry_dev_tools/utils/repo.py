@@ -7,7 +7,7 @@ from pathlib import Path
 LOGGER = logging.getLogger(__name__)
 
 
-def get_repo(repo_dir: "Path | None" = None) -> "tuple[str,str,str]":
+def get_repo(repo_dir: "Path | None" = None) -> "tuple[str,str,str,Path]":
     """Get the repository RID from the current working directory.
 
     Args:
@@ -27,6 +27,7 @@ def get_repo(repo_dir: "Path | None" = None) -> "tuple[str,str,str]":
                                 line.split("=")[1].strip(),
                                 get_git_ref(git_dir),
                                 get_git_revision_hash(git_dir),
+                                git_dir,
                             )
             except Exception as e:
                 raise Exception(

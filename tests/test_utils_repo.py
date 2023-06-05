@@ -44,4 +44,6 @@ def test_get_repo(tmpdir: "py.path.LocalPath"):
     )
     assert get_repo(git_dir)[0] == repo_rid
     with tmpdir.as_cwd():
-        assert get_repo()[0] == repo_rid
+        get_repo_out = get_repo()
+        assert get_repo_out[0] == repo_rid
+        assert get_repo_out[3] == git_dir
