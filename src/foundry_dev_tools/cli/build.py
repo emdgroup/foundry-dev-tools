@@ -291,7 +291,9 @@ def build_cli(transform):
                 jwt=client._headers()["Authorization"].replace("Bearer ", ""),
             )
             # TODO: print status of build, or URL again, something something
-            rprint(escape(json.dumps(client.get_build(build_id))))
+            print_horizontal_line(print_handler=rprint)
+            rprint(_build_url_message(build_id))
+            print_horizontal_line(print_handler=rprint)
             break
         if any(
             job_stat_rep.get("jobStatus", {}) == "FAILED"
