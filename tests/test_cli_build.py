@@ -289,10 +289,6 @@ class WebSocketMock:
     ),
 )
 @mock.patch(
-    "foundry_dev_tools.cli.build.get_transform",
-    return_value=["transforms-python/src/myproject/datasets/examples.py"],
-)
-@mock.patch(
     "foundry_dev_tools.cli.build.FoundryRestClient.get_build",
     return_value={
         "jobRids": ["ri.foundry.main.job.254cf2ee-493b-4772-b1ac-6805d7c7904a"],
@@ -313,6 +309,7 @@ class WebSocketMock:
         websockets.frames.Close(1000, "close"),
     ),
 )
+@mock.patch("foundry_dev_tools.cli.build.is_transform_file", return_value=True)
 @mock.patch("foundry_dev_tools.utils.misc.print_horizontal_line")
 def test_build(a, b, c, d, e, f, caplog):
     with PatchConfig(
@@ -360,17 +357,21 @@ def test_build(a, b, c, d, e, f, caplog):
         assert result.exit_code == 0
 
 
-def test_get_transform(tmpdir: "py.path.LocalPath"):
+def test_get_transform_files(tmpdir: "py.path.LocalPath"):
     GIT_ENV = {
         "HOME": str(tmpdir),
         "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_COMMITTER_NAME": "pytest get_transform test",
-        "GIT_COMMITTER_EMAIL": "pytest@get_transform.py",
-        "GIT_AUTHOR_NAME": "pytest get_transform test",
-        "GIT_AUTHOR_EMAIL": "pytest@get_transform.py",
+        "GIT_COMMITTER_NAME": "pytest get_transform_files test",
+        "GIT_COMMITTER_EMAIL": "pytest@get_transform_files.py",
+        "GIT_AUTHOR_NAME": "pytest get_transform_files test",
+        "GIT_AUTHOR_EMAIL": "pytest@get_transform_files.py",
     }  # should use default configs
     with tmpdir.as_cwd():
-        from foundry_dev_tools.cli.build import TRANSFORM_DECORATORS, get_transform
+        from foundry_dev_tools.cli.build import (
+            TRANSFORM_DECORATORS,
+            get_transform_files,
+            is_transform_file,
+        )
 
         subprocess.check_call(["git", "init"], env=GIT_ENV)
         t = Path("transform-python/examples")
@@ -386,13 +387,11 @@ def test_get_transform(tmpdir: "py.path.LocalPath"):
         subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
         subprocess.check_call(["git", "commit", "-m", "transform commit"], env=GIT_ENV)
 
-        assert get_transform(Path.cwd(), tfiles) == tfiles
-        with pytest.raises(
-            UsageError,
-            match="not_existing_file is not a transforms file or does not exist.",
-        ):
-            get_transform(Path.cwd(), [*tfiles, "not_existing_file"])
-        assert get_transform(Path.cwd()) == tfiles
+        for f in tfiles:
+            assert is_transform_file(Path(f))
+
+        assert not is_transform_file(Path("does not exist"))
+        assert get_transform_files(Path.cwd()) == tfiles
         with tmpdir.join("get_transform.txt").open("w+") as gttxt:
             gttxt.write("something something")
         subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
@@ -400,4 +399,4 @@ def test_get_transform(tmpdir: "py.path.LocalPath"):
             ["git", "commit", "-m", "no transform in last commit"], env=GIT_ENV
         )
         with pytest.raises(UsageError, match="No transform files in the last commit."):
-            get_transform(Path.cwd())
+            get_transform_files(Path.cwd())

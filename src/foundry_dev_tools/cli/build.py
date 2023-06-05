@@ -170,25 +170,20 @@ def tail_job_log(job_id: str, jwt: str):
             time.sleep(2)
 
 
-def get_transform(git_dir: Path, transforms: "list[str] | None" = None) -> List[str]:
+def get_transform_files(git_dir: Path) -> List[str]:
     """Get transform files.
 
-    Either checks if the supplied files are transform files
-    or gets the transform files edited in the last commit.
+    Gets the transform files edited in the last commit.
+
+    Args:
+        git_dir (Path): path to git directory
 
     Returns:
         list[str]: paths to transform files
 
     Raises:
-        UsageError: if a supplied file is not a transform or
-            if there are no transform files in the last commit.
+        UsageError: if there are no transform files in the last commit.
     """
-    if transforms:
-        for t in transforms:
-            if not is_transform_file(git_dir.joinpath(t)):
-                raise UsageError(f"{t} is not a transforms file or does not exist.")
-        return transforms
-
     diff_files = (
         subprocess.check_output(
             ["git", "log", "-1", "--name-only", "--pretty="], cwd=git_dir
@@ -196,7 +191,6 @@ def get_transform(git_dir: Path, transforms: "list[str] | None" = None) -> List[
         .decode("ascii")
         .splitlines(False)
     )
-    print(diff_files)
     t_files = []
 
     for f in diff_files:
@@ -228,45 +222,45 @@ def _build_url_message(build_id: str):
 @click.command("build")
 @click.option(
     "-t",
-    "--transforms",
-    help="The transforms python file path e.g. transforms-python/src/myproject/datasets/transform1.py\n"
-    "Can be supplied multiple times\n"
+    "--transform",
+    help="The transform python file path e.g. transforms-python/src/myproject/datasets/transform1.py\n"
     "If not provided you can choose (one of) the transform(s) edited in the last commit.",
-    multiple=True,
+    # TODO multiple=True,
 )
-def build_cli(transforms):
+def build_cli(transform):
     """Command to start a build and tail the logs.
 
     This command can be run with `fdt build`
 
     Args:
-        transforms (list[str]): the transform files supplied via the command line
+        transform (str): the transform file to execute
     """
     client = FoundryRestClient()
     repo, ref_name, commit_hash, git_dir = get_repo()
-    transform_files = get_transform(git_dir, transforms)
-
-    if (
-        not transforms
-    ):  # user didn't supply files directly, get the files via inquirer from the last commits
-        transform_files = inquirer.prompt(
+    if transform:
+        if is_transform_file(Path.cwd().joinpath(transform)):
+            transform_file = transform
+        else:
+            raise UsageError(f"{transform} is not a transform file.")
+    else:  # user didn't supply files directly, get the files via inquirer from the last commits
+        transform_file = inquirer.prompt(
             [
-                inquirer.Checkbox(
+                inquirer.List(
                     "transform_files",
-                    message="Select the transforms you want to run.",
-                    choices=transform_files,
+                    message="Select the transform you want to run.",
+                    choices=get_transform_files(),
                 )
             ]
-        )["transform_files"]
-    if not transform_files:
-        raise UsageError("No transform files provided.")
+        )["transform_file"]
+    if not transform_file:
+        raise UsageError("No transform file provided.")
 
     def _req():
         return client.start_checks_and_build(
             repository_id=repo,
             ref_name=ref_name,
             commit_hash=commit_hash,
-            file_paths=transform_files,
+            file_paths=[transform_file],
         )
 
     first_req = _req()
