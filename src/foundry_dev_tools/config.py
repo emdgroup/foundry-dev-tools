@@ -129,7 +129,7 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
             if "default" in config_parser:
                 return_config.update(config_parser["default"])
 
-    caller_filename = inspect.stack()[1].filename
+    caller_filename = inspect.stack()[-1].filename
     project_config_file = find_project_config_file(Path(caller_filename).parent)
     if project_config_file:
         project_config_parser = ConfigParser()
