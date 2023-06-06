@@ -248,7 +248,7 @@ def build_cli(transform):
                 inquirer.List(
                     "transform_files",
                     message="Select the transform you want to run.",
-                    choices=get_transform_files(),
+                    choices=get_transform_files(git_dir),
                 )
             ]
         )["transform_file"]
