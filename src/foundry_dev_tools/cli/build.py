@@ -149,12 +149,15 @@ def tail_job_log(job_id: str, jwt: str):
                         else:
                             log.handle(create_log_record(log_message))
                     except Exception as e:
-                        print(
+                        log.error(
                             "fdt build >>> This shouldn't happen, "
                             f"but while parsing the log message this error occured: {e}\n"
-                            "fdt build >>> Will output the log message in plain:"
                         )
-                        print(log_message)
+                        log.exception("The traceback:")
+                        log.info(
+                            "fdt build >>> Will output the log message in plain:\n"
+                        )
+                        log.info(escape(str(log_message)))
         except ConnectionClosed as cce:
             if cce.code == 1000:
                 rprint("Spark Job Completed.")
