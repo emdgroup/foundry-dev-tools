@@ -72,7 +72,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
                 lineno=0,
                 msg=f"[bold]{escape(log_data['message'])}[/bold]",
                 args=tuple(
-                    escape(value)
+                    escape(str(value))
                     for key, value in log_data["unsafeParams"].items()
                     if key.startswith("param_")
                 ),

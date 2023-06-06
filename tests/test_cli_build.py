@@ -162,11 +162,22 @@ SPARK_LOGS = [
             "origin": "origin",
             "message": "%s happened! %s",
             "time": "2000-01-01T00:00:00.000000Z",
-            "stacktrace": "Stacktrace:\nSomething somethiing\nError {exception_message} here:\nline 20",
+            "stacktrace": "Stacktrace:\nSomething something\nError {exception_message} here:\nline 20",
             "unsafeParams": {
                 "exception_message": "Some Error",
                 "param_0": "Something",
                 "param_1": "[/ESCAPE ME TOO!]",
+            },
+        }
+    ),
+    json.dumps(
+        {
+            "level": "INFO",
+            "origin": "origin",
+            "message": "Output generated: %s",
+            "time": "2000-01-01T00:00:00.000000Z",
+            "unsafeParams": {
+                "param_0": {"key": {"value": [1]}},
             },
         }
     ),
@@ -203,7 +214,18 @@ EXPECTED_SPARK_LOG_RECORDS = [
         args=("Something", "\\[/ESCAPE ME TOO!]"),
         exc_info=None,
         func=None,
-        sinfo="Stacktrace:\nSomething somethiing\nError Some Error here:\nline 20",
+        sinfo="Stacktrace:\nSomething something\nError Some Error here:\nline 20",
+    ),
+    logging.LogRecord(
+        name="origin",
+        level=logging.INFO,
+        pathname="origin",
+        lineno=0,
+        msg="[bold]Output generated: %s[/bold]",
+        args=("{'key': {'value': [1]}}",),
+        exc_info=None,
+        func=None,
+        sinfo=None,
     ),
 ]
 
