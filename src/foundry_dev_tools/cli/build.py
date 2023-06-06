@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import List
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 import click
 import inquirer
@@ -217,8 +217,17 @@ def _get_logs(all_job_logs: dict, rid: str) -> "list[str] | None":
 
 def _build_url_message(build_id: str):
     return (
-        f"Open {Configuration['foundry_url']}/workspace/data-integration/job-tracker/builds/"
-        f"{build_id} to track Build."
+        "Link to the foundry build: "
+        f"{Configuration['foundry_url']}/workspace/data-integration/job-tracker/builds/{build_id}"
+    )
+
+
+def _get_started_build(req: dict, build_rid: str) -> "str | None":
+    return (
+        req.get("allJobStatusReports", {})
+        .get(build_rid, {})
+        .get("jobCustomMetadata", {})
+        .get("startedBuildIds", [None])[0]
     )
 
 
@@ -230,7 +239,7 @@ def _build_url_message(build_id: str):
     "If not provided you can choose (one of) the transform(s) edited in the last commit.",
     # TODO multiple=True,
 )
-def build_cli(transform):
+def build_cli(transform):  # noqa: PLR0915
     """Command to start a build and tail the logs.
 
     This command can be run with `fdt build`
@@ -266,12 +275,73 @@ def build_cli(transform):
             file_paths=[transform_file],
         )
 
+    def _finish(response: dict, exit_code: int, retries: int = 0):
+        if response["buildStatus"] == "RUNNING" and retries < 30:
+            time.sleep(2)
+            retries += 1
+            return _finish(_req(), exit_code, retries)
+        checks_rid = _find_rid(response["allJobs"], name="Checks")
+        build_rid = _find_rid(response["allJobs"], name="Build initialization")
+        if build_id := _get_started_build(response, build_rid):
+            print_horizontal_line(print_handler=rprint)
+            rprint(f"Build status: {response['buildStatus']}")
+            rprint()
+            rprint(_build_url_message(build_id))
+            rprint()
+            branch = quote_plus(
+                [job for job in response["allJobs"] if job["name"] == "Checks"][0]
+                .get("parameters", {})
+                .get("repositoryTarget", {})
+                .get("refName", "")
+                .removeprefix("refs/heads/")
+            )
+            for k, v in (
+                response["allJobStatusReports"][checks_rid]
+                .get("jobCustomMetadata", {})
+                .get("filePathToDatasetRids", {})
+                .items()
+            ):
+                if len(v) > 0:
+                    rprint(
+                        f"[bold]The resulting dataset{'s' if len(v) > 1 else ''} for {escape(k)}:[/bold]"
+                    )
+                    for rid in v:
+                        rprint(
+                            f"{Configuration['foundry_url']}/workspace/data-integration/dataset/preview/"
+                            + rid
+                            + "/"
+                            + branch
+                            if branch
+                            else rid
+                        )
+        raise SystemExit(exit_code)
+
     first_req = _req()
     checks_rid = _find_rid(first_req["allJobs"], name="Checks")
     build_rid = _find_rid(first_req["allJobs"], name="Build initialization")
 
     checks_tailer = TailHelper(rprint)
     build_tailer = TailHelper(rprint)
+    if first_req["buildStatus"] in ("SUCCEEDED", "FAILED"):
+        rprint(
+            f"The checks and build are already finished and {first_req['buildStatus'].lower()}."
+        )
+        if (
+            inquirer.prompt(
+                [
+                    inquirer.List(
+                        "print_logs",
+                        "Print the logs anyways?",
+                        choices=["Yes", "No"],
+                        default="No",
+                    )
+                ]
+            )["print_logs"]
+            == "Yes"
+        ):
+            checks_tailer.tail(_get_logs(first_req["allJobLogs"], checks_rid))
+            build_tailer.tail(_get_logs(first_req["allJobLogs"], build_rid))
+        _finish(first_req, 0)
     while True:
         response_json = _req()
         all_job_logs = response_json["allJobLogs"]
@@ -292,14 +362,11 @@ def build_cli(transform):
                 ),
                 jwt=client._headers()["Authorization"].replace("Bearer ", ""),
             )
-            print_horizontal_line(print_handler=rprint)
-            rprint(_build_url_message(build_id))
-            print_horizontal_line(print_handler=rprint)
+            _finish(response_json, 0)
             break
         if any(
             job_stat_rep.get("jobStatus", {}) == "FAILED"
             for job_stat_rep in response_json.get("allJobStatusReports", {}).values()
         ):
-            raise SystemExit(1)
-            break
+            _finish(response_json, 1)
         time.sleep(2)

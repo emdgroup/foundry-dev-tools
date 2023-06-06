@@ -106,14 +106,6 @@ CHECK_JOB_CUSTOM_METADATA = {
     },
     "publishedJobSpecTypes": ["BUILD2"],
     "desiredUnmarkings": {"unmarkings": []},
-    "errors": {
-        "errorCode": "INTERNAL",
-        "errorName": "Jemma:UnknownFailure",
-        "errorInstanceId": None,
-        "safe-args": {},
-        "unsafe-args": {},
-        "retryPolicy": None,
-    },
     "jobCustomMetadata": {
         "filePathToDatasetRids": {
             "transforms-python/src/myproject/datasets/examples.py": [
@@ -261,7 +253,7 @@ def simulate_build_log():
     }
     blog["allJobStatusReports"][BUILD_JOB_RID]["jobStatus"] = "SUCCEEDED"
     blog["allJobStatusReports"][BUILD_JOB_RID]["stepStatusReports"] = [
-        {"name": "Start dataset builds", "stepStatus": "RUNNING"}
+        {"name": "Start dataset builds", "stepStatus": "SUCCEEDED"}
     ]
     blog["allJobLogs"][BUILD_JOB_RID]["logsByStep"] = [
         {
@@ -269,6 +261,7 @@ def simulate_build_log():
             "isTruncated": False,
         }
     ]
+    blog["buildStatus"] = "SUCCEEDED"
     # everything finished
     yield blog
 
@@ -354,8 +347,9 @@ def test_build(a, b, c, d, e, f, caplog):
         if result.stderr_bytes:
             print(result.stderr, file=sys.stderr)
         assert result.stdout_bytes
-        output = result.stdout.replace(os.linesep, "")
+        output = result.stdout
         print(output)
+        output = output.replace(os.linesep, "")
         logs_wo_line = "".join(CHECK_LOGS)
         assert output.startswith(logs_wo_line)
         output = output[len(logs_wo_line) :]
@@ -376,6 +370,14 @@ def test_build(a, b, c, d, e, f, caplog):
             assert EXPECTED_SPARK_LOG_RECORDS[i].args == log_records[i].args
             assert EXPECTED_SPARK_LOG_RECORDS[i].exc_info == log_records[i].exc_info
             assert EXPECTED_SPARK_LOG_RECORDS[i].stack_info == log_records[i].stack_info
+
+        COMPL = "Spark Job Completed."
+        assert output[output.index(COMPL) + len(COMPL) :] == (
+            "Build status: SUCCEEDEDLink to the foundry build: https://test_build.url/workspace/data-integration/job"
+            "-tracker/builds/ri.foundry.main.build.0e7ca16b-49f1-4b2d-953e-21b18bc7c560The resulting dataset for tra"
+            "nsforms-python/src/myproject/datasets/examples.py:https://test_build.url/workspace/data-integration/dat"
+            "aset/preview/ri.foundry.main.dataset.81d943dd-8b84-46ba-b720-5e227de8bb6a/master"
+        )
         assert result.exit_code == 0
 
 
