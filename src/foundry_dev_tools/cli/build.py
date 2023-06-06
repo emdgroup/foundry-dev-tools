@@ -283,7 +283,6 @@ def build_cli(transform):
             print_horizontal_line(print_handler=rprint)
             rprint(_build_url_message(build_id))
             print_horizontal_line(print_handler=rprint)
-            rprint(escape(json.dumps(client.get_build(build_id))))
             tail_job_log(
                 job_id=client.get_build(build_id)["jobRids"][0].replace(
                     "ri.foundry.main.job.", ""
