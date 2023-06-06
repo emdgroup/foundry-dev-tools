@@ -249,7 +249,7 @@ def build_cli(transform):
         transform_file = inquirer.prompt(
             [
                 inquirer.List(
-                    "transform_files",
+                    "transform_file",
                     message="Select the transform you want to run.",
                     choices=get_transform_files(git_dir),
                 )
