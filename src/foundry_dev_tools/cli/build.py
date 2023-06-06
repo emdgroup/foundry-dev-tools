@@ -289,11 +289,13 @@ def build_cli(transform):  # noqa: PLR0915
             rprint(_build_url_message(build_id))
             rprint()
             branch = quote_plus(
-                [job for job in response["allJobs"] if job["name"] == "Checks"][0]
+                [  # noqa: B005
+                    job for job in response["allJobs"] if job["name"] == "Checks"
+                ][0]
                 .get("parameters", {})
                 .get("repositoryTarget", {})
                 .get("refName", "")
-                .removeprefix("refs/heads/")
+                .lstrip("refs/heads/")
             )
             for k, v in (
                 response["allJobStatusReports"][checks_rid]
