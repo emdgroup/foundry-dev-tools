@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import List
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 import click
 import inquirer
@@ -281,7 +281,7 @@ def build_cli(transform):  # noqa: PLR0915
             retries += 1
             return _finish(_req(), exit_code, retries)
         build_rid = _find_rid(response["allJobs"], name="Build initialization")
-        branch = ref_name[11:]
+        branch = quote_plus(ref_name[11:])
         if build_id := _get_started_build(response, build_rid):
             print_horizontal_line(print_handler=rprint)
             rprint(f"Build status: {response['buildStatus']}")
