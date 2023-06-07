@@ -215,7 +215,7 @@ def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
             dataset_rid=ds["rid"], view=transaction_rid, detail=True
         )
         assert files_by_branch == files_by_transaction
-        assert len(files_by_branch) == 7  # noqa: PLR2004
+        assert len(files_by_branch) == 7
 
         assert [
             "spark/test5.csv",
@@ -230,7 +230,7 @@ def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
         files_hidden_included = client.list_dataset_files(
             dataset_rid=ds["rid"], exclude_hidden_files=False, view=BRANCH, detail=True
         )
-        assert len(files_hidden_included) == 15  # noqa: PLR2004
+        assert len(files_hidden_included) == 15
         assert [
             ".folder/hidden",
             ".hidden",

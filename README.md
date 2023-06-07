@@ -32,7 +32,7 @@ high level entrypoints to Foundry DevTools:
 
   - An implementation of the Foundry `transforms` package that internally uses the `CachedFoundryClient`.
     This allows you to seamlessly run your Palantir Foundry Code Repository transforms code on your local machine.
-    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/architecture.html#known-limitations).
+    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/architecture.html#known-limitations-contributions-welcome).
 
 - [FoundryRestClient](https://emdgroup.github.io/foundry-dev-tools/FoundryRestClient_usage.html)
 

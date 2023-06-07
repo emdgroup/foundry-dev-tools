@@ -35,7 +35,7 @@ def test_new_env_variable_takes_precedence(tmp):
     ):
         assert (
             foundry_dev_tools.config.Configuration["transforms_sql_sample_row_limit"]
-            == 9999  # noqa: PLR2004
+            == 9999
         )
 
 
@@ -53,7 +53,7 @@ def test_old_env_variable_fallback(tmp):
     ):
         assert (
             foundry_dev_tools.config.Configuration["transforms_sql_sample_row_limit"]
-            == 123  # noqa: PLR2004
+            == 123
         )
 
 
@@ -91,7 +91,7 @@ def test_old_config_directory_or_file_warning(tmp):
     with FAKE_GIT_DIR.joinpath(".foundry_local_config").open(mode="w+") as old_git_cfg:
         old_git_cfg.write("[default]\njwt=old_git_config_file\n")
     with mock.patch(
-        "foundry_dev_tools.config._traverse_to_git_project_top_level_dir",
+        "foundry_dev_tools.utils.repo.git_toplevel_dir",
         return_value=FAKE_GIT_DIR,
     ):
         with pytest.deprecated_call(), PatchConfig(

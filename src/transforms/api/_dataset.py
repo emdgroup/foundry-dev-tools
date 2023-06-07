@@ -15,13 +15,13 @@ import pyspark
 
 import foundry_dev_tools.config
 from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
-from foundry_dev_tools.config import _traverse_to_git_project_top_level_dir
 from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetHasNoSchemaError,
     DatasetHasNoTransactionsError,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
+from foundry_dev_tools.utils.repo import git_toplevel_dir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -241,7 +241,7 @@ class Input:
 
 
 def _get_branch(caller_filename: Path) -> str:
-    git_dir = _traverse_to_git_project_top_level_dir(caller_filename)
+    git_dir = git_toplevel_dir(caller_filename)
     if not git_dir:
         # fallback for VS Interactive Console
         # or Jupyter lab on Windows

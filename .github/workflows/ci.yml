@@ -73,7 +73,7 @@ jobs:
       - name: Run tests
         run: >-
           tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
-          -- -rFEx --durations 10 --color yes  # pytest args
+          -- -rFEx --durations 10 --color yes -m "not integration"  # pytest args
 
   publish:
     needs: test

@@ -21,6 +21,7 @@ def transform_df(output, **inputs):
     :class:`~pyspark.sql.DataFrame` that is automatically written out to the single output
     dataset.
 
+    >>> from transforms.api import transform_df, Input, Output
     >>> @transform_df(
     ...     Output('/path/to/output/dataset'),  # An unnamed Output spec
     ...     first_input=Input('/path/to/first/input/dataset'),
@@ -53,6 +54,7 @@ def transform_pandas(output, **inputs):
     objects are converted to :class:`pandas.DataFrame` object before the computation,
     and converted back afterwards.
 
+    >>> from transforms.api import transform_pandas, Input, Output
     >>> @transform_pandas(
     ...     Output('/path/to/output/dataset'),  # An unnamed Output spec
     ...     first_input=Input('/path/to/first/input/dataset'),
@@ -78,6 +80,7 @@ def transform_pandas(output, **inputs):
 def transform(**kwargs):
     """Wrap up a compute function as a Transform object.
 
+    >>> from transforms.api import transform, Input, Output
     >>> @transform(
     ...     first_input=Input('/path/to/first/input/dataset'),
     ...     second_input=Input('/path/to/second/input/dataset'),
