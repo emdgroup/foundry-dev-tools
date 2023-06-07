@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import List
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import urlparse
 
 import click
 import inquirer
@@ -280,34 +280,21 @@ def build_cli(transform):  # noqa: PLR0915
             time.sleep(2)
             retries += 1
             return _finish(_req(), exit_code, retries)
-        checks_rid = _find_rid(response["allJobs"], name="Checks")
         build_rid = _find_rid(response["allJobs"], name="Build initialization")
+        branch = ref_name[11:]
         if build_id := _get_started_build(response, build_rid):
             print_horizontal_line(print_handler=rprint)
             rprint(f"Build status: {response['buildStatus']}")
             rprint()
             rprint(_build_url_message(build_id))
             rprint()
-            branch = quote_plus(
-                [  # noqa: B005
-                    job for job in response["allJobs"] if job["name"] == "Checks"
-                ][0]
-                .get("parameters", {})
-                .get("repositoryTarget", {})
-                .get("refName", "")
-                .lstrip("refs/heads/")
-            )
-            for k, v in (
-                response["allJobStatusReports"][checks_rid]
-                .get("jobCustomMetadata", {})
-                .get("filePathToDatasetRids", {})
-                .items()
-            ):
-                if len(v) > 0:
-                    rprint(
-                        f"[bold]The resulting dataset{'s' if len(v) > 1 else ''} for {escape(k)}:[/bold]"
-                    )
-                    for rid in v:
+            job_report = client.get_build(build_id)
+            jobRids = job_report["jobRids"]
+            if len(jobRids) > 0:
+                rprint("[bold]The resulting dataset(s):[/bold]")
+                for job_rid in jobRids:
+                    job_report = client.get_job_report(job_rid)
+                    for rid, _ in job_report["jobResults"].items():
                         rprint(
                             f"{Configuration['foundry_url']}/workspace/data-integration/dataset/preview/"
                             + rid
@@ -316,6 +303,7 @@ def build_cli(transform):  # noqa: PLR0915
                             if branch
                             else rid
                         )
+
         raise SystemExit(exit_code)
 
     first_req = _req()

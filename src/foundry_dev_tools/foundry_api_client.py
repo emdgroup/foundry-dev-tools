@@ -1868,6 +1868,25 @@ class FoundryRestClient:
         _raise_for_status_verbose(response)
         return response.json()
 
+    def get_job_report(self, job_rid: str) -> dict:
+        """Get the report for a job.
+
+        Args:
+            job_rid (str): the job RID
+
+        Returns:
+            dict: the job report response
+
+        """
+        response = _request(
+            "GET",
+            f"{self.builds2}/info/jobs3/{job_rid}",
+            headers=self._headers(),
+            verify=self._verify(),
+        )
+        _raise_for_status_verbose(response)
+        return response.json()
+
     def _execute_fsql_query(self, query: str, branch="master", timeout=600) -> dict:
         response = _request(
             "POST",
