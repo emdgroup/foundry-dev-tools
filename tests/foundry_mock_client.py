@@ -573,7 +573,7 @@ class MockFoundryRestClient(FoundryRestClient):
     @staticmethod
     def _generate_resource_identifier(resource_type="ri.foundry.main.dataset"):
         flake = timeflake.random().uuid
-        return f"{resource_type}.{str(flake)}"
+        return f"{resource_type}.{flake!s}"
 
     @staticmethod
     def _current_datetime():

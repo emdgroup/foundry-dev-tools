@@ -57,7 +57,7 @@ BUILD_LOG_RESPONSE = {
             "parameters": {
                 "repositoryTarget": {
                     "repositoryRid": "ri.stemma.main.repository.a0b5defa-82d9-4959-bdef-28e02e00cd48",
-                    "refName": "refs/heads/master",
+                    "refName": "refs/heads/dev/branch",
                     "commitHash": "52bdea68c6538acc79eb03bc33292314f97551f4",
                 }
             },
@@ -298,7 +298,7 @@ class WebSocketMock:
     "foundry_dev_tools.cli.build.get_repo",
     return_value=(
         "ri.stemma.main.repository.a0b5defa-82d9-4959-bdef-28e02e00cd48",
-        "refs/heads/master",
+        "refs/heads/dev/branch",
         "52bdea68c6538acc79eb03bc33292314f97551f4",
         Path.cwd(),
     ),
@@ -325,8 +325,16 @@ class WebSocketMock:
     ),
 )
 @mock.patch("foundry_dev_tools.cli.build.is_transform_file", return_value=True)
+@mock.patch(
+    "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_job_report",
+    return_value={
+        "jobResults": {
+            "ri.foundry.main.dataset.81d943dd-8b84-46ba-b720-5e227de8bb6a": {}
+        }
+    },
+)
 @mock.patch("foundry_dev_tools.utils.misc.print_horizontal_line")
-def test_build(a, b, c, d, e, f, caplog):
+def test_build(a, b, c, d, e, f, g, caplog):
     with PatchConfig(
         initial_config_overwrite={
             "jwt": "test_build_jwt",
@@ -373,10 +381,9 @@ def test_build(a, b, c, d, e, f, caplog):
 
         COMPL = "Spark Job Completed."
         assert output[output.index(COMPL) + len(COMPL) :] == (
-            "Build status: SUCCEEDEDLink to the foundry build: https://test_build.url/workspace/data-integration/job"
-            "-tracker/builds/ri.foundry.main.build.0e7ca16b-49f1-4b2d-953e-21b18bc7c560The resulting dataset for tra"
-            "nsforms-python/src/myproject/datasets/examples.py:https://test_build.url/workspace/data-integration/dat"
-            "aset/preview/ri.foundry.main.dataset.81d943dd-8b84-46ba-b720-5e227de8bb6a/master"
+            "Build status: SUCCEEDEDLink to the foundry build: https://test_build.url/workspace/data-integration/job-tr"
+            "acker/builds/ri.foundry.main.build.0e7ca16b-49f1-4b2d-953e-21b18bc7c560The resulting dataset(s):https://te"
+            "st_build.url/workspace/data-integration/dataset/preview/ri.foundry.main.dataset.81d943dd-8b84-46ba-b720-5e227de8bb6a/dev%2Fbranch"
         )
         assert result.exit_code == 0
 
