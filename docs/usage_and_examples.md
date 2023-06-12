@@ -79,5 +79,4 @@ The FoundryRestClient <FoundryRestClient_usage>
 The fsspec implementation <FoundryFileSystem_usage>
 Configuration <Configuration_usage>
 SSO <SSO_usage>
-CLI <cli_usage>
 ```

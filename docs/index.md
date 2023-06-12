@@ -12,6 +12,7 @@
 Overview <self>
 Installation <installation>
 Usage and Examples <usage_and_examples>
+CLI <cli>
 Development <develop>
 Architecture <architecture>
 License <license>
