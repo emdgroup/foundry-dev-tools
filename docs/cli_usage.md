@@ -1,4 +1,8 @@
-# The build command
+# CLI
+
+The required dependencies for the CLI can be installed with `pip install 'foundry-dev-tools[cli]'`.
+
+## The build command
 
 ```shell
 fdt build [-t transform_file]
