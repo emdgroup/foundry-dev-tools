@@ -13,6 +13,7 @@ from foundry_dev_tools.foundry_api_client import (
     DatasetHasNoSchemaError,
     DatasetNotFoundError,
     FoundryRestClient,
+    SQLReturnType,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
@@ -97,6 +98,12 @@ class CachedFoundryClient:
 
         """
         dataset_identity = self._get_dataset_identity(dataset_path_or_rid, branch)
+        last_transaction = dataset_identity["last_transaction"]
+        is_view = (
+            "record" in last_transaction["transaction"]
+            and "view" in last_transaction["transaction"]["record"]
+            and last_transaction["transaction"]["record"]["view"] is True
+        )
 
         if dataset_identity in list(self.cache.keys()):
             return (
@@ -106,12 +113,22 @@ class CachedFoundryClient:
         try:
             foundry_schema = self.api.get_dataset_schema(
                 dataset_identity["dataset_rid"],
-                dataset_identity["last_transaction_rid"],
+                dataset_identity["last_transaction"]["rid"],
                 branch=branch,
             )
         except DatasetHasNoSchemaError:
             # Binary datasets or no schema
             foundry_schema = None
+        if is_view:
+            self.cache[dataset_identity] = self.api.query_foundry_sql(
+                f'SELECT * FROM `{dataset_identity["dataset_rid"]}`',  # noqa: S608
+                branch=branch,
+                return_type=SQLReturnType.SPARK,
+            )
+            return (
+                self._return_local_path_of_cached_dataset(dataset_identity, branch),
+                dataset_identity,
+            )
         return (
             self._download_dataset_and_return_local_path(
                 dataset_identity, branch, foundry_schema
@@ -166,7 +183,7 @@ class CachedFoundryClient:
                 [
                     self.cache.get_cache_dir(),
                     dataset_identity["dataset_rid"],
-                    dataset_identity["last_transaction_rid"],
+                    dataset_identity["last_transaction"]["rid"],
                 ]
             )
             + suffix

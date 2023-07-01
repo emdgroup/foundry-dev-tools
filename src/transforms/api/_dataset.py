@@ -19,6 +19,7 @@ from foundry_dev_tools.foundry_api_client import (
     BranchNotFoundError,
     DatasetHasNoSchemaError,
     DatasetHasNoTransactionsError,
+    SQLReturnType,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.repo import git_toplevel_dir
@@ -183,17 +184,20 @@ class Input:
             "Executing Foundry/SparkSQL Query: %s \n on branch %s", query, branch
         )
         return self._cached_client.api.query_foundry_sql(
-            query, branch=branch, return_type="spark"
+            query, branch=branch, return_type=SQLReturnType.SPARK
         )
 
     def _retrieve_from_foundry_and_cache(
         self, dataset_identity: dict, branch: str
     ) -> pyspark.sql.DataFrame:
         LOGGER.debug("Caching data for %s on branch %s", dataset_identity, branch)
-        stats = self._cached_client.api.get_dataset_stats(
-            dataset_identity["dataset_rid"], dataset_identity["last_transaction_rid"]
+        size_in_mega_bytes = (
+            dataset_identity["last_transaction"]["transaction"]["metadata"][
+                "totalFileSize"
+            ]
+            / 1024
+            / 1024
         )
-        size_in_mega_bytes = stats["sizeInBytes"] / 1024 / 1024
         size_in_mega_bytes_rounded = round(size_in_mega_bytes, ndigits=2)
         LOGGER.debug("Dataset has size of %s MegaBytes.", size_in_mega_bytes_rounded)
         if (

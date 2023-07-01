@@ -108,6 +108,17 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
         _ = client.create_branch(ds["rid"], BRANCH)
     branch_returned = client.get_branch(ds["rid"], BRANCH)
     assert branch == branch_returned
+
+    assert client.get_dataset_identity(ds["rid"], BRANCH) == {
+        "dataset_path": dataset_path,
+        "dataset_rid": ds["rid"],
+        "last_transaction_rid": None,
+        "last_transaction": None,
+    }
+
+    assert client.get_dataset_last_transaction_rid(ds["rid"], BRANCH) is None
+    assert client.get_dataset_last_transaction(ds["rid"], BRANCH) is None
+
     transaction_rid = client.open_transaction(ds["rid"], "SNAPSHOT", BRANCH)
 
     with pytest.raises(DatasetHasOpenTransactionError) as exc_info:
@@ -174,6 +185,9 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
 
     failed_transaction = client.open_transaction(ds["rid"], "UPDATE", BRANCH)
     client.abort_transaction(ds["rid"], failed_transaction)
+
+    last_transaction_rid = client.get_dataset_last_transaction(ds["rid"], BRANCH)["rid"]
+    assert last_transaction_rid == last_good_transaction_rid
 
     last_transaction_rid = client.get_dataset_last_transaction_rid(ds["rid"], BRANCH)
     assert last_transaction_rid == last_good_transaction_rid
@@ -320,11 +334,15 @@ def test_schema_inference(client):
     client.delete_dataset(ds["rid"])
 
 
-def test_get_dataset_last_transaction_rid(client, iris_dataset):
-    transaction_rid = client.get_dataset_last_transaction_rid(
+def test_get_dataset_last_transaction(client, iris_dataset):
+    transaction_rid = client.get_dataset_last_transaction(
         iris_dataset[0], branch=iris_dataset[3]
-    )
+    )["rid"]
     assert transaction_rid == iris_dataset[2]
+    assert (
+        client.get_dataset_last_transaction_rid(iris_dataset[0], branch=iris_dataset[3])
+        == iris_dataset[2]
+    )
 
 
 def test_get_dataset_stats(mocker, is_integration_test, client, iris_dataset):

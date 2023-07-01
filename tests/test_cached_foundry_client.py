@@ -265,17 +265,18 @@ def test_save_objects(
             "dataset_rid": DATASET_RID,
             "dataset_path": DATASET_PATH,
             "last_transaction_rid": TRANSACTION_RID,
+            "last_transaction": {"rid": TRANSACTION_RID, "transaction": {}},
         }
     ),
 )
 @patch(API + ".get_dataset_schema")
 @patch(API + ".list_dataset_files")
 @patch(API + ".is_dataset_in_trash")
-@patch(API + ".get_dataset_last_transaction_rid")
+@patch(API + ".get_dataset_last_transaction")
 @patch(API + ".get_dataset_rid")
 def test_fetch_dataset(
     get_dataset_rid,
-    get_dataset_last_transaction_rid,
+    get_dataset_last_transaction,
     is_dataset_in_trash,
     list_dataset_files,
     get_dataset_schema,
@@ -299,7 +300,7 @@ def test_fetch_dataset(
     )
 
     get_dataset_rid.return_value = DATASET_RID
-    get_dataset_last_transaction_rid.return_value = TRANSACTION_RID
+    get_dataset_last_transaction.return_value = {"rid": TRANSACTION_RID}
     is_dataset_in_trash.return_value = False
     df = get_spark_session().createDataFrame([[1]], "col1:int")
     get_dataset_schema.return_value = {
@@ -335,6 +336,7 @@ def test_fetch_dataset(
     assert dataset_identity == {
         "dataset_rid": DATASET_RID,
         "last_transaction_rid": TRANSACTION_RID,
+        "last_transaction": {"rid": TRANSACTION_RID, "transaction": {}},
         "dataset_path": DATASET_PATH,
     }
 
@@ -381,17 +383,27 @@ def test_fetch_dataset(
             "dataset_rid": DATASET_RID,
             "dataset_path": DATASET_PATH,
             "last_transaction_rid": TRANSACTION_RID,
+            "last_transaction": {
+                "rid": TRANSACTION_RID,
+                "transaction": {
+                    "record": {},
+                    "metadata": {
+                        "fileCount": 1,
+                        "hiddenFileCount": 0,
+                        "totalFileSize": 1000,
+                        "totalHiddenFileSize": 0,
+                    },
+                },
+            },
         }
     ),
 )
 @patch(API + ".get_dataset_schema")
 @patch(API + ".list_dataset_files")
 @patch(API + ".is_dataset_in_trash")
-@patch(API + ".get_dataset_last_transaction_rid")
 @patch(API + ".get_dataset_rid")
 def test_load_dataset(
     get_dataset_rid,
-    get_dataset_last_transaction_rid,
     is_dataset_in_trash,
     list_dataset_files,
     get_dataset_schema,
@@ -408,7 +420,6 @@ def test_load_dataset(
     fdt = CachedFoundryClient()
 
     get_dataset_rid.return_value = DATASET_RID
-    get_dataset_last_transaction_rid.return_value = TRANSACTION_RID
     is_dataset_in_trash.return_value = False
     df = get_spark_session().createDataFrame([[1]], "col1:int")
     list_dataset_files.return_value = ["pandas/dataset.parquet"]
@@ -505,3 +516,66 @@ def test_save_string_model(mock_client):
             model_returned = pickle.load(f)  # noqa: S301, trusted, we are mocking
 
         assert model == model_returned
+
+
+@patch(
+    API + ".get_dataset_identity",
+    MagicMock(
+        return_value={
+            "dataset_rid": DATASET_RID,
+            "dataset_path": DATASET_PATH,
+            "last_transaction_rid": TRANSACTION_RID,
+            "last_transaction": {
+                "rid": TRANSACTION_RID,
+                "transaction": {
+                    "record": {"view": True},
+                    "metadata": {
+                        "fileCount": 1,
+                        "hiddenFileCount": 0,
+                        "totalFileSize": 0,
+                        "totalHiddenFileSize": 0,
+                    },
+                },
+            },
+        }
+    ),
+)
+@patch(API + ".get_dataset_schema")
+@patch(API + ".query_foundry_sql")
+@patch(API + ".is_dataset_in_trash")
+@patch(API + ".get_dataset_rid")
+def test_load_dataset_is_view(
+    get_dataset_rid,
+    is_dataset_in_trash,
+    query_foundry_sql,
+    get_dataset_schema,
+    mocker,
+):
+    from_cache = mocker.spy(
+        CachedFoundryClient,
+        "_return_local_path_of_cached_dataset",
+    )
+    fdt = CachedFoundryClient()
+
+    get_dataset_rid.return_value = DATASET_RID
+    is_dataset_in_trash.return_value = False
+    df = get_spark_session().createDataFrame([[1]], "col1:int")
+    query_foundry_sql.return_value = df
+    get_dataset_schema.return_value = {
+        "fieldSchemaList": [
+            {"type": "INTEGER", "name": "col1", "nullable": True, "customMetadata": {}}
+        ],
+        "dataFrameReaderClass": "com.palantir.foundry.spark.input.ParquetDataFrameReader",
+        "customMetadata": {"format": "parquet", "options": {}},
+    }
+
+    spark_df = fdt.load_dataset(DATASET_PATH, "master")
+
+    from_cache.assert_called()
+    assert query_foundry_sql.call_count == 1
+    from_cache.reset_mock()
+    assert_frame_equal(spark_df.toPandas(), df.toPandas())
+
+    fdt.load_dataset(DATASET_PATH, "master")
+    assert query_foundry_sql.call_count == 1
+    from_cache.assert_called()

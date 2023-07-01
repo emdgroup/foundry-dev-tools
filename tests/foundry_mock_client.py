@@ -99,13 +99,13 @@ class MockFoundryRestClient(FoundryRestClient):
             "numTransactions": num_transactions,
         }
 
-    def get_dataset_last_transaction_rid(
+    def get_dataset_last_transaction(
         self, dataset_rid: str, branch="master"
-    ) -> "str | None":
+    ) -> "dict | None":
         transactions = self._load_transactions(dataset_rid=dataset_rid)
         if len(transactions) == 0:
             return None
-        return transactions[0]["rid"]
+        return transactions[0]
 
     def get_dataset_identity(
         self, dataset_path_or_rid: str, branch="master", check_read_access=True
@@ -133,15 +133,36 @@ class MockFoundryRestClient(FoundryRestClient):
             or len(transactions) == 1
             and transactions[0]["status"] == "OPEN"
         ):
-            last_transaction_rid = None
-        elif len(transactions) > 1 and transactions[0]["status"] == "OPEN":
+            return {
+                "dataset_path": dataset_path,
+                "dataset_rid": dataset_rid,
+                "last_transaction_rid": None,
+                "last_transaction": None,
+            }
+        if len(transactions) > 1 and transactions[0]["status"] == "OPEN":
             last_transaction_rid = transactions[1]["rid"]
         else:
             last_transaction_rid = transactions[0]["rid"]
+
+        stats = self.get_dataset_stats(
+            dataset_rid=dataset_rid, view=last_transaction_rid
+        )
         return {
             "dataset_path": dataset_path,
             "dataset_rid": dataset_rid,
             "last_transaction_rid": last_transaction_rid,
+            "last_transaction": {
+                "rid": last_transaction_rid,
+                "transaction": {
+                    "record": {},
+                    "metadata": {
+                        "fileCount": stats["numFiles"],
+                        "hiddenFileCount": stats["numHiddenFiles"],
+                        "totalFileSize": stats["sizeInBytes"],
+                        "totalHiddenFileSize": stats["hiddenFilesSizeInBytes"],
+                    },
+                },
+            },
         }
 
     def _get_transaction(self, dataset_rid: str, transaction_rid: str) -> dict:

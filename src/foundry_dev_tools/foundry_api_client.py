@@ -567,9 +567,9 @@ class FoundryRestClient:
             return response.json()["values"]
         raise DatasetHasNoTransactionsError(dataset_rid, response=response)
 
-    def get_dataset_last_transaction_rid(
+    def get_dataset_last_transaction(
         self, dataset_rid: str, branch: str = "master"
-    ) -> "str | None":
+    ) -> "dict | None":
         """Returns the last transaction of a dataset / branch combination.
 
         Args:
@@ -577,14 +577,33 @@ class FoundryRestClient:
             branch (str): Branch
 
         Returns:
-            str | None:
-                last_transaction_rid as string or None if dataset has no transaction.
+            dict | None:
+                response from transaction API or None if dataset has no transaction.
 
         """
         try:
-            return self.get_dataset_transactions(dataset_rid, branch)[0]["rid"]
+            return self.get_dataset_transactions(dataset_rid, branch)[0]
         except DatasetHasNoTransactionsError:
             return None
+
+    def get_dataset_last_transaction_rid(
+        self, dataset_rid: str, branch: str = "master"
+    ) -> "str | None":
+        """Returns the last transaction rid of a dataset / branch combination.
+
+        Args:
+            dataset_rid (str): Unique identifier of the dataset
+            branch (str): Branch
+
+        Returns:
+            str | None:
+                transaction rid or None if dataset has no transaction.
+
+        """
+        last_transaction = self.get_dataset_last_transaction(dataset_rid, branch)
+        if last_transaction:
+            return last_transaction["rid"]
+        return last_transaction
 
     def upload_dataset_file(
         self,
@@ -975,7 +994,7 @@ class FoundryRestClient:
     def get_dataset_identity(
         self, dataset_path_or_rid: str, branch="master", check_read_access=True
     ) -> dict:
-        """Returns the current identity of this dataset (dataset_path, dataset_rid, last_transaction_rid).
+        """Returns the identity of this dataset (dataset_path, dataset_rid, last_transaction_rid, last_transaction).
 
         Args:
             dataset_path_or_rid (str): Path to dataset (e.g. /Global/...)
@@ -986,7 +1005,7 @@ class FoundryRestClient:
 
         Returns:
             dict:
-                with the keys 'dataset_path', 'dataset_rid' and 'last_transaction_rid'
+                with the keys 'dataset_path', 'dataset_rid', 'last_transaction_rid', 'last_transaction'
 
         Raises:
             DatasetNoReadAccessError: if you have no read access for that dataset
@@ -1000,12 +1019,14 @@ class FoundryRestClient:
             and "gatekeeper:view-resource" not in dataset_details["operations"]
         ):
             raise DatasetNoReadAccessError(dataset_rid)
+        last_transaction = self.get_dataset_last_transaction(dataset_rid, branch)
         return {
             "dataset_path": dataset_path,
             "dataset_rid": dataset_rid,
-            "last_transaction_rid": self.get_dataset_last_transaction_rid(
-                dataset_rid, branch
-            ),
+            "last_transaction_rid": last_transaction["rid"]
+            if last_transaction
+            else None,
+            "last_transaction": last_transaction,
         }
 
     def list_dataset_files(
