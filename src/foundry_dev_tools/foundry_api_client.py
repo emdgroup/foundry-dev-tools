@@ -136,6 +136,7 @@ class FoundryRestClient:
         self.foundry_sql_server_api = f"{self._api_base}/foundry-sql-server/api"
         self.jemma = f"{self._api_base}/jemma/api"
         self.builds2 = f"{self._api_base}/build2/api"
+        self.foundry_stats_api = f"{self._api_base}/foundry-stats/api"
         self._requests_verify_value = _determine_requests_verify_value(self._config)
 
     def _headers(self):
@@ -1109,6 +1110,53 @@ class FoundryRestClient:
             f"{self.catalog}/catalog/datasets/"
             f"{dataset_rid}/views/{quote_plus(view)}"
             f"/stats",
+            headers=self._headers(),
+            verify=self._verify(),
+        )
+        _raise_for_status_verbose(response)
+        return response.json()
+
+    def foundry_stats(
+        self, dataset_rid: str, end_transaction_rid: str, branch: str = "master"
+    ) -> dict:
+        """Returns row counts and size of the dataset/view.
+
+        Args:
+            dataset_rid (str): The dataset RID.
+            end_transaction_rid (str): The specific transaction RID,
+                which will be used to return the statistics.
+            branch (str): The branch to query
+
+        Returns:
+            dict:
+                With the following structure:
+                {
+                datasetRid:str,
+                branch:str,
+                endTransactionRid:str,
+                schemaId:str,
+                computedDatasetStats:{
+                    rowCount:str|None,
+                    sizeInBytes:str,
+                    columnStats:{
+                        "...":{
+                            nullCount:str|None,
+                            uniqueCount:str|None,
+                            avgLength:str|None,
+                            maxLength:str|None
+                            }
+                        }
+                    }
+                }
+        """
+        response = _request(
+            "POST",
+            f"{self.foundry_stats_api}/computed-stats-v2/get-v2",
+            json={
+                "datasetRid": dataset_rid,
+                "branch": branch,
+                "endTransactionRid": end_transaction_rid,
+            },
             headers=self._headers(),
             verify=self._verify(),
         )

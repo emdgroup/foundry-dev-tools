@@ -191,13 +191,21 @@ class Input:
         self, dataset_identity: dict, branch: str
     ) -> pyspark.sql.DataFrame:
         LOGGER.debug("Caching data for %s on branch %s", dataset_identity, branch)
-        size_in_mega_bytes = (
-            dataset_identity["last_transaction"]["transaction"]["metadata"][
-                "totalFileSize"
-            ]
-            / 1024
-            / 1024
+        transaction = dataset_identity["last_transaction"]["transaction"]
+        is_view = (
+            "record" in transaction
+            and "view" in transaction["record"]
+            and transaction["record"]["view"] is True
         )
+        if is_view:
+            foundry_stats = self._cached_client.api.foundry_stats(
+                dataset_identity["dataset_rid"],
+                dataset_identity["last_transaction"]["rid"],
+            )
+            size_in_bytes = int(foundry_stats["computedDatasetStats"]["sizeInBytes"])
+        else:
+            size_in_bytes = transaction["metadata"]["totalFileSize"]
+        size_in_mega_bytes = size_in_bytes / 1024 / 1024
         size_in_mega_bytes_rounded = round(size_in_mega_bytes, ndigits=2)
         LOGGER.debug("Dataset has size of %s MegaBytes.", size_in_mega_bytes_rounded)
         if (
