@@ -55,3 +55,19 @@ def print_horizontal_line(c: str = "-", print_handler: "Callable[[str],Any]" = p
         print_handler (Callable[[str],Any]): the function to use for printing
     """
     print_handler(c * os.get_terminal_size().columns)
+
+
+def is_dataset_a_view(dataset_transaction: dict):
+    """Determines based on a transaction, if a dataset is a view.
+
+    Args:
+        dataset_transaction (dict): a transaction on the dataset in question
+
+    Returns:
+        bool: if dataset is a view
+    """
+    return (
+        "record" in dataset_transaction
+        and "view" in dataset_transaction["record"]
+        and dataset_transaction["record"]["view"] is True
+    )

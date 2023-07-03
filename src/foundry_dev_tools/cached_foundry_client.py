@@ -19,6 +19,7 @@ from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSpa
 from foundry_dev_tools.utils.converter.foundry_spark import (
     infer_dataset_format_from_foundry_schema,
 )
+from foundry_dev_tools.utils.misc import is_dataset_a_view
 
 LOGGER = logging.getLogger(__name__)
 
@@ -99,11 +100,6 @@ class CachedFoundryClient:
         """
         dataset_identity = self._get_dataset_identity(dataset_path_or_rid, branch)
         last_transaction = dataset_identity["last_transaction"]
-        is_view = (
-            "record" in last_transaction["transaction"]
-            and "view" in last_transaction["transaction"]["record"]
-            and last_transaction["transaction"]["record"]["view"] is True
-        )
 
         if dataset_identity in list(self.cache.keys()):
             return (
@@ -119,7 +115,7 @@ class CachedFoundryClient:
         except DatasetHasNoSchemaError:
             # Binary datasets or no schema
             foundry_schema = None
-        if is_view:
+        if is_dataset_a_view(last_transaction):
             self.cache[dataset_identity] = self.api.query_foundry_sql(
                 f'SELECT * FROM `{dataset_identity["dataset_rid"]}`',  # noqa: S608
                 branch=branch,

@@ -22,6 +22,7 @@ from foundry_dev_tools.foundry_api_client import (
     SQLReturnType,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
+from foundry_dev_tools.utils.misc import is_dataset_a_view
 from foundry_dev_tools.utils.repo import git_toplevel_dir
 
 LOGGER = logging.getLogger(__name__)
@@ -192,12 +193,7 @@ class Input:
     ) -> pyspark.sql.DataFrame:
         LOGGER.debug("Caching data for %s on branch %s", dataset_identity, branch)
         transaction = dataset_identity["last_transaction"]["transaction"]
-        is_view = (
-            "record" in transaction
-            and "view" in transaction["record"]
-            and transaction["record"]["view"] is True
-        )
-        if is_view:
+        if is_dataset_a_view(transaction):
             foundry_stats = self._cached_client.api.foundry_stats(
                 dataset_identity["dataset_rid"],
                 dataset_identity["last_transaction"]["rid"],
