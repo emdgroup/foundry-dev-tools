@@ -631,7 +631,7 @@ def test_get_folder_children(client, mocker, iris_dataset):
     # Test pagination
     import requests
 
-    spy = mocker.spy(requests, "request")
+    spy = mocker.spy(requests.Session, "request")
     children = client.get_child_objects_of_folder(
         folder_rid=INTEGRATION_TEST_COMPASS_ROOT_RID,
         page_size=1,

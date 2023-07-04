@@ -160,7 +160,7 @@ class FoundryRestClient:
             if read_timeout is None
             else DEFAULT_REQUESTS_CONNECT_TIMEOUT
         )
-        return requests.request(*args, **kwargs)
+        return self._requests_session.request(*args, **kwargs)
 
     def create_dataset(self, dataset_path: str) -> dict:
         """Creates an empty dataset in Foundry.
