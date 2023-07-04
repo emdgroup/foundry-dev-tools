@@ -205,7 +205,8 @@ def _config_section() -> Tree:
                 config_item,
                 _bool_color(
                     value is not None,
-                    f"Is {'not' if value is None else ''} set, but not shown for security reasons.",
+                    f"Is {'not' if value is None else ''} set"
+                    f"{', but not shown for security reasons' if value is not None else ''}.",
                 ),
             )
         elif isinstance(value, bool):
