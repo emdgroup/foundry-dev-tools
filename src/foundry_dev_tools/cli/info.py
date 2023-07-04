@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table, box
 from rich.tree import Tree
 
-from foundry_dev_tools.__about__ import __version__
+from foundry_dev_tools import __version__
 from foundry_dev_tools.config import initial_config
 
 
