@@ -72,7 +72,9 @@ def type_convert(config: dict) -> dict:
     return return_config
 
 
-def initial_config() -> "tuple[dict, pathlib.Path]":
+def initial_config(
+    project_dir: "Path|None" = None,
+) -> "tuple[dict, pathlib.Path, pathlib.Path|None]":
     """Parses the config file and applies defaults.
 
     The order of config values and how they are applied are:
@@ -80,10 +82,11 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
     < overwrites by :py:class:`~foundry_dev_tools.config.Config`
 
     Returns:
-        a tuple (dict, pathlib.Path):
+        a tuple (dict, pathlib.Path, pathlib.Path|None):
             the first dict is the config as parsed
             with defaults applied and environment variables applied
             the second is a Path to the ~/.foundry-dev-tools directory
+            the third one is the Path to the project config file
     """
     foundry_dev_tools_directory = Path.home() / ".foundry-dev-tools"
 
@@ -129,8 +132,11 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
             if "default" in config_parser:
                 return_config.update(config_parser["default"])
 
-    caller_filename = inspect.stack()[-1].filename
-    project_config_file = find_project_config_file(Path(caller_filename).parent)
+    if not project_dir:
+        caller_filename = inspect.stack()[-1].filename
+        project_config_file = find_project_config_file(Path(caller_filename).parent)
+    else:
+        project_config_file = find_project_config_file(project_dir)
     if project_config_file:
         project_config_parser = ConfigParser()
         with project_config_file.open(encoding="UTF-8") as file:
@@ -159,7 +165,7 @@ def initial_config() -> "tuple[dict, pathlib.Path]":
 
     config.update(return_config)
     return_config = type_convert(config)
-    return return_config, foundry_dev_tools_directory
+    return return_config, foundry_dev_tools_directory, project_config_file
 
 
 class Config(UserDict):
@@ -322,6 +328,7 @@ class Config(UserDict):
 (
     INITIAL_CONFIG,
     FOUNDRY_DEV_TOOLS_DIRECTORY,
+    FOUNDRY_DEV_TOOLS_PROJECT_CONFIG_FILE,
 ) = initial_config()
 Configuration = Config()
 __all__ = ["INITIAL_CONFIG", "FOUNDRY_DEV_TOOLS_DIRECTORY", "Configuration"]

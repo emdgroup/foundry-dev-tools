@@ -24,9 +24,8 @@ pyspark = import_optional_dependency("pyspark")
 class DiskPersistenceBackedSparkCache(MutableMapping):
     """A cache that stores spark dataframes inside a directory."""
 
-    FORMATS = ["parquet", "csv", "unknown"]
-    DEFAULT_FORMAT = "parquet"
-    STORE_LAST_N_TRANSACTIONS = 2
+    _DEFAULT_FORMAT = "parquet"
+    _STORE_LAST_N_TRANSACTIONS = 2
 
     def __init__(self, cache_dir: str, clear_cache: bool = False, **kwargs):
         self._cache_dir = cache_dir
@@ -37,8 +36,8 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
 
     def __setitem__(self, key: dict, value: "pyspark.sql.dataframe.DataFrame") -> None:
         _validate_cache_key(key)
-        path = self._get_storage_location(key, self.DEFAULT_FORMAT)
-        value.write.format(self.DEFAULT_FORMAT).save(path=path, mode="overwrite")
+        path = self._get_storage_location(key, self._DEFAULT_FORMAT)
+        value.write.format(self._DEFAULT_FORMAT).save(path=path, mode="overwrite")
         self.set_item_metadata(path, key, value.schema.jsonValue())
 
     def set_item_metadata(self, path: str, dataset_identity: dict, schema: dict):
@@ -212,7 +211,7 @@ class DiskPersistenceBackedSparkCache(MutableMapping):
             )
 
         transaction_to_delete = all_transactions_sorted[
-            self.STORE_LAST_N_TRANSACTIONS :
+            self._STORE_LAST_N_TRANSACTIONS :
         ]
         for transaction in transaction_to_delete:
             directory_path = os.fspath(

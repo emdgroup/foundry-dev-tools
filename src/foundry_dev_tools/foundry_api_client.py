@@ -1238,7 +1238,7 @@ class FoundryRestClient:
                         ),
                     )
                 )
-        return list(filter(lambda p: p != "", local_paths))  # noqa: PLC1901
+        return list(filter(lambda p: p != "", local_paths))
 
     @contextmanager
     def download_dataset_files_temporary(
