@@ -76,6 +76,7 @@ class PatchConfig:
             (
                 foundry_dev_tools.config.INITIAL_CONFIG,
                 foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_DIRECTORY,
+                foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_PROJECT_CONFIG_FILE,
             ) = self.conf_save[0]
             foundry_dev_tools.config.Configuration = self.conf_save[1]
 
@@ -84,15 +85,17 @@ def override_config(
     initial_config_overwrite: "dict | None" = None,
     config_overwrite: "dict | None" = None,
     read_initial=False,
-) -> "tuple[tuple[dict, pathlib.Path], foundry_dev_tools.config.Config]":
+) -> "tuple[tuple[dict, pathlib.Path,pathlib.Path|None], foundry_dev_tools.config.Config]":
     save = (
         copy.deepcopy(foundry_dev_tools.config.INITIAL_CONFIG),
         copy.deepcopy(foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_DIRECTORY),
+        copy.deepcopy(foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_PROJECT_CONFIG_FILE),
     )
     if read_initial:
         (
             foundry_dev_tools.config.INITIAL_CONFIG,
             foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_DIRECTORY,
+            foundry_dev_tools.config.FOUNDRY_DEV_TOOLS_PROJECT_CONFIG_FILE,
         ) = foundry_dev_tools.config.initial_config()
 
     if initial_config_overwrite:
