@@ -115,7 +115,7 @@ class CachedFoundryClient:
         except DatasetHasNoSchemaError:
             # Binary datasets or no schema
             foundry_schema = None
-        if is_dataset_a_view(last_transaction):
+        if is_dataset_a_view(last_transaction["transaction"]):
             self.cache[dataset_identity] = self.api.query_foundry_sql(
                 f'SELECT * FROM `{dataset_identity["dataset_rid"]}`',  # noqa: S608
                 branch=branch,
