@@ -37,7 +37,7 @@ def test_get_config(is_integration_test, client):
         assert client._headers()["Authorization"] is not None
     else:
         assert client._headers()["Authorization"] == "Bearer 123"
-        assert client._verify() is not None
+    assert client._requests_verify_value is not None
     assert "transforms_sql_sample_row_limit" in client._config
     assert "transforms_sql_dataset_size_threshold" in client._config
     assert "foundry_url" in client._config

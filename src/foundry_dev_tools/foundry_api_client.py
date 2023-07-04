@@ -31,8 +31,6 @@ import requests
 
 import foundry_dev_tools.config
 
-DEFAULT_REQUESTS_CONNECT_TIMEOUT = 10
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -59,6 +57,14 @@ try:
     FDT_VERSION = version(__name__)
 except PackageNotFoundError:  # pragma: no cover
     FDT_VERSION = "unknown"
+
+DEFAULT_REQUESTS_CONNECT_TIMEOUT = 10
+DEFAULT_HEADERS = {
+    "User-Agent": requests.utils.default_user_agent(
+        f"foundry-dev-tools/{FDT_VERSION}/python-requests"
+    ),
+    "Content-Type": "application/json",
+}
 
 
 @contextmanager
@@ -138,18 +144,23 @@ class FoundryRestClient:
         self.builds2 = f"{self._api_base}/build2/api"
         self.foundry_stats_api = f"{self._api_base}/foundry-stats/api"
         self._requests_verify_value = _determine_requests_verify_value(self._config)
+        self._requests_session = requests.Session()
+        self._requests_session.verify = self._requests_verify_value
 
     def _headers(self):
         return {
-            "User-Agent": requests.utils.default_user_agent(
-                f"foundry-dev-tools/{FDT_VERSION}/python-requests"
-            ),
-            "Content-Type": "application/json",
+            **DEFAULT_HEADERS,
             "Authorization": f"Bearer {_get_auth_token(self._config)}",
         }
 
-    def _verify(self):
-        return self._requests_verify_value
+    def _request(self, *args, read_timeout: "int|None" = None, **kwargs):
+        kwargs.setdefault("headers", self._headers())
+        kwargs["timeout"] = (
+            (DEFAULT_REQUESTS_CONNECT_TIMEOUT, read_timeout)
+            if read_timeout is None
+            else DEFAULT_REQUESTS_CONNECT_TIMEOUT
+        )
+        return requests.request(*args, **kwargs)
 
     def create_dataset(self, dataset_path: str) -> dict:
         """Creates an empty dataset in Foundry.
@@ -164,11 +175,9 @@ class FoundryRestClient:
                 The key rid contains the dataset_rid which is the unique identifier of a dataset.
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"path": dataset_path},
         )
         if (
@@ -193,11 +202,9 @@ class FoundryRestClient:
         Raises:
             DatasetNotFoundError: if dataset does not exist
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.catalog}/catalog/datasets/{dataset_rid}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         if response.status_code == requests.codes.no_content and not response.text:
             raise DatasetNotFoundError(dataset_rid, response=response)
@@ -214,11 +221,9 @@ class FoundryRestClient:
             DatasetNotFoundError: if dataset does not exist
 
         """
-        response = _request(
+        response = self._request(
             "DELETE",
             f"{self.catalog}/catalog/datasets",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"rid": dataset_rid},
         )
         if (
@@ -236,11 +241,9 @@ class FoundryRestClient:
             resource_id (str): rid of the resource
 
         """
-        response_trash = _request(
+        response_trash = self._request(
             "POST",
             f"{self.compass}/batch/trash/add",
-            headers=self._headers(),
-            verify=self._verify(),
             data=f'["{resource_id}"]',
         )
         if response_trash.status_code != requests.codes.no_content:
@@ -271,12 +274,10 @@ class FoundryRestClient:
                 the response as a json object
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"branchesUnrestricted2/{quote_plus(branch)}",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"parentBranchId": parent_branch, "parentRef": parent_branch_id},
         )
         if (
@@ -311,12 +312,10 @@ class FoundryRestClient:
          }
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"branchesUpdate2/{quote_plus(branch)}",
-            headers=self._headers(),
-            verify=self._verify(),
             data=f'"{parent_branch}"',
         )
         _raise_for_status_verbose(response)
@@ -337,12 +336,10 @@ class FoundryRestClient:
              BranchNotFoundError: if branch does not exist.
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"branches2/{quote_plus(branch)}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         if response.status_code == requests.codes.no_content and not response.text:
             raise BranchNotFoundError(dataset_rid, branch, response=None)
@@ -371,11 +368,9 @@ class FoundryRestClient:
             DatasetNotFoundError: if dataset does not exist
             DatasetHasOpenTransactionError: if dataset has an open transaction
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/" f"transactions",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"branchId": f"{branch}", "record": {}},
         )
         if (
@@ -404,12 +399,10 @@ class FoundryRestClient:
         transaction_id = response_json["rid"]
         # update type of transaction, default is APPEND
         if mode in ("UPDATE", "SNAPSHOT", "DELETE"):
-            response_update = _request(
+            response_update = self._request(
                 "POST",
                 f"{self.catalog}/catalog/datasets/{dataset_rid}/"
                 f"transactions/{transaction_id}",
-                headers=self._headers(),
-                verify=self._verify(),
                 data=f'"{mode}"',
             )
             _raise_for_status_verbose(response_update)
@@ -440,12 +433,10 @@ class FoundryRestClient:
             recursive (bool): recurse into subdirectories
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"transactions/{transaction_id}/files/remove",
-            headers=self._headers(),
-            verify=self._verify(),
             params={"logicalPath": logical_path, "recursive": recursive},
         )
         _raise_for_status_verbose(response)
@@ -464,12 +455,10 @@ class FoundryRestClient:
             logical_paths (List[str]): files in the dataset to delete
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"transactions/{transaction_id}/files/addToDeleteTransaction",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"logicalPaths": logical_paths},
         )
         _raise_for_status_verbose(response)
@@ -484,12 +473,10 @@ class FoundryRestClient:
         Raises:
             KeyError: when there was an issue with committing
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"transactions/{transaction_id}/commit",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
@@ -509,12 +496,10 @@ class FoundryRestClient:
             KeyError: When abort transaction fails
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.catalog}/catalog/datasets/{dataset_rid}/"
             f"transactions/{transaction_id}/abortWithMetadata",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
@@ -549,12 +534,10 @@ class FoundryRestClient:
             DatasetHasNoTransactionsError: If the dataset has not transactions
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.catalog}/catalog/datasets/"
             f"{dataset_rid}/reverse-transactions2/{quote_plus(branch)}",
-            headers=self._headers(),
-            verify=self._verify(),
             params={
                 "pageSize": last,
                 "includeOpenExclusiveTransaction": include_open_exclusive_transaction,
@@ -604,7 +587,7 @@ class FoundryRestClient:
         last_transaction = self.get_dataset_last_transaction(dataset_rid, branch)
         if last_transaction:
             return last_transaction["rid"]
-        return last_transaction
+        return None
 
     def upload_dataset_file(
         self,
@@ -631,7 +614,7 @@ class FoundryRestClient:
             else original_open(f, *args, **kwargs)
         )
         with open(path_or_buf, "rb") as file:  # noqa: PTH123
-            response = _request(
+            response = self._request(
                 "POST",
                 f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/"
                 f"transactions/{transaction_rid}/putFile",
@@ -717,19 +700,15 @@ class FoundryRestClient:
 
         """
         if "ri.foundry.main.dataset" in dataset_path_or_rid:
-            response = _request(
+            response = self._request(
                 "GET",
                 f"{self.compass}/resources/{dataset_path_or_rid}",
-                headers=self._headers(),
-                verify=self._verify(),
                 params={"decoration": "path"},
             )
         else:
-            response = _request(
+            response = self._request(
                 "GET",
                 f"{self.compass}/resources",
-                headers=self._headers(),
-                verify=self._verify(),
                 params={"path": dataset_path_or_rid, "decoration": "path"},
             )
         _raise_for_status_verbose(response)
@@ -759,12 +738,10 @@ class FoundryRestClient:
         """
         query_params = {"pageToken": None, "limit": page_size}
         while True:
-            response = _request(
+            response = self._request(
                 "GET",
                 f"{self.compass}/folders/{folder_rid}/children",
-                headers=self._headers(),
                 params=query_params,
-                verify=self._verify(),
             )
             if response.status_code == requests.codes.not_found:
                 raise FolderNotFoundError(folder_rid, response=response)
@@ -789,11 +766,9 @@ class FoundryRestClient:
                 with keys rid and name and other properties.
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.compass}/folders",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"name": name, "parentId": parent_id},
         )
         _raise_for_status_verbose(response)
@@ -849,11 +824,9 @@ class FoundryRestClient:
         ]
         result = {}
         for batch in batches:
-            response = _request(
+            response = self._request(
                 "POST",
                 f"{self.compass}/batch/paths",
-                headers=self._headers(),
-                verify=self._verify(),
                 json=batch,
             )
             _raise_for_status_verbose(response)
@@ -897,13 +870,11 @@ class FoundryRestClient:
             KeyError: if the combination of dataset_rid, transaction_rid and branch was not found
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.metadata}/schemas/datasets/"
             f"{dataset_rid}/branches/{quote_plus(branch)}",
             params={"endTransactionRid": transaction_rid},
-            headers=self._headers(),
-            verify=self._verify(),
         )
         if response.status_code == requests.codes.forbidden:
             raise DatasetNotFoundError(dataset_rid, response=response)
@@ -939,14 +910,12 @@ class FoundryRestClient:
             branch (str): The branch
 
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.metadata}/schemas/datasets/"
             f"{dataset_rid}/branches/{quote_plus(branch)}",
             params={"endTransactionRid": transaction_rid},
             json=schema,
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
 
@@ -966,13 +935,11 @@ class FoundryRestClient:
         Raises:
             ValueError: if foundry schema inference failed
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.schema_inference}/datasets/"
             f"{dataset_rid}/branches/{quote_plus(branch)}/schema",
             json={},
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         parsed_response = response.json()
@@ -1064,12 +1031,10 @@ class FoundryRestClient:
         """
 
         def _inner_get(next_page_token=None):
-            response = _request(
+            response = self._request(
                 "GET",
                 f"{self.catalog}/catalog/datasets/"
                 f"{dataset_rid}/views2/{quote_plus(view)}/files",
-                headers=self._headers(),
-                verify=self._verify(),
                 params={
                     "pageSize": 10000000,
                     "includeOpenExclusiveTransaction": include_open_exclusive_transaction,
@@ -1105,13 +1070,11 @@ class FoundryRestClient:
                 sizeInBytes, numFiles, hiddenFilesSizeInBytes, numHiddenFiles, numTransactions
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.catalog}/catalog/datasets/"
             f"{dataset_rid}/views/{quote_plus(view)}"
             f"/stats",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1149,7 +1112,7 @@ class FoundryRestClient:
                     }
                 }
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.foundry_stats_api}/computed-stats-v2/get-v2",
             json={
@@ -1157,8 +1120,6 @@ class FoundryRestClient:
                 "branch": branch,
                 "endTransactionRid": end_transaction_rid,
             },
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1214,11 +1175,10 @@ class FoundryRestClient:
         return os.fspath(local_path)
 
     def _download_dataset_file(self, dataset_rid, view, foundry_file_path, stream=True):
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.data_proxy}/dataproxy/datasets/"
             f"{dataset_rid}/views/{quote_plus(view)}/{quote(foundry_file_path)}",
-            headers=self._headers(),
             stream=stream,
         )
         _raise_for_status_verbose(response)
@@ -1345,12 +1305,10 @@ class FoundryRestClient:
                 >>> pd.read_csv(io.BytesIO(response.content))
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.data_proxy}/dataproxy/datasets/"
             f"{dataset_rid}/branches/{quote_plus(branch)}/csv",
-            headers=self._headers(),
-            verify=self._verify(),
             params={"includeColumnNames": True, "includeBom": True},
             stream=True,
         )
@@ -1400,11 +1358,9 @@ class FoundryRestClient:
             raise ValueError(
                 f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
             )
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.data_proxy}/dataproxy/queryWithFallbacks",
-            headers=self._headers(),
-            verify=self._verify(),
             params={"fallbackBranchIds": [branch]},
             json={"query": query},
             read_timeout=timeout,
@@ -1547,11 +1503,9 @@ class FoundryRestClient:
            }
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.multipass}/me",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1576,11 +1530,9 @@ class FoundryRestClient:
             }
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.multipass}/groups/{group_id}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1591,11 +1543,9 @@ class FoundryRestClient:
         Args:
             group_id (str): the group id to delete
         """
-        response = _request(
+        response = self._request(
             "DELETE",
             f"{self.multipass}/administration/groups/{group_id}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
 
@@ -1664,11 +1614,9 @@ class FoundryRestClient:
                 )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.multipass}/clients",
-            headers=self._headers(),
-            verify=self._verify(),
             json={
                 "allowedOrganizationRids": allowed_organization_rids,
                 "clientType": client_type,
@@ -1689,11 +1637,9 @@ class FoundryRestClient:
         Args:
             client_id (str): The unique identifier of the TPA.
         """
-        response = _request(
+        response = self._request(
             "DELETE",
             f"{self.multipass}/clients/{client_id}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
 
@@ -1763,11 +1709,9 @@ class FoundryRestClient:
                 )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
-        response = _request(
+        response = self._request(
             "PUT",
             f"{self.multipass}/clients/{client_id}",
-            headers=self._headers(),
-            verify=self._verify(),
             json={
                 "allowedOrganizationRids": allowed_organization_rids,
                 "clientType": client_type,
@@ -1811,11 +1755,9 @@ class FoundryRestClient:
             }
 
         """
-        response = _request(
+        response = self._request(
             "PUT",
             f"{self.multipass}/clients/{client_id}/rotateSecret",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1854,11 +1796,9 @@ class FoundryRestClient:
             operations = []
         if resources is None:
             resources = []
-        response = _request(
+        response = self._request(
             "PUT",
             f"{self.multipass}/client-installations/{client_id}",
-            headers=self._headers(),
-            verify=self._verify(),
             json={"operations": operations, "resources": resources},
         )
         _raise_for_status_verbose(response)
@@ -1882,11 +1822,9 @@ class FoundryRestClient:
         Returns:
             dict: the JSON API response
         """
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.jemma}/builds",
-            headers=self._headers(),
-            verify=self._verify(),
             json={
                 "jobs": [
                     {
@@ -1928,11 +1866,9 @@ class FoundryRestClient:
         Returns:
             dict: the JSON API response
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.builds2}/info/builds2/{build_rid}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1947,21 +1883,17 @@ class FoundryRestClient:
             dict: the job report response
 
         """
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.builds2}/info/jobs3/{job_rid}",
-            headers=self._headers(),
-            verify=self._verify(),
         )
         _raise_for_status_verbose(response)
         return response.json()
 
     def _execute_fsql_query(self, query: str, branch="master", timeout=600) -> dict:
-        response = _request(
+        response = self._request(
             "POST",
             f"{self.foundry_sql_server_api}/queries/execute",
-            headers=self._headers(),
-            verify=self._requests_verify_value,
             json={
                 "dialect": "SPARK",
                 "fallbackBranchIds": [branch],
@@ -1983,11 +1915,9 @@ class FoundryRestClient:
         query_id = initial_response_json["queryId"]
         response_json = initial_response_json
         while response_json["status"]["type"] == "running":
-            response = _request(
+            response = self._request(
                 "GET",
                 f"{self.foundry_sql_server_api}/queries/{query_id}/status",
-                headers=self._headers(),
-                verify=self._requests_verify_value,
                 json={},
             )
             _raise_for_status_verbose(response)
@@ -2017,7 +1947,7 @@ class FoundryRestClient:
         # 01/2022: Moving to 'requests' instead of 'urllib3', did some experiments again
         # and noticed that preloading content is significantly faster than stream=True
 
-        response = _request(
+        response = self._request(
             "GET",
             f"{self.foundry_sql_server_api}/queries/{query_id}/results",
             headers=headers,
@@ -2250,12 +2180,13 @@ def _get_oauth2_client_credentials_token(
         "Content-Type": "application/x-www-form-urlencoded",
     }
 
-    response = _request(
+    response = requests.request(
         "POST",
         f"{foundry_url}/multipass/api/oauth2/token",
         data={"grant_type": "client_credentials", "scope": scopes},
         headers=headers,
         verify=requests_verify_value,
+        timeout=DEFAULT_REQUESTS_CONNECT_TIMEOUT,
     )
     _raise_for_status_verbose(response)
     return response.json()
@@ -2281,18 +2212,6 @@ def _get_palantir_oauth_token(
     )
 
     return credentials.token
-
-
-def _request(*args, **kwargs):
-    if "read_timeout" in kwargs:
-        read_timeout = kwargs["read_timeout"]
-        del kwargs["read_timeout"]
-        return requests.request(
-            *args,
-            **kwargs,
-            timeout=(DEFAULT_REQUESTS_CONNECT_TIMEOUT, read_timeout),
-        )
-    return requests.request(*args, **kwargs, timeout=DEFAULT_REQUESTS_CONNECT_TIMEOUT)
 
 
 class FoundryDevToolsError(Exception):
