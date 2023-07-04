@@ -99,13 +99,14 @@ class CachedFoundryClient:
 
         """
         dataset_identity = self._get_dataset_identity(dataset_path_or_rid, branch)
+
+        return self._fetch_dataset(dataset_identity, branch=branch), dataset_identity
+
+    def _fetch_dataset(self, dataset_identity: dict, branch: str = "master") -> str:
         last_transaction = dataset_identity["last_transaction"]
 
         if dataset_identity in list(self.cache.keys()):
-            return (
-                self._return_local_path_of_cached_dataset(dataset_identity, branch),
-                dataset_identity,
-            )
+            return self._return_local_path_of_cached_dataset(dataset_identity, branch)
         try:
             foundry_schema = self.api.get_dataset_schema(
                 dataset_identity["dataset_rid"],
@@ -121,15 +122,9 @@ class CachedFoundryClient:
                 branch=branch,
                 return_type=SQLReturnType.SPARK,
             )
-            return (
-                self._return_local_path_of_cached_dataset(dataset_identity, branch),
-                dataset_identity,
-            )
-        return (
-            self._download_dataset_and_return_local_path(
-                dataset_identity, branch, foundry_schema
-            ),
-            dataset_identity,
+            return self._return_local_path_of_cached_dataset(dataset_identity, branch)
+        return self._download_dataset_and_return_local_path(
+            dataset_identity, branch, foundry_schema
         )
 
     def _get_dataset_identity(self, dataset_path_or_rid, branch):

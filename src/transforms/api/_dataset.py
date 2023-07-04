@@ -134,7 +134,7 @@ class Input:
             dataset_identity["dataset_path"],
             branch,
         )
-        self._cached_client.fetch_dataset(dataset_identity["dataset_rid"], branch)
+        self._cached_client._fetch_dataset(dataset_identity, branch)
         return None, dataset_identity, branch
 
     def _offline(
