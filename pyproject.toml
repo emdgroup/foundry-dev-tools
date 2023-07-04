@@ -54,7 +54,7 @@ testing = [
   "timeflake",
 ]
 transforms = ["pyspark>=3.0.0"]
-cli = ["click", "inquirer", "websockets", "rich"]
+cli = ["click", "inquirer", "websockets", "rich", "packaging"]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
