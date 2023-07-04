@@ -206,7 +206,7 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
 
 def test_get_dataset_rid(mocker, is_integration_test, client, iris_dataset):
     if not is_integration_test:
-        mock_get = mocker.patch("requests.request")
+        mock_get = mocker.patch("requests.Session.request")
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
             "rid": iris_dataset[0],
@@ -585,7 +585,7 @@ def test_raise_for_status_prints_details(mocker, capsys):
     the_response.raise_for_status.side_effect = HTTPError(
         "message", response=the_response
     )
-    mocker.patch("requests.request").return_value = the_response
+    mocker.patch("requests.Session.request").return_value = the_response
     with pytest.raises(HTTPError):
         client.get_dataset("test")
     captured = capsys.readouterr()
