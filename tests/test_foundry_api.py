@@ -37,7 +37,7 @@ def test_get_config(is_integration_test, client):
         assert client._headers()["Authorization"] is not None
     else:
         assert client._headers()["Authorization"] == "Bearer 123"
-        assert client._verify() is not None
+    assert client._requests_verify_value is not None
     assert "transforms_sql_sample_row_limit" in client._config
     assert "transforms_sql_dataset_size_threshold" in client._config
     assert "foundry_url" in client._config
@@ -108,6 +108,17 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
         _ = client.create_branch(ds["rid"], BRANCH)
     branch_returned = client.get_branch(ds["rid"], BRANCH)
     assert branch == branch_returned
+
+    assert client.get_dataset_identity(ds["rid"], BRANCH) == {
+        "dataset_path": dataset_path,
+        "dataset_rid": ds["rid"],
+        "last_transaction_rid": None,
+        "last_transaction": None,
+    }
+
+    assert client.get_dataset_last_transaction_rid(ds["rid"], BRANCH) is None
+    assert client.get_dataset_last_transaction(ds["rid"], BRANCH) is None
+
     transaction_rid = client.open_transaction(ds["rid"], "SNAPSHOT", BRANCH)
 
     with pytest.raises(DatasetHasOpenTransactionError) as exc_info:
@@ -175,6 +186,9 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
     failed_transaction = client.open_transaction(ds["rid"], "UPDATE", BRANCH)
     client.abort_transaction(ds["rid"], failed_transaction)
 
+    last_transaction_rid = client.get_dataset_last_transaction(ds["rid"], BRANCH)["rid"]
+    assert last_transaction_rid == last_good_transaction_rid
+
     last_transaction_rid = client.get_dataset_last_transaction_rid(ds["rid"], BRANCH)
     assert last_transaction_rid == last_good_transaction_rid
 
@@ -192,7 +206,7 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
 
 def test_get_dataset_rid(mocker, is_integration_test, client, iris_dataset):
     if not is_integration_test:
-        mock_get = mocker.patch("requests.request")
+        mock_get = mocker.patch("requests.Session.request")
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
             "rid": iris_dataset[0],
@@ -320,11 +334,15 @@ def test_schema_inference(client):
     client.delete_dataset(ds["rid"])
 
 
-def test_get_dataset_last_transaction_rid(client, iris_dataset):
-    transaction_rid = client.get_dataset_last_transaction_rid(
+def test_get_dataset_last_transaction(client, iris_dataset):
+    transaction_rid = client.get_dataset_last_transaction(
         iris_dataset[0], branch=iris_dataset[3]
-    )
+    )["rid"]
     assert transaction_rid == iris_dataset[2]
+    assert (
+        client.get_dataset_last_transaction_rid(iris_dataset[0], branch=iris_dataset[3])
+        == iris_dataset[2]
+    )
 
 
 def test_get_dataset_stats(mocker, is_integration_test, client, iris_dataset):
@@ -567,7 +585,7 @@ def test_raise_for_status_prints_details(mocker, capsys):
     the_response.raise_for_status.side_effect = HTTPError(
         "message", response=the_response
     )
-    mocker.patch("requests.request").return_value = the_response
+    mocker.patch("requests.Session.request").return_value = the_response
     with pytest.raises(HTTPError):
         client.get_dataset("test")
     captured = capsys.readouterr()
@@ -613,7 +631,7 @@ def test_get_folder_children(client, mocker, iris_dataset):
     # Test pagination
     import requests
 
-    spy = mocker.spy(requests, "request")
+    spy = mocker.spy(requests.Session, "request")
     children = client.get_child_objects_of_folder(
         folder_rid=INTEGRATION_TEST_COMPASS_ROOT_RID,
         page_size=1,

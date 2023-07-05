@@ -32,10 +32,25 @@ from transforms.api._transform import TransformInput, TransformOutput
 
 
 def get_dataset_identity_mock(self, dataset_path: str, branch="master"):
+    dataset_rid = dataset_path.replace("/", "") + "rid1"
+    transaction_rid = dataset_path.replace("/", "") + "rid1" + "t1"
+    stats = get_dataset_stats_mock(self, dataset_rid, branch)
     return {
         "dataset_path": dataset_path,
-        "dataset_rid": dataset_path.replace("/", "") + "rid1",
-        "last_transaction_rid": dataset_path.replace("/", "") + "rid1" + "t1",
+        "dataset_rid": dataset_rid,
+        "last_transaction_rid": transaction_rid,
+        "last_transaction": {
+            "rid": transaction_rid,
+            "transaction": {
+                "record": {},
+                "metadata": {
+                    "fileCount": stats["numFiles"],
+                    "hiddenFileCount": stats["numHiddenFiles"],
+                    "totalFileSize": stats["sizeInBytes"],
+                    "totalHiddenFileSize": stats["hiddenFilesSizeInBytes"],
+                },
+            },
+        },
     }
 
 

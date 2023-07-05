@@ -13,11 +13,13 @@ from foundry_dev_tools.foundry_api_client import (
     DatasetHasNoSchemaError,
     DatasetNotFoundError,
     FoundryRestClient,
+    SQLReturnType,
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
     infer_dataset_format_from_foundry_schema,
 )
+from foundry_dev_tools.utils.misc import is_dataset_a_view
 
 LOGGER = logging.getLogger(__name__)
 
@@ -98,25 +100,31 @@ class CachedFoundryClient:
         """
         dataset_identity = self._get_dataset_identity(dataset_path_or_rid, branch)
 
+        return self._fetch_dataset(dataset_identity, branch=branch), dataset_identity
+
+    def _fetch_dataset(self, dataset_identity: dict, branch: str = "master") -> str:
+        last_transaction = dataset_identity["last_transaction"]
+
         if dataset_identity in list(self.cache.keys()):
-            return (
-                self._return_local_path_of_cached_dataset(dataset_identity, branch),
-                dataset_identity,
-            )
+            return self._return_local_path_of_cached_dataset(dataset_identity, branch)
         try:
             foundry_schema = self.api.get_dataset_schema(
                 dataset_identity["dataset_rid"],
-                dataset_identity["last_transaction_rid"],
+                dataset_identity["last_transaction"]["rid"],
                 branch=branch,
             )
         except DatasetHasNoSchemaError:
             # Binary datasets or no schema
             foundry_schema = None
-        return (
-            self._download_dataset_and_return_local_path(
-                dataset_identity, branch, foundry_schema
-            ),
-            dataset_identity,
+        if is_dataset_a_view(last_transaction["transaction"]):
+            self.cache[dataset_identity] = self.api.query_foundry_sql(
+                f'SELECT * FROM `{dataset_identity["dataset_rid"]}`',  # noqa: S608
+                branch=branch,
+                return_type=SQLReturnType.SPARK,
+            )
+            return self._return_local_path_of_cached_dataset(dataset_identity, branch)
+        return self._download_dataset_and_return_local_path(
+            dataset_identity, branch, foundry_schema
         )
 
     def _get_dataset_identity(self, dataset_path_or_rid, branch):
@@ -166,7 +174,7 @@ class CachedFoundryClient:
                 [
                     self.cache.get_cache_dir(),
                     dataset_identity["dataset_rid"],
-                    dataset_identity["last_transaction_rid"],
+                    dataset_identity["last_transaction"]["rid"],
                 ]
             )
             + suffix

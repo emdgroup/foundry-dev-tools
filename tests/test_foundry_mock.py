@@ -115,7 +115,7 @@ def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
                 dataset_path_or_rid="ri.foundry.main.dataset.12342ede-1530-0cf3-8f56-9a4b2231404c"
             )
 
-        assert client.get_dataset_last_transaction_rid(ds["rid"]) is None
+        assert client.get_dataset_last_transaction(ds["rid"]) is None
 
         transaction_rid = client.open_transaction(ds["rid"], "SNAPSHOT", BRANCH)
         branch = client.get_branch(dataset_rid=ds["rid"], branch=BRANCH)
@@ -202,7 +202,7 @@ def test_transactions(tmp_path_factory, root_dir):  # noqa: PLR0915, TODO?
         )
         assert identity_with_transaction_rid["last_transaction_rid"] == transaction_rid
 
-        assert client.get_dataset_last_transaction_rid(ds["rid"]) == transaction_rid
+        assert client.get_dataset_last_transaction(ds["rid"])["rid"] == transaction_rid
 
         branch = client.get_branch(dataset_rid=ds["rid"], branch=BRANCH)
         assert branch["transactionRid"] == transaction_rid
