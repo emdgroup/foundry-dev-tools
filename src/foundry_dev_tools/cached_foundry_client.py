@@ -333,7 +333,7 @@ class CachedFoundryClient:
         pipelines.
 
         Args:
-            model_obj (object): Any python object than can be pickled
+            model_obj (object): Any python object that can be pickled
             dataset_path_or_rid (str): Path or Rid of the dataset in which the object should be stored.
             branch (bool): Branch of the dataset in which the object should be stored
             exists_ok (bool): By default, this method creates a new dataset.
