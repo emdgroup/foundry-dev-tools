@@ -72,7 +72,7 @@ import pickle
 
 rest_client = FoundryRestClient()
 rid = rest_client.get_dataset_rid('/path/to/playground/model1')
-model_file = rest_client.download_dataset_files(dataset_rid=rid, output_directory='/tmp/model', branch='master')[0]
+model_file = rest_client.download_dataset_files(dataset_rid=rid, output_directory='/tmp/model', view='master')[0]
 
 with open(model_file, 'rb') as file:
     print(pickle.load(file))
@@ -89,7 +89,7 @@ rid = rest_client.get_dataset_rid('/path/to/playground/model1')
 model_file_bytes = rest_client.download_dataset_file(dataset_rid=rid,
                                                      output_directory=None,
                                                      foundry_file_path='model.pickle',
-                                                     branch='master')
+                                                     view='master')
 print(pickle.loads(model_file_bytes))
 ```
 
