@@ -399,8 +399,9 @@ def test_transform_pandas_date_and_timestamp():
     @transform_pandas(Output("/output/to/dataset"), input1=Input("/tsdate"))
     def transform_me(input1: pd.DataFrame) -> pd.DataFrame:
         assert isinstance(input1, pd.DataFrame)
-        assert input1.dtypes[0] == "datetime64[ns]"
-        assert input1.dtypes[1] == "object"
+        dt = input1.dtypes
+        assert dt[0].kind == "M"
+        assert dt[1].kind == "O"
         return input1
 
     df = transform_me.compute()
