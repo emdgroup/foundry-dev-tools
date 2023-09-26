@@ -1,18 +1,15 @@
 import configparser
 import difflib
 import io
-import json
 import platform
 import sys
 from pathlib import Path
 
 import click
-import requests
 from rich import print as rprint
 from rich.markdown import Markdown
 
 from foundry_dev_tools import Configuration, FoundryRestClient
-from foundry_dev_tools.foundry_api_client import _get_auth_token
 
 
 @click.group("s3")
@@ -87,37 +84,12 @@ def s3_cli_auth():
     sys.stdout = sys.stderr
     fc = FoundryRestClient()
     sys.stdout = orig
-    fc._headers()
-    t = requests.post(
-        f"{fc._api_base}/io/s3",
-        params={
-            "Action": "AssumeRoleWithWebIdentity",
-            "WebIdentityToken": _get_auth_token(fc._config),
-        },
-    ).text
-
+    creds = fc.get_s3_credentials()
     print(
-        json.dumps(
-            {
-                "Version": 1,
-                "AccessKeyId": t[
-                    t.find("<AccessKeyId>")
-                    + len("<AccessKeyId>") : t.rfind("</AccessKeyId>")
-                ],
-                "SecretAccessKey": t[
-                    t.find("<SecretAccessKey>")
-                    + len("<SecretAccessKey>") : t.rfind("</SecretAccessKey>")
-                ],
-                "SessionToken": t[
-                    t.find("<SessionToken>")
-                    + len("<SessionToken>") : t.rfind("</SessionToken>")
-                ],
-                "Expiration": t[
-                    t.find("<Expiration>")
-                    + len("<Expiration>") : t.rfind("</Expiration>")
-                ],
-            }
-        )
+        "{"
+        f'"Version": 1,"AccessKeyId":"{creds["access_key"]}","SecretAccessKey":"{creds["secret_key"]}"'
+        f',"SessionToken":"{creds["token"]}","Expiration":"{creds["expiry_time"]}"'
+        "}"
     )
 
 

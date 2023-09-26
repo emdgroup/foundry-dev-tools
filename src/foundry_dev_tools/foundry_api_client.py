@@ -20,6 +20,7 @@ import time
 import warnings
 from contextlib import contextmanager
 from enum import Enum, EnumMeta
+from functools import cached_property
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
@@ -146,6 +147,9 @@ class FoundryRestClient:
         self._requests_verify_value = _determine_requests_verify_value(self._config)
         self._requests_session = requests.Session()
         self._requests_session.verify = self._requests_verify_value
+        self._aiosession = None
+        self._boto3_session = None
+        self._s3_url = self._api_base + "/io/s3/"
 
     def _headers(self):
         return {
@@ -2004,6 +2008,75 @@ class FoundryRestClient:
 
             return arrow_stream_to_spark_dataframe(arrow_stream_reader)
         return arrow_stream_reader.read_all()
+
+    def get_s3_credentials(self) -> dict:
+        """Returns s3 credentials for foundry."""
+        t = self._requests_session.post(
+            self._s3_url,
+            params={
+                "Action": "AssumeRoleWithWebIdentity",
+                "WebIdentityToken": _get_auth_token(self._config),
+            },
+        ).text
+        return {
+            "access_key": t[
+                t.find("<AccessKeyId>")
+                + len("<AccessKeyId>") : t.rfind("</AccessKeyId>")
+            ],
+            "secret_key": t[
+                t.find("<SecretAccessKey>")
+                + len("<SecretAccessKey>") : t.rfind("</SecretAccessKey>")
+            ],
+            "token": t[
+                t.find("<SessionToken>")
+                + len("<SessionToken>") : t.rfind("</SessionToken>")
+            ],
+            "expiry_time": t[
+                t.find("<Expiration>") + len("<Expiration>") : t.rfind("</Expiration>")
+            ],
+        }
+
+    def get_s3_storage_options(self) -> dict:
+        return {
+            "session": self.get_aiobotocore_session(),
+            "endpoint_url": self._s3_url,
+        }
+
+    def get_boto3_session(self):
+        if self._boto3_session is None:
+            import boto3
+            import botocore.session
+
+            from foundry_dev_tools.utils.s3 import CustomFoundryCredentialProvider
+
+            session = botocore.session.Session()
+            cred_provider = session.get_component("credential_provider")
+            cred_provider.insert_before(
+                "env", CustomFoundryCredentialProvider(self, session)
+            )
+            self._boto3_session = boto3.Session(botocore_session=session)
+        return self._boto3_session
+
+    def get_aiobotocore_session(self):
+        if self._aiosession is None:
+            import aiobotocore.session
+
+            from foundry_dev_tools.utils.async_s3 import (
+                CustomAsyncFoundryCredentialProvider,
+            )
+
+            session = aiobotocore.session.AioSession()
+            cred_provider = session.get_component("credential_provider")
+            cred_provider.insert_before(
+                "env", CustomAsyncFoundryCredentialProvider(self, session)
+            )
+            self._aiosession = session
+        return self._aiosession
+
+    def get_s3_client(self):
+        return self.get_boto3_session().client(
+            "s3", endpoint_url=self._config["foundry_url"] + self._s3_url
+        )
 
 
 def _transform_bad_request_response_to_exception(response):
