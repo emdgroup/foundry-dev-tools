@@ -1,7 +1,10 @@
 import configparser
+import datetime
 import difflib
 import io
+import os
 import platform
+import shutil
 import sys
 from pathlib import Path
 
@@ -54,9 +57,6 @@ def s3_cli_init():
     cp.write(buf)
     buf.seek(0)
     new_config = buf.read()
-    with aws_config_file.open("w+") as aws_config_fd:
-        aws_config_fd.write(new_config)
-
     diff = "\n".join(
         difflib.unified_diff(
             previous_config.splitlines(),
@@ -73,6 +73,21 @@ def s3_cli_init():
 {diff}```"""
             )
         )
+        if previous_config:
+            backup_path = aws_config_file.with_name(
+                "config.bak." + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            )
+
+            shutil.copy(
+                aws_config_file,
+                backup_path,
+            )
+            rprint(
+                f"Created backup of previous config -> {os.fspath(backup_path.absolute())}"
+            )
+
+    with aws_config_file.open("w+") as aws_config_fd:
+        aws_config_fd.write(new_config)
 
 
 @click.command("auth")
