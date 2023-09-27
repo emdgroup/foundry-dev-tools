@@ -2078,6 +2078,11 @@ class FoundryRestClient:
             "s3", endpoint_url=self._config["foundry_url"] + self._s3_url
         )
 
+    def get_s3_resource(self):
+        return self.get_boto3_session().resource(
+            "s3", endpoint_url=self._config["foundry_url"] + self._s3_url
+        )
+
 
 def _transform_bad_request_response_to_exception(response):
     if (
