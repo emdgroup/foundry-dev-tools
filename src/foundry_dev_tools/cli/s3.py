@@ -98,8 +98,8 @@ def s3_cli_auth():
     orig = sys.stdout
     sys.stdout = sys.stderr
     fc = FoundryRestClient()
-    sys.stdout = orig
     creds = fc.get_s3_credentials()
+    sys.stdout = orig
     print(
         "{"
         f'"Version": 1,"AccessKeyId":"{creds["access_key"]}","SecretAccessKey":"{creds["secret_key"]}"'
