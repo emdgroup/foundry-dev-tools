@@ -1,5 +1,6 @@
 """Module contains the fsspec implementation for Palantir Foundry."""
 import sys
+import warnings
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -43,6 +44,12 @@ class FoundryFileSystem(AbstractFileSystem):
         skip_instance_cache: bool = False,
         **kwargs,
     ):
+        warnings.warn(
+            "FoundryFilesystem/fsspec_impl is deprecated.\n"
+            "The new s3 compatible foundry API should be a drop in replacement\n"
+            "For more information see: https://emdgroup.github.io/foundry-dev-tools/s3.html",
+            DeprecationWarning,
+        )
         super().__init__(skip_instance_cache=skip_instance_cache, **kwargs)
         self.token = token
         self.dataset_identity = self.api.get_dataset_identity(
@@ -344,7 +351,7 @@ class FoundryDeleteInNotSupportedTransactionError(FoundryFileSystemError):
     def __init__(self, path: str):
         super().__init__(
             f"You are trying to delete the file(s) {path} while an UPDATE/SNAPSHOT transaction is open. "
-            f"Deleting this file(s) is not supported since it was committed in a previous transaction."
+            "Deleting this file(s) is not supported since it was committed in a previous transaction."
         )
         self.path = path
 

@@ -281,8 +281,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"branchesUnrestricted2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branchesUnrestricted2/{quote_plus(branch)}",
             json={"parentBranchId": parent_branch, "parentRef": parent_branch_id},
         )
         if (
@@ -319,8 +318,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"branchesUpdate2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branchesUpdate2/{quote_plus(branch)}",
             data=f'"{parent_branch}"',
         )
         _raise_for_status_verbose(response)
@@ -343,8 +341,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"branches2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branches2/{quote_plus(branch)}",
         )
         if response.status_code == requests.codes.no_content and not response.text:
             raise BranchNotFoundError(dataset_rid, branch, response=None)
@@ -375,7 +372,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/" f"transactions",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions",
             json={"branchId": f"{branch}", "record": {}},
         )
         if (
@@ -406,8 +403,7 @@ class FoundryRestClient:
         if mode in ("UPDATE", "SNAPSHOT", "DELETE"):
             response_update = self._request(
                 "POST",
-                f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-                f"transactions/{transaction_id}",
+                f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}",
                 data=f'"{mode}"',
             )
             _raise_for_status_verbose(response_update)
@@ -440,8 +436,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/files/remove",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/files/remove",
             params={"logicalPath": logical_path, "recursive": recursive},
         )
         _raise_for_status_verbose(response)
@@ -462,8 +457,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/files/addToDeleteTransaction",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/files/addToDeleteTransaction",
             json={"logicalPaths": logical_paths},
         )
         _raise_for_status_verbose(response)
@@ -480,8 +474,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/commit",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/commit",
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
@@ -503,8 +496,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/abortWithMetadata",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/abortWithMetadata",
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
@@ -541,8 +533,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.catalog}/catalog/datasets/"
-            f"{dataset_rid}/reverse-transactions2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/reverse-transactions2/{quote_plus(branch)}",
             params={
                 "pageSize": last,
                 "includeOpenExclusiveTransaction": include_open_exclusive_transaction,
@@ -621,8 +612,7 @@ class FoundryRestClient:
         with open(path_or_buf, "rb") as file:
             response = self._request(
                 "POST",
-                f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/"
-                f"transactions/{transaction_rid}/putFile",
+                f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/transactions/{transaction_rid}/putFile",
                 params={"logicalPath": path_in_foundry_dataset},
                 data=file,
                 headers={
@@ -877,8 +867,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.metadata}/schemas/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}",
+            f"{self.metadata}/schemas/datasets/{dataset_rid}/branches/{quote_plus(branch)}",
             params={"endTransactionRid": transaction_rid},
         )
         if response.status_code == requests.codes.forbidden:
@@ -917,8 +906,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.metadata}/schemas/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}",
+            f"{self.metadata}/schemas/datasets/{dataset_rid}/branches/{quote_plus(branch)}",
             params={"endTransactionRid": transaction_rid},
             json=schema,
         )
@@ -942,8 +930,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.schema_inference}/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}/schema",
+            f"{self.schema_inference}/datasets/{dataset_rid}/branches/{quote_plus(branch)}/schema",
             json={},
         )
         _raise_for_status_verbose(response)
@@ -952,14 +939,14 @@ class FoundryRestClient:
             return parsed_response["data"]["foundrySchema"]
         if parsed_response["status"] == "WARN":
             warnings.warn(
-                f"Foundry Schema inference completed with status "
+                "Foundry Schema inference completed with status "
                 f"'{parsed_response['status']}' "
                 f"and message '{parsed_response['message']}'.",
                 UserWarning,
             )
             return parsed_response["data"]["foundrySchema"]
         raise ValueError(
-            f"Foundry Schema inference failed with status "
+            "Foundry Schema inference failed with status "
             f"'{parsed_response['status']}' "
             f"and message '{parsed_response['message']}'."
         )
@@ -1038,8 +1025,7 @@ class FoundryRestClient:
         def _inner_get(next_page_token=None):
             response = self._request(
                 "GET",
-                f"{self.catalog}/catalog/datasets/"
-                f"{dataset_rid}/views2/{quote_plus(view)}/files",
+                f"{self.catalog}/catalog/datasets/{dataset_rid}/views2/{quote_plus(view)}/files",
                 params={
                     "pageSize": 10000000,
                     "includeOpenExclusiveTransaction": include_open_exclusive_transaction,
@@ -1077,9 +1063,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.catalog}/catalog/datasets/"
-            f"{dataset_rid}/views/{quote_plus(view)}"
-            f"/stats",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/views/{quote_plus(view)}/stats",
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1182,8 +1166,7 @@ class FoundryRestClient:
     def _download_dataset_file(self, dataset_rid, view, foundry_file_path, stream=True):
         response = self._request(
             "GET",
-            f"{self.data_proxy}/dataproxy/datasets/"
-            f"{dataset_rid}/views/{quote_plus(view)}/{quote(foundry_file_path)}",
+            f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/views/{quote_plus(view)}/{quote(foundry_file_path)}",
             stream=stream,
         )
         _raise_for_status_verbose(response)
@@ -1312,8 +1295,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.data_proxy}/dataproxy/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}/csv",
+            f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/branches/{quote_plus(branch)}/csv",
             params={"includeColumnNames": True, "includeBom": True},
             stream=True,
         )
@@ -1619,8 +1601,7 @@ class FoundryRestClient:
                 "CLIENT_CREDENTIALS",
             ]:
                 raise AssertionError(
-                    f"grant ({grant}) needs to be one of "
-                    "AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
+                    f"grant ({grant}) needs to be one of AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
                 )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
@@ -1714,8 +1695,7 @@ class FoundryRestClient:
                 "CLIENT_CREDENTIALS",
             ]:
                 raise AssertionError(
-                    f"grant ({grant}) needs to be one of "
-                    "AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
+                    f"grant ({grant}) needs to be one of AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
                 )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
@@ -2060,7 +2040,7 @@ class FoundryRestClient:
 
         """
         return {
-            "session": self.get_aiobotocore_session(),
+            "session": self._get_aiobotocore_session(),
             "endpoint_url": self._s3_url,
         }
 
@@ -2075,7 +2055,7 @@ class FoundryRestClient:
             "region": "foundry",
         }
 
-    def get_boto3_session(self):
+    def _get_boto3_session(self):
         """Returns the boto3 session with foundry s3 credentials applied.
 
         See :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_credentials`.
@@ -2095,7 +2075,7 @@ class FoundryRestClient:
             self._boto3_session = boto3.Session(botocore_session=session)
         return self._boto3_session
 
-    def get_aiobotocore_session(self):
+    def _get_aiobotocore_session(self):
         """Returns an aiobotocore session with foundry s3 credentials applied.
 
         See :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_credentials`.
@@ -2127,11 +2107,11 @@ class FoundryRestClient:
             >>> s3_client = fc.get_s3_client()
             >>> s3_client
         """
-        return self.get_boto3_session().client("s3", endpoint_url=self._s3_url)
+        return self._get_boto3_session().client("s3", endpoint_url=self._s3_url)
 
     def get_s3_resource(self):
         """Returns boto3 s3 resource with credentials applied and ednpoint url set."""
-        return self.get_boto3_session().resource("s3", endpoint_url=self._s3_url)
+        return self._get_boto3_session().resource("s3", endpoint_url=self._s3_url)
 
 
 def _transform_bad_request_response_to_exception(response):
@@ -2509,9 +2489,9 @@ class FolderNotFoundError(FoundryAPIError):
         """
         super().__init__(
             f"Compass folder {folder_rid} not found; "
-            f"If you are sure your folder_rid is correct, "
-            f"and you have access, check if your jwt token "
-            f"is still valid!\n" + (response.text if response is not None else "")
+            "If you are sure your folder_rid is correct, "
+            "and you have access, check if your jwt token "
+            "is still valid!\n" + (response.text if response is not None else "")
         )
         self.folder_rid = folder_rid
         self.response = response
@@ -2603,7 +2583,7 @@ class FoundrySqlQueryClientTimedOutError(FoundryAPIError):
         Args:
              timeout (int): value of the reached timeout
         """
-        super().__init__(f"The client timeout value of {timeout} has " f"been reached")
+        super().__init__(f"The client timeout value of {timeout} has been reached")
         self.timeout = timeout
 
 
@@ -2612,8 +2592,5 @@ class FoundrySqlSerializationFormatNotImplementedError(FoundryAPIError):
 
     def __init__(self):
         super().__init__(
-            "Serialization formats "
-            "other than arrow ipc "
-            "not implemented in "
-            "Foundry DevTools."
+            "Serialization formats other than arrow ipc not implemented in Foundry DevTools."
         )
