@@ -198,7 +198,7 @@ def _config_section() -> Tree:
     config_node = Tree("Configuration")
     config_table = Table("Config Name", "Value")
 
-    cnf, cnf_path, project_cnf_path = initial_config(Path("."))
+    cnf, cnf_path, project_cnf_path = initial_config(Path())
     for config_item, value in cnf.items():
         if config_item in ("jwt", "foundry_url", "client_id", "client_secret"):
             config_table.add_row(

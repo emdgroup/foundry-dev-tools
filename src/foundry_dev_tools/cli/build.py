@@ -205,7 +205,7 @@ def get_transform_files(git_dir: Path) -> List[str]:
 
 
 def _find_rid(all_jobs: dict, name: str) -> str:
-    return [job["rid"] for job in all_jobs if job["name"] == name][0]
+    return next(job["rid"] for job in all_jobs if job["name"] == name)
 
 
 def _get_logs(all_job_logs: dict, rid: str) -> "list[str] | None":

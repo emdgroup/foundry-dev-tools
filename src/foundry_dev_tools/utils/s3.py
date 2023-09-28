@@ -1,3 +1,4 @@
+"""Custom foundry boto3 credential provider used by the FoundryRestClient."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

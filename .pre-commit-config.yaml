@@ -6,12 +6,12 @@ repos:
     args: ['--fix=lf']  # replace 'auto' with 'lf' to enforce Linux/Mac line endings or 'crlf' for Windows
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
-  rev: 'v0.0.276'
+  rev: 'v0.0.290'
   hooks:
     - id: ruff
       args: ["--fix","--exit-non-zero-on-fix","--show-fixes"]
 - repo: https://github.com/psf/black
-  rev: 23.3.0
+  rev: 23.9.1
   hooks:
     - id: black
       # max support version of foundry-dev-tools

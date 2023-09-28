@@ -1,3 +1,8 @@
+"""Async custom foundry credential provider for aiobotocore.
+
+Basically the same as :py:mod:`foundry_dev_tools.utils.s3`, except that it's async
+this was needed for S3Fs to work, which is used by pandas.
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

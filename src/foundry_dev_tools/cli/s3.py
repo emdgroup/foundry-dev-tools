@@ -1,3 +1,4 @@
+"""Provides authentication for the aws cli to the foundry s3 compatible API."""
 import configparser
 import datetime
 import difflib
@@ -23,7 +24,10 @@ def s3_cli():
 
 @click.command("init")
 def s3_cli_init():
-    """Create a aws profile in the aws config, which uses foundry devtools for authentication."""
+    """Create a aws profile in the aws config, which uses foundry devtools for authentication.
+
+    Can be later used via `aws s3 --profile foundry ls s3://....`.
+    """
     aws_config_file = Path("~/.aws/config").expanduser()
     cp = configparser.ConfigParser()
     if not aws_config_file.exists():
@@ -34,7 +38,8 @@ def s3_cli_init():
         cp.read_string(previous_config)
         if "profile foundry" in cp.sections():
             if not click.confirm(
-                "This will remove your current aws profile called 'foundry' and replace it with our credential helper.\n"
+                "This will remove your current aws profile "
+                "called 'foundry' and replace it with our credential helper.\n"
                 "Do you want to continue?"
             ):
                 sys.exit(1)

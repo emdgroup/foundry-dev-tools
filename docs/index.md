@@ -13,6 +13,7 @@ Overview <self>
 Installation <installation>
 Usage and Examples <usage_and_examples>
 CLI <cli>
+s3
 Development <develop>
 Architecture <architecture>
 License <license>
