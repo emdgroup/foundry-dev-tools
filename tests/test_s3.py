@@ -50,18 +50,18 @@ def test_s3_credentials_provider(mocker: MockerFixture):
     )
     fc = FoundryRestClient()
     with freeze_time("0s"):
-        assert fc.get_boto3_session().get_credentials().access_key == "key1"
+        assert fc._get_boto3_session().get_credentials().access_key == "key1"
     with freeze_time("1s"):
-        assert fc.get_boto3_session().get_credentials().access_key == "key1"
+        assert fc._get_boto3_session().get_credentials().access_key == "key1"
     # botocore checks with >= we need to be a bit above the expiry time
     with freeze_time("2.1s"):
-        assert fc.get_boto3_session().get_credentials().access_key == "key2"
+        assert fc._get_boto3_session().get_credentials().access_key == "key2"
     with freeze_time("3s"):
-        assert fc.get_boto3_session().get_credentials().access_key == "key2"
+        assert fc._get_boto3_session().get_credentials().access_key == "key2"
     with freeze_time("4.1s"):
-        assert fc.get_boto3_session().get_credentials().access_key == "key3"
+        assert fc._get_boto3_session().get_credentials().access_key == "key3"
     with freeze_time("5s"):
-        assert fc.get_boto3_session().get_credentials().access_key == "key3"
+        assert fc._get_boto3_session().get_credentials().access_key == "key3"
 
 
 async def test_async_s3_credentials_provider(mocker: MockerFixture):
@@ -73,37 +73,37 @@ async def test_async_s3_credentials_provider(mocker: MockerFixture):
     with freeze_time("0s"):
         assert (
             await (
-                await fc.get_aiobotocore_session().get_credentials()
+                await fc._get_aiobotocore_session().get_credentials()
             ).get_frozen_credentials()
         ).access_key == "key1"
     with freeze_time("1s"):
         assert (
             await (
-                await fc.get_aiobotocore_session().get_credentials()
+                await fc._get_aiobotocore_session().get_credentials()
             ).get_frozen_credentials()
         ).access_key == "key1"
     # botocore checks with >= we need to be a bit above the expiry time
     with freeze_time("2.1s"):
         assert (
             await (
-                await fc.get_aiobotocore_session().get_credentials()
+                await fc._get_aiobotocore_session().get_credentials()
             ).get_frozen_credentials()
         ).access_key == "key2"
     with freeze_time("3s"):
         assert (
             await (
-                await fc.get_aiobotocore_session().get_credentials()
+                await fc._get_aiobotocore_session().get_credentials()
             ).get_frozen_credentials()
         ).access_key == "key2"
     with freeze_time("4.1s"):
         assert (
             await (
-                await fc.get_aiobotocore_session().get_credentials()
+                await fc._get_aiobotocore_session().get_credentials()
             ).get_frozen_credentials()
         ).access_key == "key3"
     with freeze_time("5s"):
         assert (
             await (
-                await fc.get_aiobotocore_session().get_credentials()
+                await fc._get_aiobotocore_session().get_credentials()
             ).get_frozen_credentials()
         ).access_key == "key3"
