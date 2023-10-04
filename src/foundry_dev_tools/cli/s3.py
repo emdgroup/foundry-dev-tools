@@ -45,9 +45,9 @@ def s3_cli_init():
                 sys.exit(1)
             cp.remove_section("profile foundry")
     credential_process = (
-        'cmd /C "fdt s3 auth 2>CON"'
+        f'cmd /C "{sys.executable} -m foundry_dev_tools.cli.main s3 auth 2>CON"'
         if platform.system() == "Windows"
-        else "sh -c 'fdt s3 auth 2>/dev/tty'"
+        else f"sh -c '{sys.executable} -m foundry_dev_tools.cli.main s3 auth 2>/dev/tty'"
     )
     cp.read_dict(
         {
