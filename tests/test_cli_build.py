@@ -354,9 +354,10 @@ def test_build(a, b, c, d, e, f, g, caplog):
         )
         if result.stderr_bytes:
             print(result.stderr, file=sys.stderr)
-        assert result.stdout_bytes
-        output = result.stdout
-        print(output)
+        output_bytes = result.stdout_bytes
+        assert output_bytes
+        print(output_bytes)
+        output = output_bytes.decode()
         output = output.replace(os.linesep, "")
         logs_wo_line = "".join(CHECK_LOGS)
         assert output.startswith(logs_wo_line)
@@ -405,7 +406,7 @@ def test_get_transform_files(tmpdir: "py.path.LocalPath"):
         )
 
         subprocess.check_call(["git", "init"], env=GIT_ENV)
-        t = Path("transform-python/examples")
+        t = Path("transforms-python", "examples")
         t.mkdir(parents=True)
         tfiles = []
         for decorator in TRANSFORM_DECORATORS:
@@ -414,7 +415,7 @@ def test_get_transform_files(tmpdir: "py.path.LocalPath"):
                 tfile.write(
                     f"from transforms.api import {decorator},Output\n\n@transform_df()\ndef test_transform():\n    pass"
                 )
-            tfiles.append(os.fspath(transform_file))
+            tfiles.append(transform_file.as_posix())  # git returns with forward slash
         subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
         subprocess.check_call(["git", "commit", "-m", "transform commit"], env=GIT_ENV)
 
