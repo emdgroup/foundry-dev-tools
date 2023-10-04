@@ -1998,8 +1998,8 @@ class FoundryRestClient:
     def get_s3_credentials(self, expiration_duration: int = 3600) -> dict:
         """Returns s3 credentials for foundry.
 
-        Credentials for the s3 compatible dataset API:
-        https://www.palantir.com/docs/foundry/data-integration/foundry-s3-api/
+        Credentials for the S3-compatible API for Foundry datasets:
+        https://www.palantir.com/docs/foundry/data-integration/foundry-s3-api/index.html
 
         Recommended to use the client/resource methods directly, they also set the required endpoint_url:
         :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_client`
@@ -2025,8 +2025,8 @@ class FoundryRestClient:
 
         Example:
             >>> fc = FoundryRestClient()
-            >>> storage_options=fc.get_s3_storage_options()
-            >>> df = pd.read_parquet("s3://ri.foundry.main.dataset.<uuid>/spark",storage_options=storage_options)
+            >>> storage_options = fc.get_s3fs_storage_options()
+            >>> df = pd.read_parquet("s3://ri.foundry.main.dataset.<uuid>/spark", storage_options=storage_options)
         """
         return {
             "session": self._get_aiobotocore_session(),
@@ -2082,15 +2082,16 @@ class FoundryRestClient:
         Example:
             >>> from foundry_dev_tools import FoundryRestClient
             >>> fc = FoundryRestClient()
-            >>> s3_client = fc.get_s3_client()
+            >>> s3_client = fc.get_boto3_s3_client()
             >>> s3_client
         Args:
             **kwargs: gets passed to :py:meth:`boto3.session.Session.client`, `endpoint_url` will be overwritten
         """
+        kwargs["endpoint_url"] = self._s3_url
         return self._get_boto3_session().client("s3", **kwargs)
 
     def get_boto3_s3_resource(self, **kwargs):
-        """Returns boto3 s3 resource with credentials applied and ednpoint url set.
+        """Returns boto3 s3 resource with credentials applied and endpoint url set.
 
         Args:
             **kwargs: gets passed to :py:meth:`boto3.session.Session.resource`, `endpoint_url` will be overwritten
