@@ -5,6 +5,8 @@ dropped into any python installation with minimal dependency to 'requests'
 Optional dependencies for the SQL functionality to work are pandas and pyarrow.
 
 """
+from __future__ import annotations
+
 import base64
 import builtins
 import functools
@@ -23,7 +25,7 @@ from enum import Enum, EnumMeta
 from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, AnyStr, List
+from typing import IO, TYPE_CHECKING, AnyStr
 from urllib.parse import quote, quote_plus
 
 import palantir_oauth_client
@@ -111,7 +113,7 @@ class SQLReturnType(str, Enum, metaclass=EnumContainsMeta):
 class FoundryRestClient:
     """Zero dependency python client for Foundry's REST APIs."""
 
-    def __init__(self, config: "dict | None" = None):
+    def __init__(self, config: dict | None = None):
         """Create an instance of FoundryRestClient.
 
         Args:
@@ -146,6 +148,9 @@ class FoundryRestClient:
         self._requests_verify_value = _determine_requests_verify_value(self._config)
         self._requests_session = requests.Session()
         self._requests_session.verify = self._requests_verify_value
+        self._aiosession = None
+        self._boto3_session = None
+        self._s3_url = self._api_base + "/io/s3"
 
     def _headers(self):
         return {
@@ -153,7 +158,7 @@ class FoundryRestClient:
             "Authorization": f"Bearer {_get_auth_token(self._config)}",
         }
 
-    def _request(self, *args, read_timeout: "int|None" = None, **kwargs):
+    def _request(self, *args, read_timeout: int | None = None, **kwargs):
         kwargs.setdefault("headers", self._headers())
         kwargs["timeout"] = (
             (DEFAULT_REQUESTS_CONNECT_TIMEOUT, read_timeout)
@@ -256,8 +261,8 @@ class FoundryRestClient:
         self,
         dataset_rid: str,
         branch: str,
-        parent_branch: "str | None" = None,
-        parent_branch_id: "str | None" = None,
+        parent_branch: str | None = None,
+        parent_branch_id: str | None = None,
     ) -> dict:
         """Creates a new branch in a dataset.
 
@@ -276,8 +281,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"branchesUnrestricted2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branchesUnrestricted2/{quote_plus(branch)}",
             json={"parentBranchId": parent_branch, "parentRef": parent_branch_id},
         )
         if (
@@ -289,7 +293,7 @@ class FoundryRestClient:
         return response.json()
 
     def update_branch(
-        self, dataset_rid: str, branch: str, parent_branch: "str | None" = None
+        self, dataset_rid: str, branch: str, parent_branch: str | None = None
     ) -> dict:
         """Updates the latest transaction of branch 'branch' to the latest transaction of branch 'parent_branch'.
 
@@ -314,8 +318,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"branchesUpdate2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branchesUpdate2/{quote_plus(branch)}",
             data=f'"{parent_branch}"',
         )
         _raise_for_status_verbose(response)
@@ -338,8 +341,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"branches2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branches2/{quote_plus(branch)}",
         )
         if response.status_code == requests.codes.no_content and not response.text:
             raise BranchNotFoundError(dataset_rid, branch, response=None)
@@ -370,7 +372,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/" f"transactions",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions",
             json={"branchId": f"{branch}", "record": {}},
         )
         if (
@@ -401,8 +403,7 @@ class FoundryRestClient:
         if mode in ("UPDATE", "SNAPSHOT", "DELETE"):
             response_update = self._request(
                 "POST",
-                f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-                f"transactions/{transaction_id}",
+                f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}",
                 data=f'"{mode}"',
             )
             _raise_for_status_verbose(response_update)
@@ -435,14 +436,13 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/files/remove",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/files/remove",
             params={"logicalPath": logical_path, "recursive": recursive},
         )
         _raise_for_status_verbose(response)
 
     def add_files_to_delete_transaction(
-        self, dataset_rid: str, transaction_id: str, logical_paths: "list[str]"
+        self, dataset_rid: str, transaction_id: str, logical_paths: list[str]
     ):
         """Adds files in an open DELETE transaction.
 
@@ -457,8 +457,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/files/addToDeleteTransaction",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/files/addToDeleteTransaction",
             json={"logicalPaths": logical_paths},
         )
         _raise_for_status_verbose(response)
@@ -475,8 +474,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/commit",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/commit",
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
@@ -498,8 +496,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.catalog}/catalog/datasets/{dataset_rid}/"
-            f"transactions/{transaction_id}/abortWithMetadata",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/transactions/{transaction_id}/abortWithMetadata",
             json={"record": {}},
         )
         _raise_for_status_verbose(response)
@@ -536,8 +533,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.catalog}/catalog/datasets/"
-            f"{dataset_rid}/reverse-transactions2/{quote_plus(branch)}",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/reverse-transactions2/{quote_plus(branch)}",
             params={
                 "pageSize": last,
                 "includeOpenExclusiveTransaction": include_open_exclusive_transaction,
@@ -553,7 +549,7 @@ class FoundryRestClient:
 
     def get_dataset_last_transaction(
         self, dataset_rid: str, branch: str = "master"
-    ) -> "dict | None":
+    ) -> dict | None:
         """Returns the last transaction of a dataset / branch combination.
 
         Args:
@@ -572,7 +568,7 @@ class FoundryRestClient:
 
     def get_dataset_last_transaction_rid(
         self, dataset_rid: str, branch: str = "master"
-    ) -> "str | None":
+    ) -> str | None:
         """Returns the last transaction rid of a dataset / branch combination.
 
         Args:
@@ -593,7 +589,7 @@ class FoundryRestClient:
         self,
         dataset_rid: str,
         transaction_rid: str,
-        path_or_buf: "str | Path | IO[AnyStr]",
+        path_or_buf: str | Path | IO[AnyStr],
         path_in_foundry_dataset: str,
     ):
         """Uploads a file like object to a path in a foundry dataset.
@@ -613,11 +609,10 @@ class FoundryRestClient:
             if hasattr(f, "read")
             else original_open(f, *args, **kwargs)
         )
-        with open(path_or_buf, "rb") as file:  # noqa: PTH123
+        with open(path_or_buf, "rb") as file:
             response = self._request(
                 "POST",
-                f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/"
-                f"transactions/{transaction_rid}/putFile",
+                f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/transactions/{transaction_rid}/putFile",
                 params={"logicalPath": path_in_foundry_dataset},
                 data=file,
                 headers={
@@ -641,7 +636,7 @@ class FoundryRestClient:
         dataset_rid: str,
         transaction_rid: str,
         path_file_dict: dict,
-        parallel_processes: "int | None" = None,
+        parallel_processes: int | None = None,
     ):
         """Uploads multiple local files to a foundry dataset.
 
@@ -720,8 +715,8 @@ class FoundryRestClient:
         return as_json
 
     def get_child_objects_of_folder(
-        self, folder_rid: str, page_size: "int | None" = None
-    ) -> "Iterator[dict]":
+        self, folder_rid: str, page_size: int | None = None
+    ) -> Iterator[dict]:
         """Returns the child objects of a compass folder.
 
         Args:
@@ -872,8 +867,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.metadata}/schemas/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}",
+            f"{self.metadata}/schemas/datasets/{dataset_rid}/branches/{quote_plus(branch)}",
             params={"endTransactionRid": transaction_rid},
         )
         if response.status_code == requests.codes.forbidden:
@@ -912,8 +906,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.metadata}/schemas/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}",
+            f"{self.metadata}/schemas/datasets/{dataset_rid}/branches/{quote_plus(branch)}",
             params={"endTransactionRid": transaction_rid},
             json=schema,
         )
@@ -937,8 +930,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "POST",
-            f"{self.schema_inference}/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}/schema",
+            f"{self.schema_inference}/datasets/{dataset_rid}/branches/{quote_plus(branch)}/schema",
             json={},
         )
         _raise_for_status_verbose(response)
@@ -947,14 +939,14 @@ class FoundryRestClient:
             return parsed_response["data"]["foundrySchema"]
         if parsed_response["status"] == "WARN":
             warnings.warn(
-                f"Foundry Schema inference completed with status "
+                "Foundry Schema inference completed with status "
                 f"'{parsed_response['status']}' "
                 f"and message '{parsed_response['message']}'.",
                 UserWarning,
             )
             return parsed_response["data"]["foundrySchema"]
         raise ValueError(
-            f"Foundry Schema inference failed with status "
+            "Foundry Schema inference failed with status "
             f"'{parsed_response['status']}' "
             f"and message '{parsed_response['message']}'."
         )
@@ -1002,7 +994,7 @@ class FoundryRestClient:
         dataset_rid: str,
         exclude_hidden_files: bool = True,
         view: str = "master",
-        logical_path: "str | None" = None,
+        logical_path: str | None = None,
         detail: bool = False,
         *,
         include_open_exclusive_transaction: bool = False,
@@ -1033,8 +1025,7 @@ class FoundryRestClient:
         def _inner_get(next_page_token=None):
             response = self._request(
                 "GET",
-                f"{self.catalog}/catalog/datasets/"
-                f"{dataset_rid}/views2/{quote_plus(view)}/files",
+                f"{self.catalog}/catalog/datasets/{dataset_rid}/views2/{quote_plus(view)}/files",
                 params={
                     "pageSize": 10000000,
                     "includeOpenExclusiveTransaction": include_open_exclusive_transaction,
@@ -1072,9 +1063,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.catalog}/catalog/datasets/"
-            f"{dataset_rid}/views/{quote_plus(view)}"
-            f"/stats",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/views/{quote_plus(view)}/stats",
         )
         _raise_for_status_verbose(response)
         return response.json()
@@ -1127,10 +1116,10 @@ class FoundryRestClient:
     def download_dataset_file(
         self,
         dataset_rid: str,
-        output_directory: "str | None",
+        output_directory: str | None,
         foundry_file_path: str,
         view: str = "master",
-    ) -> "str | bytes":
+    ) -> str | bytes:
         """Downloads a single foundry dataset file into a directory.
 
         Creates sub folder if necessary.
@@ -1177,8 +1166,7 @@ class FoundryRestClient:
     def _download_dataset_file(self, dataset_rid, view, foundry_file_path, stream=True):
         response = self._request(
             "GET",
-            f"{self.data_proxy}/dataproxy/datasets/"
-            f"{dataset_rid}/views/{quote_plus(view)}/{quote(foundry_file_path)}",
+            f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/views/{quote_plus(view)}/{quote(foundry_file_path)}",
             stream=stream,
         )
         _raise_for_status_verbose(response)
@@ -1188,10 +1176,10 @@ class FoundryRestClient:
         self,
         dataset_rid: str,
         output_directory: str,
-        files: "list | None" = None,
+        files: list | None = None,
         view: str = "master",
-        parallel_processes: "int | None" = None,
-    ) -> "list[str]":
+        parallel_processes: int | None = None,
+    ) -> list[str]:
         """Downloads files of a dataset (in parallel) to a local output directory.
 
         Args:
@@ -1244,10 +1232,10 @@ class FoundryRestClient:
     def download_dataset_files_temporary(
         self,
         dataset_rid: str,
-        files: "list | None" = None,
+        files: list | None = None,
         view: str = "master",
-        parallel_processes: "int | None" = None,
-    ) -> "Iterator[str]":
+        parallel_processes: int | None = None,
+    ) -> Iterator[str]:
         """Downloads all files of a dataset to a temporary directory.
 
         Which is deleted when the context is closed. Function returns the temporary directory.
@@ -1307,8 +1295,7 @@ class FoundryRestClient:
         """
         response = self._request(
             "GET",
-            f"{self.data_proxy}/dataproxy/datasets/"
-            f"{dataset_rid}/branches/{quote_plus(branch)}/csv",
+            f"{self.data_proxy}/dataproxy/datasets/{dataset_rid}/branches/{quote_plus(branch)}/csv",
             params={"includeColumnNames": True, "includeBom": True},
             stream=True,
         )
@@ -1322,7 +1309,12 @@ class FoundryRestClient:
         branch: str = "master",
         return_type: SQLReturnType = SQLReturnType.RAW,
         timeout: int = 600,
-    ) -> "tuple[dict, List[List]] | pd.core.frame.DataFrame | pyspark.sql.DataFrame | pa.Table":
+    ) -> (
+        tuple[dict, list[list]]
+        | pd.core.frame.DataFrame
+        | pyspark.sql.DataFrame
+        | pa.Table
+    ):
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -1427,7 +1419,7 @@ class FoundryRestClient:
         branch: str = "master",
         return_type: SQLReturnType = SQLReturnType.PANDAS,
         timeout: int = 600,
-    ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
+    ) -> pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server with spark SQL dialect.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
@@ -1553,12 +1545,12 @@ class FoundryRestClient:
         self,
         client_type: str,
         display_name: str,
-        description: "str | None",
+        description: str | None,
         grant_types: list,
-        redirect_uris: "list | None",
-        logo_uri: "str | None",
+        redirect_uris: list | None,
+        logo_uri: str | None,
         organization_rid: str,
-        allowed_organization_rids: "list | None" = None,
+        allowed_organization_rids: list | None = None,
     ) -> dict:
         """Creates Foundry Third Party application (TPA).
 
@@ -1609,8 +1601,7 @@ class FoundryRestClient:
                 "CLIENT_CREDENTIALS",
             ]:
                 raise AssertionError(
-                    f"grant ({grant}) needs to be one of "
-                    "AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
+                    f"grant ({grant}) needs to be one of AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
                 )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
@@ -1648,12 +1639,12 @@ class FoundryRestClient:
         client_id: str,
         client_type: str,
         display_name: str,
-        description: "str | None",
+        description: str | None,
         grant_types: list,
-        redirect_uris: "list | None",
-        logo_uri: "str | None",
+        redirect_uris: list | None,
+        logo_uri: str | None,
         organization_rid: str,
-        allowed_organization_rids: "list | None" = None,
+        allowed_organization_rids: list | None = None,
     ) -> dict:
         """Updates Foundry Third Party application (TPA).
 
@@ -1704,8 +1695,7 @@ class FoundryRestClient:
                 "CLIENT_CREDENTIALS",
             ]:
                 raise AssertionError(
-                    f"grant ({grant}) needs to be one of "
-                    "AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
+                    f"grant ({grant}) needs to be one of AUTHORIZATION_CODE, REFRESH_TOKEN or CLIENT_CREDENTIALS"
                 )
         if allowed_organization_rids is None:
             allowed_organization_rids = []
@@ -1763,7 +1753,7 @@ class FoundryRestClient:
         return response.json()
 
     def enable_third_party_application(
-        self, client_id: str, operations: "list | None", resources: "list | None"
+        self, client_id: str, operations: list | None, resources: list | None
     ) -> dict:
         """Enables Foundry Third Party application (TPA).
 
@@ -1809,7 +1799,7 @@ class FoundryRestClient:
         repository_id: str,
         ref_name: str,
         commit_hash: str,
-        file_paths: "List[str]",
+        file_paths: list[str],
     ) -> dict:
         """Starts checks and builds.
 
@@ -1930,7 +1920,7 @@ class FoundryRestClient:
 
     def _read_fsql_query_results_arrow(
         self, query_id: str
-    ) -> "pa.ipc.RecordBatchStreamReader":
+    ) -> pa.ipc.RecordBatchStreamReader:
         import pyarrow as pa
 
         headers = self._headers()
@@ -1977,7 +1967,7 @@ class FoundryRestClient:
         branch: str = "master",
         return_type: SQLReturnType = SQLReturnType.PANDAS,
         timeout: int = 600,
-    ) -> "pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame":
+    ) -> pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         # if return_type is a str this will also work, this will get fixed in python 3.12
         # where we would be able to use `return_type not in SQLReturnType`
         if return_type not in SQLReturnType:
@@ -2004,6 +1994,110 @@ class FoundryRestClient:
 
             return arrow_stream_to_spark_dataframe(arrow_stream_reader)
         return arrow_stream_reader.read_all()
+
+    def get_s3_credentials(self, expiration_duration: int = 3600) -> dict:
+        """Returns s3 credentials for foundry.
+
+        Credentials for the S3-compatible API for Foundry datasets:
+        https://www.palantir.com/docs/foundry/data-integration/foundry-s3-api/index.html
+
+        Recommended to use the client/resource methods directly, they also set the required endpoint_url:
+        :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_client`
+        :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_resource`
+
+        Args:
+            expiration_duration: seconds the credentials will be valid, seems to support values between 0 and 3600,
+                3600 is the default
+        """
+        return parse_s3_credentials_response(
+            self._requests_session.post(
+                self._s3_url,
+                params={
+                    "Action": "AssumeRoleWithWebIdentity",
+                    "WebIdentityToken": _get_auth_token(self._config),
+                    "DurationSeconds": expiration_duration,
+                },
+            ).text
+        )
+
+    def get_s3fs_storage_options(self) -> dict:
+        """Get the foundry s3 credentials in the s3fs storage_options format.
+
+        Example:
+            >>> fc = FoundryRestClient()
+            >>> storage_options = fc.get_s3fs_storage_options()
+            >>> df = pd.read_parquet("s3://ri.foundry.main.dataset.<uuid>/spark", storage_options=storage_options)
+        """
+        return {
+            "session": self._get_aiobotocore_session(),
+            "endpoint_url": self._s3_url,
+        }
+
+    def _get_boto3_session(self):
+        """Returns the boto3 session with foundry s3 credentials applied.
+
+        See :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_credentials`.
+        """
+        if self._boto3_session is None:
+            import boto3
+            import botocore.session
+
+            from foundry_dev_tools.utils.s3 import CustomFoundryCredentialProvider
+
+            session = botocore.session.Session()
+            session.set_config_variable("region", "foundry")
+            cred_provider = session.get_component("credential_provider")
+            cred_provider.insert_before(
+                "env", CustomFoundryCredentialProvider(self, session)
+            )
+            self._boto3_session = boto3.Session(botocore_session=session)
+        return self._boto3_session
+
+    def _get_aiobotocore_session(self):
+        """Returns an aiobotocore session with foundry s3 credentials applied.
+
+        See :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_credentials`.
+        """
+        if self._aiosession is None:
+            import aiobotocore.session
+
+            from foundry_dev_tools.utils.async_s3 import (
+                CustomAsyncFoundryCredentialProvider,
+            )
+
+            session = aiobotocore.session.AioSession()
+            session.set_config_variable("region", "foundry")
+            cred_provider = session.get_component("credential_provider")
+            cred_provider.insert_before(
+                "env", CustomAsyncFoundryCredentialProvider(self, session)
+            )
+            self._aiosession = session
+        return self._aiosession
+
+    def get_boto3_s3_client(self, **kwargs):
+        """Returns the boto3 s3 client with credentials applied and endpoint url set.
+
+        See :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_credentials`.
+
+        Example:
+            >>> from foundry_dev_tools import FoundryRestClient
+            >>> fc = FoundryRestClient()
+            >>> s3_client = fc.get_boto3_s3_client()
+            >>> s3_client
+        Args:
+            **kwargs: gets passed to :py:meth:`boto3.session.Session.client`, `endpoint_url` will be overwritten
+        """
+        kwargs["endpoint_url"] = self._s3_url
+        return self._get_boto3_session().client("s3", **kwargs)
+
+    def get_boto3_s3_resource(self, **kwargs):
+        """Returns boto3 s3 resource with credentials applied and endpoint url set.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`boto3.session.Session.resource`, `endpoint_url` will be overwritten
+        """
+        kwargs["endpoint_url"] = self._s3_url
+        return self._get_boto3_session().resource("s3", **kwargs)
 
 
 def _transform_bad_request_response_to_exception(response):
@@ -2140,8 +2234,8 @@ def _get_oauth2_client_credentials_token(
     foundry_url: str,
     client_id: str,
     client_secret: str,
-    scopes: "str",
-    requests_verify_value: "str | bool" = True,
+    scopes: str,
+    requests_verify_value: str | bool = True,
 ):
     """Function to interact with the multipass token endpoint to retrieve a token using the client_credentials flow.
 
@@ -2194,7 +2288,7 @@ def _get_oauth2_client_credentials_token(
 
 @lru_with_ttl(ttl_seconds=3600)
 def _get_palantir_oauth_token(
-    foundry_url: str, client_id: str, client_secret: "str | None" = None
+    foundry_url: str, client_id: str, client_secret: str | None = None
 ) -> str:
     credentials = palantir_oauth_client.get_user_credentials(
         scopes=[
@@ -2212,6 +2306,30 @@ def _get_palantir_oauth_token(
     )
 
     return credentials.token
+
+
+def parse_s3_credentials_response(requests_response_text):
+    """Parses the AssumeRoleWithWebIdentity XML response."""
+    return {
+        "access_key": requests_response_text[
+            requests_response_text.find("<AccessKeyId>")
+            + len("<AccessKeyId>") : requests_response_text.rfind("</AccessKeyId>")
+        ],
+        "secret_key": requests_response_text[
+            requests_response_text.find("<SecretAccessKey>")
+            + len("<SecretAccessKey>") : requests_response_text.rfind(
+                "</SecretAccessKey>"
+            )
+        ],
+        "token": requests_response_text[
+            requests_response_text.find("<SessionToken>")
+            + len("<SessionToken>") : requests_response_text.rfind("</SessionToken>")
+        ],
+        "expiry_time": requests_response_text[
+            requests_response_text.find("<Expiration>")
+            + len("<Expiration>") : requests_response_text.rfind("</Expiration>")
+        ],
+    }
 
 
 class FoundryDevToolsError(Exception):
@@ -2254,9 +2372,9 @@ class DatasetHasNoSchemaError(FoundryAPIError):
     def __init__(
         self,
         dataset_rid: str,
-        transaction_rid: "str | None" = None,
-        branch: "str | None" = None,
-        response: "requests.Response | None" = None,
+        transaction_rid: str | None = None,
+        branch: str | None = None,
+        response: requests.Response | None = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
@@ -2290,8 +2408,8 @@ class BranchNotFoundError(FoundryAPIError):
         self,
         dataset_rid: str,
         branch: str,
-        transaction_rid: "str | None" = None,
-        response: "requests.Response | None" = None,
+        transaction_rid: str | None = None,
+        response: requests.Response | None = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
@@ -2324,7 +2442,7 @@ class BranchesAlreadyExistError(FoundryAPIError):
         self,
         dataset_rid: str,
         branch_rid: str,
-        response: "requests.Response | None" = None,
+        response: requests.Response | None = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
@@ -2345,7 +2463,7 @@ class BranchesAlreadyExistError(FoundryAPIError):
 class DatasetNotFoundError(FoundryAPIError):
     """Exception is thrown when dataset does not exist."""
 
-    def __init__(self, dataset_rid: str, response: "requests.Response | None" = None):
+    def __init__(self, dataset_rid: str, response: requests.Response | None = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
@@ -2372,7 +2490,7 @@ class DatasetAlreadyExistsError(FoundryAPIError):
 class FolderNotFoundError(FoundryAPIError):
     """Exception is thrown when compass folder does not exist."""
 
-    def __init__(self, folder_rid: str, response: "requests.Response | None" = None):
+    def __init__(self, folder_rid: str, response: requests.Response | None = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
@@ -2381,9 +2499,9 @@ class FolderNotFoundError(FoundryAPIError):
         """
         super().__init__(
             f"Compass folder {folder_rid} not found; "
-            f"If you are sure your folder_rid is correct, "
-            f"and you have access, check if your jwt token "
-            f"is still valid!\n" + (response.text if response is not None else "")
+            "If you are sure your folder_rid is correct, "
+            "and you have access, check if your jwt token "
+            "is still valid!\n" + (response.text if response is not None else "")
         )
         self.folder_rid = folder_rid
         self.response = response
@@ -2392,7 +2510,7 @@ class FolderNotFoundError(FoundryAPIError):
 class DatasetHasNoTransactionsError(FoundryAPIError):
     """Exception is thrown when dataset has no transactions."""
 
-    def __init__(self, dataset_rid: str, response: "requests.Response | None" = None):
+    def __init__(self, dataset_rid: str, response: requests.Response | None = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
@@ -2410,7 +2528,7 @@ class DatasetHasNoTransactionsError(FoundryAPIError):
 class DatasetNoReadAccessError(FoundryAPIError):
     """Exception is thrown when user is missing 'gatekeeper:view-resource' on the dataset, which normally comes with the Viewer role."""  # noqa: E501
 
-    def __init__(self, dataset_rid: str, response: "requests.Response | None" = None):
+    def __init__(self, dataset_rid: str, response: requests.Response | None = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
@@ -2432,7 +2550,7 @@ class DatasetHasOpenTransactionError(FoundryAPIError):
         self,
         dataset_rid: str,
         open_transaction_rid: str,
-        response: "requests.Response | None" = None,
+        response: requests.Response | None = None,
     ):
         """Pass parameters to constructor for later use and uniform error messages.
 
@@ -2453,7 +2571,7 @@ class DatasetHasOpenTransactionError(FoundryAPIError):
 class FoundrySqlQueryFailedError(FoundryAPIError):
     """Exception is thrown when SQL Query execution failed."""
 
-    def __init__(self, response: "requests.Response | None" = None):
+    def __init__(self, response: requests.Response | None = None):
         """Pass parameters to constructor for later use and uniform error messages.
 
         Args:
@@ -2475,7 +2593,7 @@ class FoundrySqlQueryClientTimedOutError(FoundryAPIError):
         Args:
              timeout (int): value of the reached timeout
         """
-        super().__init__(f"The client timeout value of {timeout} has " f"been reached")
+        super().__init__(f"The client timeout value of {timeout} has been reached")
         self.timeout = timeout
 
 
@@ -2484,8 +2602,5 @@ class FoundrySqlSerializationFormatNotImplementedError(FoundryAPIError):
 
     def __init__(self):
         super().__init__(
-            "Serialization formats "
-            "other than arrow ipc "
-            "not implemented in "
-            "Foundry DevTools."
+            "Serialization formats other than arrow ipc not implemented in Foundry DevTools."
         )

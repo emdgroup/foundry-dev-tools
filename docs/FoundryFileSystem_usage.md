@@ -1,5 +1,9 @@
 # Foundry DevTools fsspec implementation
 
+```{warning}
+Foundry FileSystem is deprecated, use the new [s3 compatible dataset API](./s3.md) instead. 
+```
+
 ## In combination with fsspec:
 
 ```pycon

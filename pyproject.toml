@@ -49,12 +49,15 @@ testing = [
   "pytest",
   "pytest-mock",
   "pytest-spark",
+  "freezegun",
+  "pytest-asyncio",
   "requests-mock",
   "fsspec",
   "timeflake",
 ]
 transforms = ["pyspark>=3.0.0"]
 cli = ["click", "inquirer", "websockets", "rich", "packaging"]
+s3 = ["aiobotocore[boto3]"]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
@@ -79,6 +82,7 @@ markers = [
   "integration: mark test to run only integration tests",
   "performance: mark test to run only performance tests",
 ]
+asyncio_mode = "auto"
 
 [tool.ruff]
 select = [
@@ -103,7 +107,17 @@ select = [
   "I",
 ]
 line-length = 120
-ignore = ["PLR0913", "D104", "D105", "D107", "B028", "S603", "S607", "PLR2004"]
+ignore = [
+  "PLR0913",
+  "D104",
+  "D105",
+  "D107",
+  "B028",
+  "S603",
+  "S607",
+  "PLR2004",
+  "PTH",
+]
 unfixable = ["ERA"] # don't delete commented out code automatically
 src = ["src"]
 exclude = ["docs"]
@@ -115,6 +129,7 @@ exclude = ["docs"]
   "D",
   "S608",
 ] # assert, non crypto random and potential sql injection is okay in unit tests and not using docstrings in tests
+"src/foundry_dev_tools/cli/*" = ["PLW1510"]
 
 [tool.ruff.pydocstyle]
 convention = "google"
