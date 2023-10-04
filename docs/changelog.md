@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning].
 - typos in docs (#30)
 - pandas test (#31)
 - windows specific test errors (#33)
+- use absolute python path in aws config (#35)
 
 ## [1.2] - 2023-07-05
 
