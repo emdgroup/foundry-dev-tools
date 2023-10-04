@@ -99,7 +99,8 @@ def s3_cli_init():
 def s3_cli_auth():
     """Used by the aws cli for authentication."""
     # print everything that happens when initalizing i.e. oath input() prompt
-    # to stderr, which gets redirected to the console through the hacks in the profile config
+    # to stderr, which gets redirected to the console through the workarounds in the profile config
+    # https://github.com/aws/aws-sdk/issues/358
     orig = sys.stdout
     sys.stdout = sys.stderr
     fc = FoundryRestClient()

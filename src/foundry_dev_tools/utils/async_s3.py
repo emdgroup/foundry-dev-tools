@@ -35,8 +35,6 @@ class CustomAsyncFoundryCredentialProvider(
 
     async def load(self):
         """Return the credentials from FoundryRestClient."""
-        # Here you should implement your logic to get the credentials.
-        # This is just an example.
         return aiobotocore.credentials.AioDeferredRefreshableCredentials(
             self._refresh, method="sts-assume-role"
         )

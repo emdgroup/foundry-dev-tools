@@ -150,7 +150,7 @@ class FoundryRestClient:
         self._requests_session.verify = self._requests_verify_value
         self._aiosession = None
         self._boto3_session = None
-        self._s3_url = self._api_base + "/io/s3/"
+        self._s3_url = self._api_base + "/io/s3"
 
     def _headers(self):
         return {
@@ -1995,7 +1995,7 @@ class FoundryRestClient:
             return arrow_stream_to_spark_dataframe(arrow_stream_reader)
         return arrow_stream_reader.read_all()
 
-    def get_s3_credentials(self) -> dict:
+    def get_s3_credentials(self, expiration_duration: int = 3600) -> dict:
         """Returns s3 credentials for foundry.
 
         Credentials for the s3 compatible dataset API:
@@ -2004,31 +2004,21 @@ class FoundryRestClient:
         Recommended to use the client/resource methods directly, they also set the required endpoint_url:
         :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_client`
         :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_resource`
+
+        Args:
+            expiration_duration: seconds the credentials will be valid, seems to support values between 0 and 3600,
+                3600 is the default
         """
-        t = self._requests_session.post(
-            self._s3_url,
-            params={
-                "Action": "AssumeRoleWithWebIdentity",
-                "WebIdentityToken": _get_auth_token(self._config),
-            },
-        ).text
-        return {
-            "access_key": t[
-                t.find("<AccessKeyId>")
-                + len("<AccessKeyId>") : t.rfind("</AccessKeyId>")
-            ],
-            "secret_key": t[
-                t.find("<SecretAccessKey>")
-                + len("<SecretAccessKey>") : t.rfind("</SecretAccessKey>")
-            ],
-            "token": t[
-                t.find("<SessionToken>")
-                + len("<SessionToken>") : t.rfind("</SessionToken>")
-            ],
-            "expiry_time": t[
-                t.find("<Expiration>") + len("<Expiration>") : t.rfind("</Expiration>")
-            ],
-        }
+        return parse_s3_credentials_response(
+            self._requests_session.post(
+                self._s3_url,
+                params={
+                    "Action": "AssumeRoleWithWebIdentity",
+                    "WebIdentityToken": _get_auth_token(self._config),
+                    "DurationSeconds": expiration_duration,
+                },
+            ).text
+        )
 
     def get_s3fs_storage_options(self) -> dict:
         """Get the foundry s3 credentials in the s3fs storage_options format.
@@ -2037,22 +2027,10 @@ class FoundryRestClient:
             >>> fc = FoundryRestClient()
             >>> storage_options=fc.get_s3_storage_options()
             >>> df = pd.read_parquet("s3://ri.foundry.main.dataset.<uuid>/spark",storage_options=storage_options)
-
         """
         return {
             "session": self._get_aiobotocore_session(),
             "endpoint_url": self._s3_url,
-        }
-
-    def get_s3_polars_storage_options(self) -> dict:
-        """Get the foundry s3 credentials in the polars storage_options format."""
-        creds = self.get_s3_credentials()
-        return {
-            "access_key_id": creds["access_key"],
-            "secret_access_key": creds["secret_key"],
-            "token": creds["token"],
-            "endpoint_url": self._s3_url,
-            "region": "foundry",
         }
 
     def _get_boto3_session(self):
@@ -2096,7 +2074,7 @@ class FoundryRestClient:
             self._aiosession = session
         return self._aiosession
 
-    def get_s3_client(self):
+    def get_boto3_s3_client(self, **kwargs):
         """Returns the boto3 s3 client with credentials applied and endpoint url set.
 
         See :py:attr:`foundry_dev_tools.foundry_api_client.FoundryRestClient.get_s3_credentials`.
@@ -2106,12 +2084,19 @@ class FoundryRestClient:
             >>> fc = FoundryRestClient()
             >>> s3_client = fc.get_s3_client()
             >>> s3_client
+        Args:
+            **kwargs: gets passed to :py:meth:`boto3.session.Session.client`, `endpoint_url` will be overwritten
         """
-        return self._get_boto3_session().client("s3", endpoint_url=self._s3_url)
+        return self._get_boto3_session().client("s3", **kwargs)
 
-    def get_s3_resource(self):
-        """Returns boto3 s3 resource with credentials applied and ednpoint url set."""
-        return self._get_boto3_session().resource("s3", endpoint_url=self._s3_url)
+    def get_boto3_s3_resource(self, **kwargs):
+        """Returns boto3 s3 resource with credentials applied and ednpoint url set.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`boto3.session.Session.resource`, `endpoint_url` will be overwritten
+        """
+        kwargs["endpoint_url"] = self._s3_url
+        return self._get_boto3_session().resource("s3", **kwargs)
 
 
 def _transform_bad_request_response_to_exception(response):
@@ -2320,6 +2305,30 @@ def _get_palantir_oauth_token(
     )
 
     return credentials.token
+
+
+def parse_s3_credentials_response(requests_response_text):
+    """Parses the AssumeRoleWithWebIdentity XML response."""
+    return {
+        "access_key": requests_response_text[
+            requests_response_text.find("<AccessKeyId>")
+            + len("<AccessKeyId>") : requests_response_text.rfind("</AccessKeyId>")
+        ],
+        "secret_key": requests_response_text[
+            requests_response_text.find("<SecretAccessKey>")
+            + len("<SecretAccessKey>") : requests_response_text.rfind(
+                "</SecretAccessKey>"
+            )
+        ],
+        "token": requests_response_text[
+            requests_response_text.find("<SessionToken>")
+            + len("<SessionToken>") : requests_response_text.rfind("</SessionToken>")
+        ],
+        "expiry_time": requests_response_text[
+            requests_response_text.find("<Expiration>")
+            + len("<Expiration>") : requests_response_text.rfind("</Expiration>")
+        ],
+    }
 
 
 class FoundryDevToolsError(Exception):

@@ -27,8 +27,6 @@ class CustomFoundryCredentialProvider(botocore.credentials.CredentialProvider):
 
     def load(self):
         """Return the credentials from FoundryRestClient."""
-        # Here you should implement your logic to get the credentials.
-        # This is just an example.
         return botocore.credentials.DeferredRefreshableCredentials(
             self.foundry_rest_client.get_s3_credentials, method="sts-assume-role"
         )
