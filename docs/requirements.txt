@@ -4,5 +4,4 @@ furo
 pyspark>=3.0.0
 sphinx-autobuild
 parquet
-boto3
-aiobotocore
+aiobotocore[boto3]
