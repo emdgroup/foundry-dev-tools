@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 import builtins
 import functools
-import io
 import logging
 import multiprocessing
 import os
@@ -1936,14 +1935,17 @@ class FoundryRestClient:
         #
         # 01/2022: Moving to 'requests' instead of 'urllib3', did some experiments again
         # and noticed that preloading content is significantly faster than stream=True
+        #
+        # 10/2023: Use Slice of response content instead of bytesIO Wrapper
+        #
 
         response = self._request(
             "GET",
             f"{self.foundry_sql_server_api}/queries/{query_id}/results",
             headers=headers,
         )
-        bytes_io = io.BytesIO(response.content)
-        arrow_format = bytes_io.read(1).decode("UTF-8")
+
+        arrow_format = chr(response.content[0])
         if arrow_format != "A":
             # Queries are direct read eligible when:
             # The dataset files are in a supported format.
@@ -1959,7 +1961,7 @@ class FoundryRestClient:
 
             raise FoundrySqlSerializationFormatNotImplementedError()
 
-        return pa.ipc.RecordBatchStreamReader(bytes_io)
+        return pa.ipc.RecordBatchStreamReader(response.content[1:])
 
     def _query_fsql(
         self,
