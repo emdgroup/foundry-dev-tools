@@ -66,6 +66,14 @@ DEFAULT_HEADERS = {
     ),
     "Content-Type": "application/json",
 }
+DEFAULT_TPA_SCOPES = [
+    "offline_access",
+    "compass:view",
+    "compass:edit",
+    "compass:discover",
+    "api:write-data",
+    "api:read-data",
+]
 
 
 @contextmanager
@@ -2207,13 +2215,14 @@ def _get_auth_token(config) -> str:
             client_secret=config["client_secret"]
             if "client_secret" in config
             else None,
+            scopes=config["scopes"] if "scopes" in config else None,
         )
     if (
         "client_id" in config
         and "client_secret" in config
         and config["grant_type"] == "client_credentials"
     ):
-        scopes = config["scopes"]
+        scopes = config["scopes"] if "scopes" in config else None
         if isinstance(scopes, list):
             scopes = " ".join(scopes)
         return _get_oauth2_client_credentials_token(
@@ -2293,17 +2302,16 @@ def _get_oauth2_client_credentials_token(
 
 @lru_with_ttl(ttl_seconds=3600)
 def _get_palantir_oauth_token(
-    foundry_url: str, client_id: str, client_secret: str | None = None
+    foundry_url: str,
+    client_id: str,
+    client_secret: str | None = None,
+    scopes: list | None = None,
 ) -> str:
+    # Scopes are mandatory in authorization code grant
+    if scopes is None:
+        scopes = DEFAULT_TPA_SCOPES
     credentials = palantir_oauth_client.get_user_credentials(
-        scopes=[
-            "offline_access",
-            "compass:view",
-            "compass:edit",
-            "compass:discover",
-            "api:write-data",
-            "api:read-data",
-        ],
+        scopes=scopes,
         hostname=foundry_url,
         client_id=client_id,
         client_secret=client_secret,
