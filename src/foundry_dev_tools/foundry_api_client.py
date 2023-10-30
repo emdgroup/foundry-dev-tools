@@ -2247,7 +2247,8 @@ def _get_oauth2_client_credentials_token(
         foundry_url (str): The foundry url
         client_id (str): The unique identifier of the TPA.
         client_secret (str): The application's client secret that was issued during application registration.
-        scopes (str): String of whitespace delimited scopes (e.g. 'api:read-data api:write-data')
+        scopes (str): String of whitespace delimited scopes (e.g. 'api:read-data api:write-data') or None
+            if user wants to request all scopes of the service user
         requests_verify_value (str | bool): Path to certificate bundle, or bool (True/False)
 
     Returns:
@@ -2279,7 +2280,9 @@ def _get_oauth2_client_credentials_token(
     response = requests.request(
         "POST",
         f"{foundry_url}/multipass/api/oauth2/token",
-        data={"grant_type": "client_credentials", "scope": scopes},
+        data={"grant_type": "client_credentials", "scope": scopes}
+        if scopes
+        else {"grant_type": "client_credentials"},
         headers=headers,
         verify=requests_verify_value,
         timeout=DEFAULT_REQUESTS_CONNECT_TIMEOUT,
