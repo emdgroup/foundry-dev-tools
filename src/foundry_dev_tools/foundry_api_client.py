@@ -66,6 +66,14 @@ DEFAULT_HEADERS = {
     ),
     "Content-Type": "application/json",
 }
+DEFAULT_TPA_SCOPES = [
+    "offline_access",
+    "compass:view",
+    "compass:edit",
+    "compass:discover",
+    "api:write-data",
+    "api:read-data",
+]
 
 
 @contextmanager
@@ -2204,16 +2212,15 @@ def _get_auth_token(config) -> str:
         return _get_palantir_oauth_token(
             foundry_url=config["foundry_url"],
             client_id=config["client_id"],
-            client_secret=config["client_secret"]
-            if "client_secret" in config
-            else None,
+            client_secret=config.get("client_secret"),
+            scopes=config.get("scopes"),
         )
     if (
         "client_id" in config
         and "client_secret" in config
         and config["grant_type"] == "client_credentials"
     ):
-        scopes = config["scopes"]
+        scopes = config.get("scopes")
         if isinstance(scopes, list):
             scopes = " ".join(scopes)
         return _get_oauth2_client_credentials_token(
@@ -2247,7 +2254,8 @@ def _get_oauth2_client_credentials_token(
         foundry_url (str): The foundry url
         client_id (str): The unique identifier of the TPA.
         client_secret (str): The application's client secret that was issued during application registration.
-        scopes (str): String of whitespace delimited scopes (e.g. 'api:read-data api:write-data')
+        scopes (str): String of whitespace delimited scopes (e.g. 'api:read-data api:write-data') or None
+            if user wants to request all scopes of the service user
         requests_verify_value (str | bool): Path to certificate bundle, or bool (True/False)
 
     Returns:
@@ -2279,7 +2287,9 @@ def _get_oauth2_client_credentials_token(
     response = requests.request(
         "POST",
         f"{foundry_url}/multipass/api/oauth2/token",
-        data={"grant_type": "client_credentials", "scope": scopes},
+        data={"grant_type": "client_credentials", "scope": scopes}
+        if scopes
+        else {"grant_type": "client_credentials"},
         headers=headers,
         verify=requests_verify_value,
         timeout=DEFAULT_REQUESTS_CONNECT_TIMEOUT,
@@ -2290,17 +2300,16 @@ def _get_oauth2_client_credentials_token(
 
 @lru_with_ttl(ttl_seconds=3600)
 def _get_palantir_oauth_token(
-    foundry_url: str, client_id: str, client_secret: str | None = None
+    foundry_url: str,
+    client_id: str,
+    client_secret: str | None = None,
+    scopes: list | None = None,
 ) -> str:
+    # Scopes are mandatory in authorization code grant
+    if scopes is None:
+        scopes = DEFAULT_TPA_SCOPES
     credentials = palantir_oauth_client.get_user_credentials(
-        scopes=[
-            "offline_access",
-            "compass:view",
-            "compass:edit",
-            "compass:discover",
-            "api:write-data",
-            "api:read-data",
-        ],
+        scopes=scopes,
         hostname=foundry_url,
         client_id=client_id,
         client_secret=client_secret,

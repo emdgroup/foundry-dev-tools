@@ -89,12 +89,24 @@ ENABLE_RESPONSE_2 = {
         "resources": [],
         "operations": ["api:read-data"],
         "markingIds": None,
+        "grantTypes": ["AUTHORIZATION_CODE", "CLIENT_CREDENTIALS", "REFRESH_TOKEN"],
+        "requireConsent": True,
     },
 }
 
 OAUTH2_TOKEN_RESPONSE = {
     "access_token": "eyJwbG50...",
     "refresh_token": None,
+    "id_token": None,
+    "scope": "api:read-data",
+    "expires_in": 3600,
+    "token_type": "bearer",
+}
+
+OAUTH2_TOKEN_RESPONSE_NO_SCOPES = {
+    "access_token": "eyJwbG50...",
+    "refresh_token": None,
+    "id_token": None,
     "scope": None,
     "expires_in": 3600,
     "token_type": "bearer",
@@ -131,6 +143,11 @@ def test_crud(is_integration_test, requests_mock: Mocker, mocker):
                 {"text": json.dumps(CREATE_RESPONSE), "status_code": 200},
                 # Oauth2 Token
                 {"text": json.dumps(OAUTH2_TOKEN_RESPONSE), "status_code": 200},
+                # Oauth2 Token No Scopes requested
+                {
+                    "text": json.dumps(OAUTH2_TOKEN_RESPONSE_NO_SCOPES),
+                    "status_code": 200,
+                },
             ],
         )
         requests_mock.put(
@@ -230,6 +247,20 @@ def _test_crud_inner(mocker):
         del tpa_client._config["jwt"]
 
     tpa_user_info = tpa_client.get_user_info()
+    assert tpa_user_info["username"] == client_id
+    assert tpa_user_info["attributes"]["multipass:realm"][0] == "oauth2-client-realm"
+
+    tpa_client_no_scopes = FoundryRestClient(
+        config={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "client_credentials",
+            "scopes": None,
+            "jwt": None,
+        }
+    )
+
+    tpa_user_info = tpa_client_no_scopes.get_user_info()
     assert tpa_user_info["username"] == client_id
     assert tpa_user_info["attributes"]["multipass:realm"][0] == "oauth2-client-realm"
 

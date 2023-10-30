@@ -11,12 +11,13 @@ ID (`client_id`) for SSO.
 ## Configuration options
 
 | Name                                   | Description                                                                                                                                       | Values                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
 | foundry_url                            | Url of the foundry instance.                                                                                                                      | e.g. https://foundry.example.com       |
 | jwt                                    | The Bearer Token copied from the Foundry Token Page                                                                                               | eyJhb...                               |
 | client_id                              | The client_id of the Foundry Third Party application for SSO Authentication.                                                                      | ...                                    |
 | client_secret                          | The client_secret of the Foundry Third Party application.                                                                                         | ...                                    |
 | grant_type                             | Set this to client_credentials if you use Foundry Third Party application client_credentials flow. Default is authorization_code                  | authorization_code, client_credentials |
+| scopes                                 | Custom scopes for Third Party Application Tokens                                                                                                  | "api:read-data offline_access"         |
 | requests_ca_bundle                     | Path to custom ca bundle file, useful in corporate networks with SSL inspection                                                                   | not set                                |
 | transforms_sql_sample_row_limit        | Number of rows that are retrieved for each dataset when sql is used                                                                               | 5000                                   |
 | transforms_sql_dataset_size_threshold  | Maximal size of a dataset up to which file gets downloaded. If dataset is larger, sql with limit query will be used to download a partial dataset | 500                                    |
