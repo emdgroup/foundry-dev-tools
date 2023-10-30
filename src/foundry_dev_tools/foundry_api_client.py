@@ -2212,17 +2212,15 @@ def _get_auth_token(config) -> str:
         return _get_palantir_oauth_token(
             foundry_url=config["foundry_url"],
             client_id=config["client_id"],
-            client_secret=config["client_secret"]
-            if "client_secret" in config
-            else None,
-            scopes=config["scopes"] if "scopes" in config else None,
+            client_secret=config.get("client_secret"),
+            scopes=config.get("scopes"),
         )
     if (
         "client_id" in config
         and "client_secret" in config
         and config["grant_type"] == "client_credentials"
     ):
-        scopes = config["scopes"] if "scopes" in config else None
+        scopes = config.get("scopes")
         if isinstance(scopes, list):
             scopes = " ".join(scopes)
         return _get_oauth2_client_credentials_token(
