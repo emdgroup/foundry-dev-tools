@@ -120,7 +120,7 @@ copyright = "2023, (Merck KGaA, Darmstadt, Germany)"
 # If you don`t need the separation provided between version and release,
 # just set them both to the same value.
 try:
-    from foundry_dev_tools import __version__ as version
+    from foundry_dev_tools.__about__ import __version__ as version
 except ImportError:
     version = ""
 

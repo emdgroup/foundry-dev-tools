@@ -21,7 +21,6 @@ import time
 import warnings
 from contextlib import contextmanager
 from enum import Enum, EnumMeta
-from importlib.metadata import PackageNotFoundError, version
 from itertools import repeat
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, AnyStr
@@ -31,6 +30,8 @@ import palantir_oauth_client
 import requests
 
 import foundry_dev_tools.config
+
+from .__about__ import __version__
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -50,19 +51,10 @@ if platform.system() == "Darwin":
 
 LOGGER = logging.getLogger(__name__)
 
-# duplicate code from __init__.py
-# if we import __version__ from __init__.py
-# we will have a circular import
-# which may have unintended side effects
-try:
-    FDT_VERSION = version(__name__)
-except PackageNotFoundError:  # pragma: no cover
-    FDT_VERSION = "unknown"
-
 DEFAULT_REQUESTS_CONNECT_TIMEOUT = 10
 DEFAULT_HEADERS = {
     "User-Agent": requests.utils.default_user_agent(
-        f"foundry-dev-tools/{FDT_VERSION}/python-requests"
+        f"foundry-dev-tools/{__version__}/python-requests"
     ),
     "Content-Type": "application/json",
 }
@@ -2275,7 +2267,7 @@ def _get_oauth2_client_credentials_token(
     """
     headers = {
         "User-Agent": requests.utils.default_user_agent(
-            f"foundry-dev-tools/{FDT_VERSION}/python-requests"
+            f"foundry-dev-tools/{__version__}/python-requests"
         ),
         "Authorization": "Basic "
         + base64.b64encode(bytes(client_id + ":" + client_secret, "ISO-8859-1")).decode(
