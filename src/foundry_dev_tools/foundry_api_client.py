@@ -1752,7 +1752,11 @@ class FoundryRestClient:
         return response.json()
 
     def enable_third_party_application(
-        self, client_id: str, operations: list | None, resources: list | None
+        self,
+        client_id: str,
+        operations: list | None,
+        resources: list | None,
+        require_consent: bool = True,
     ) -> dict:
         """Enables Foundry Third Party application (TPA).
 
@@ -1762,6 +1766,8 @@ class FoundryRestClient:
                 if None or empty list is passed, all scopes will be activated.
             resources (list): Compass Project RID's that this TPA is allowed to access,
                 if None or empty list is passed, unrestricted access will be given.
+            require_consent (bool): When enabled, users in the org will not be prompted
+                to authorize the application themselves.
 
         Returns:
             dict:
@@ -1777,7 +1783,7 @@ class FoundryRestClient:
                     "description": None,
                     "logoUri": None,
                 },
-                "installation": {"resources": [], "operations": [], "markingIds": None},
+                "installation": {"resources": [], "operations": [], "markingIds": None, "requireConsent": True},
             }
 
         """
@@ -1788,7 +1794,11 @@ class FoundryRestClient:
         response = self._request(
             "PUT",
             f"{self.multipass}/client-installations/{client_id}",
-            json={"operations": operations, "resources": resources},
+            json={
+                "operations": operations,
+                "resources": resources,
+                "requireConsent": require_consent,
+            },
         )
         _raise_for_status_verbose(response)
         return response.json()
