@@ -74,7 +74,12 @@ ENABLE_RESPONSE_1 = {
         "description": None,
         "logoUri": None,
     },
-    "installation": {"resources": [], "operations": [], "markingIds": None},
+    "installation": {
+        "resources": [],
+        "operations": [],
+        "markingIds": None,
+        "requireConsent": False,
+    },
 }
 
 ENABLE_RESPONSE_2 = {
@@ -222,16 +227,21 @@ def _test_crud_inner(mocker):
     client_secret = updated_app2["clientSecret"]
 
     enabled_app = client.enable_third_party_application(
-        client_id=client_id, operations=[], resources=[]
+        client_id=client_id, operations=[], resources=[], require_consent=False
     )
     assert enabled_app["installation"]["resources"] == []
     assert enabled_app["installation"]["operations"] == []
+    assert enabled_app["installation"]["requireConsent"] is False
 
     enabled_app = client.enable_third_party_application(
-        client_id=client_id, operations=["api:read-data"], resources=[]
+        client_id=client_id,
+        operations=["api:read-data"],
+        resources=[],
+        require_consent=True,
     )
     assert enabled_app["installation"]["resources"] == []
     assert enabled_app["installation"]["operations"] == ["api:read-data"]
+    assert enabled_app["installation"]["requireConsent"] is True
 
     tpa_client = FoundryRestClient(
         config={
