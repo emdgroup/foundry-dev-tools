@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from numbers import Number
 from pathlib import Path
 from typing import List
 from urllib.parse import quote_plus, urlparse
@@ -72,7 +73,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
                 lineno=0,
                 msg=f"[bold]{escape(log_data['message'])}[/bold]",
                 args=tuple(
-                    escape(str(value))
+                    value if isinstance(value, Number) else escape(str(value))
                     for key, value in log_data["unsafeParams"].items()
                     if key.startswith("param_")
                 ),
