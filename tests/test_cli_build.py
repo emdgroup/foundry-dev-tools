@@ -169,7 +169,38 @@ SPARK_LOGS = [
             "message": "Output generated: %s",
             "time": "2000-01-01T00:00:00.000000Z",
             "unsafeParams": {
-                "param_0": {"key": {"value": [1]}},
+                "param_0": {"key": {"value": [1], "markup": "[/ESCAPE ME]"}},
+            },
+        }
+    ),
+    json.dumps(
+        {
+            "level": "INFO",
+            "origin": "origin",
+            "message": "Integers: %d %i,"
+            " Octal: %o,"
+            " Hex: %x %X,"
+            " Floats: %e %E %f %F %g %G,"
+            " Char: %c,"
+            " Representations: %r %s %a,"
+            " Literal %%",
+            "time": "2000-01-01T00:00:00.000000Z",
+            "unsafeParams": {
+                "param_0": 42,
+                "param_1": 42,
+                "param_2": 42,
+                "param_3": 42,
+                "param_4": 42,
+                "param_5": 42.42,
+                "param_6": 42.42,
+                "param_7": 42.42,
+                "param_8": 42.42,
+                "param_9": 42.42,
+                "param_10": 42.42,
+                "param_11": "Z",
+                "param_12": "String",
+                "param_13": "String",
+                "param_14": "String",
             },
         }
     ),
@@ -214,7 +245,40 @@ EXPECTED_SPARK_LOG_RECORDS = [
         pathname="origin",
         lineno=0,
         msg="[bold]Output generated: %s[/bold]",
-        args=("{'key': {'value': [1]}}",),
+        args=("{'key': {'value': [1], 'markup': '\\[/ESCAPE ME]'}}",),
+        exc_info=None,
+        func=None,
+        sinfo=None,
+    ),
+    logging.LogRecord(
+        name="origin",
+        level=logging.INFO,
+        pathname="origin",
+        lineno=0,
+        msg="[bold]Integers: %d %i,"
+        " Octal: %o,"
+        " Hex: %x %X,"
+        " Floats: %e %E %f %F %g %G,"
+        " Char: %c,"
+        " Representations: %r %s %a,"
+        " Literal %%[/bold]",
+        args=(
+            42,
+            42,
+            42,
+            42,
+            42,
+            42.42,
+            42.42,
+            42.42,
+            42.42,
+            42.42,
+            42.42,
+            "Z",
+            "String",
+            "String",
+            "String",
+        ),
         exc_info=None,
         func=None,
         sinfo=None,
