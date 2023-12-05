@@ -311,8 +311,11 @@ def build_cli(transform):  # noqa: PLR0915
     checks_rid = _find_rid(first_req["allJobs"], name="Checks")
     build_rid = _find_rid(first_req["allJobs"], name="Build initialization")
 
-    checks_tailer = TailHelper(rprint)
-    build_tailer = TailHelper(rprint)
+    def escape_rprint(s: str):
+        return rprint(escape(s))
+
+    checks_tailer = TailHelper(escape_rprint)
+    build_tailer = TailHelper(escape_rprint)
     if first_req["buildStatus"] in ("SUCCEEDED", "FAILED"):
         rprint(
             f"The checks and build are already finished and {first_req['buildStatus'].lower()}."
