@@ -129,6 +129,7 @@ CHECK_JOB_CUSTOM_METADATA = {
 }
 
 CHECK_LOGS = [
+    "[/ESCAPE ME]",
     "Checks...",
     "Running 1234",
     "",
