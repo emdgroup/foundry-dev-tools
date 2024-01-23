@@ -88,7 +88,7 @@ def lightweight(
                 "Perhaps you didn't put @lightweight as the top-most decorator?"
             )
 
-        if transform._type not in {"spark", "pandas"}:
+        if transform._type not in {"transform", "pandas"}:
             raise ValueError(
                 "You can only use @lightweight on @transform or @transform_pandas"
             )
