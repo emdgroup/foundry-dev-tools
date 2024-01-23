@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable
 from os import PathLike
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import fs
 import pyspark
@@ -287,8 +287,16 @@ class LightweightTransformInput(TransformInput):
         super().__init__(input_arg)
         self.branch = input_arg.branch
         self.rid = input_arg.get_dataset_identity()["dataset_rid"]
-        self._path = str(Path(input_arg.get_local_path_to_dataset()) / "spark")
+        self._path = input_arg.get_local_path_to_dataset()
         del self.path
+
+    @property
+    def _parquet_files(self) -> List[Path]:
+        return list(Path(self._path).glob("**/*.parquet"))
+
+    @property
+    def _csv_files(self) -> List[Path]:
+        return list(Path(self._path).glob("**/*.csv"))
 
     def dataframe(self):
         raise NotImplementedError(
@@ -300,18 +308,28 @@ class LightweightTransformInput(TransformInput):
         return self._path
 
     def pandas(self) -> "pandas.DataFrame":
+        """A Pandas DataFrame containing the full view of the dataset."""
         import pandas as pd
 
-        """A Pandas DataFrame containing the full view of the dataset."""
-        return pd.concat(
-            map(pd.read_parquet, Path(self._path).glob("*.parquet")), ignore_index=True
+        return (
+            pd.concat(map(pd.read_parquet, self._parquet_files), ignore_index=True)
+            if self._parquet_files
+            else pd.concat(
+                map(pd.read_csv, Path(self._path).glob("*.csv")), ignore_index=True
+            )
         )
 
     def arrow(self) -> "pyarrow.Table":  # noqa: F821
         """A PyArrow table containing the full view of the dataset."""
+        import pyarrow as pa
         import pyarrow.parquet as pq
+        from pyarrow import csv
 
-        return pq.ParquetDataset(str(self._path) + "/", use_legacy_dataset=False).read()
+        return (
+            pq.ParquetDataset(str(self._path) + "/", use_legacy_dataset=False).read()
+            if self._parquet_files
+            else pa.concat_tables([csv.read_csv(p) for p in self._csv_files])
+        )
 
     def polars(
         self, lazy: Optional[bool] = False
@@ -323,19 +341,31 @@ class LightweightTransformInput(TransformInput):
         """
         import polars as pl
 
+        if lazy:
+            return (
+                pl.scan_parquet(
+                    f"{self._path}/**/*.parquet",
+                    rechunk=False,
+                    low_memory=True,
+                    cache=False,
+                )
+                if self._parquet_files
+                else pl.scan_csv(
+                    f"{self._path}/**/*.csv",
+                    rechunk=False,
+                    low_memory=True,
+                    cache=False,
+                )
+            )
+
         return (
-            pl.scan_parquet(
-                f"{self._path}/**/*.parquet",
-                rechunk=False,
-                low_memory=True,
-                cache=False,
-            )
-            if lazy
-            else pl.read_parquet(
+            pl.read_parquet(
                 f"{self._path}/**/*.parquet",
                 rechunk=False,
                 low_memory=True,
             )
+            if self._parquet_files
+            else pl.read_csv(f"{self._path}/**/*.csv", rechunk=False, low_memory=True)
         )
 
 
