@@ -227,10 +227,11 @@ def test_transform_df_one_input(mocker):
 
         transform_me.compute()
 
-    # check that only one warning was raised
-    assert len(record) == 1
+    # check that only one warning was raised from _dataset
+    filtered_records = [r for r in record.list if r.filename.endswith("_dataset.py")]
+    assert len(filtered_records) == 1
     # sql sampling triggers warning
-    assert "Retrieving subset" in record[0].message.args[0]
+    assert "Retrieving subset" in filtered_records[0].message.args[0]
 
     df = transform_me.compute()
     assert df.schema.names[0] == "col1"
