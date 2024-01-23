@@ -208,6 +208,8 @@ def test_transform_df_one_input(mocker):
             assert_frame_equal(input1.toPandas(), spark_df_return_data_one.toPandas())
             return input1.withColumn("col1", F.lit("replaced")).select("col1")
 
+        transform_me.compute()
+
     # check that only one warning was raised
     assert len(record) == 1
     # sql sampling triggers warning
@@ -222,7 +224,7 @@ def test_transform_df_one_input(mocker):
     from_foundry_and_cache.reset_mock()
     from_cache.reset_mock()
 
-    _ = Input("/input1")
+    Input("/input1").dataframe()
 
     from_foundry_and_cache.assert_not_called()
     from_cache.assert_called()
@@ -325,7 +327,7 @@ def test_transform_pandas_one_input(mocker):
     from_foundry_and_cache.reset_mock()
     from_cache.reset_mock()
 
-    Input("/input1")
+    Input("/input1").dataframe()
 
     from_foundry_and_cache.assert_not_called()
     from_cache.assert_called()
@@ -416,7 +418,9 @@ def test_transform_freeze_cache(mocker, tmpdir):
 
     @transform(output1=Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me_data_from_online_cache(output1, input1):
-        pass
+        input1.dataframe()
+
+    transform_me_data_from_online_cache.compute()
 
     online.assert_called()
     offline.assert_not_called()
@@ -530,7 +534,9 @@ def test_transform_works_in_no_git_repository(mocker):
             input1=Input("/input1"),
         )
         def transform_me_data_from_online_cache(output1, input1):
-            pass
+            input1.dataframe()
+
+        transform_me_data_from_online_cache.compute()
 
 
 @pytest.mark.usefixtures("_run_around_tests")
