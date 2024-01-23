@@ -54,6 +54,7 @@ testing = [
   "requests-mock",
   "fsspec",
   "timeflake",
+  "polars"
 ]
 transforms = ["pyspark>=3.0.0"]
 cli = ["click", "inquirer", "websockets", "rich", "packaging"]
