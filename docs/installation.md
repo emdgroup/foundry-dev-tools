@@ -65,7 +65,7 @@ pip install 'foundry-dev-tools[transforms]'
 ```
 
 Alternative installation methods, or more information on how to get Spark running,
-can be found in the [PySpark Documenation] and the [Spark Documentation].
+can be found in the [PySpark Documentation] and the [Spark Documentation].
 
 [PySpark Documentation]: https://spark.apache.org/docs/latest/api/python/getting_started/install.html
 [Spark Documentation]: https://spark.apache.org/docs/latest/
