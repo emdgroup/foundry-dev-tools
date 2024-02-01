@@ -19,7 +19,7 @@ Every change you make in the code is instantly applied.
 Install the test dependencies and execute pytest.
 
 ```shell
-pip install -e ".[testing,transforms]"
+pip install -e ".[complete]"
 pytest
 ```
 

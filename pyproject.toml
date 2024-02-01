@@ -58,6 +58,7 @@ testing = [
 transforms = ["pyspark>=3.0.0"]
 cli = ["click", "inquirer", "websockets", "rich", "packaging"]
 s3 = ["aiobotocore[boto3]"]
+complete = ["foundry-dev-tools[integration,testing,transforms,cli,s3]"]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
