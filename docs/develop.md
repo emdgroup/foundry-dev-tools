@@ -14,9 +14,19 @@ pip install -e .
 This command will link the local version of this package into your pip package folder.
 Every change you make in the code is instantly applied.
 
+## Setup Development Environment
+
+The easiest option is to open the repository with GitHub Codespaces, which offers a free tier as well.
+Spark in combination with pyarrow currently works only with Java<21 (`sun.misc.Unsafe or java.nio.DirectByteBuffer.<init>(long, int) not available`). 
+In Codespaces you can change the Java Version to 17 using:
+
+```shell
+sdk default java 17.0.9-ms
+```
+
 ## Run unit tests
 
-Install the test dependencies and execute pytest.
+Install all test dependencies and execute pytest.
 
 ```shell
 pip install -e ".[complete]"
@@ -33,8 +43,7 @@ tox
 
 To run the integration tests, make sure to have a valid `config` file in your `~/.foundry_dev_tools/` folder
 and have the environment variables `INTEGRATION_TEST_COMPASS_ROOT_PATH` and `INTEGRATION_TEST_COMPASS_ROOT_RID` set.
-These environment variables should point to an empty folder on palantir foundry you have permissions to,
-the tests will create the datasets automatically.
+These environment variables should point to an empty folder on your Palantir Foundry Stack you have permissions to, the tests will create the datasets automatically.
 
 ```shell
 pip install -e ".[integration,testing,transforms]"
