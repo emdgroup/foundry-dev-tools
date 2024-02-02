@@ -24,8 +24,6 @@ def lightweight(
 ):
     """Turn a transform into a Lightweight transform.
 
-    In order to use this decorator, `foundry-transforms-lib-python` must be added as a dependency.
-
     A Lightweight transform is a transform that runs without Spark, on a single node. Lightweight transforms are faster
     and more cost-effective for small to medium-sized datasets. Lightweight transforms also provide more methods for
     accessing datasets; however, they only support a subset of the API of a regular transforms, including Pandas and
@@ -34,9 +32,11 @@ def lightweight(
 
     Args:
         cpu_cores (float, optional): The number of CPU cores to request for the transform's container,
-            can be a fraction.
-        memory_mb (float, optional): The amount of memory to request for the container, in MB.
-        memory_gb (float, optional): The amount of memory to request for the container, in GB.
+            can be a fraction, not implemented in Foundry DevTools.
+        memory_mb (float, optional): The amount of memory to request for the container, in MB,
+            not implemented in Foundry DevTools.
+        memory_gb (float, optional): The amount of memory to request for the container, in GB,
+            not implemented in Foundry DevTools.
         gpu_type (str, optional): The type of GPU to allocate for the transform.
         container_image (str, optional): not implemented in Foundry DevTools
         container_tag (str, optional): not implemented in Foundry DevTools
@@ -126,7 +126,7 @@ def transform_polars(output, **inputs):
         ...     first_input=Input('ri.main.foundry.dataset.in1'),
         ...     second_input=Input('ri.main.foundry.dataset.in2'),
         ... )
-        ... def my_compute_function(ctx, first_input, second_input):
+        ... def my_compute_function(first_input, second_input):
         ...     # type: (polars.DataFrame, polars.DataFrame) -> polars.DataFrame
         ...     return first_input.join(second_input, on='id', how="inner")
 
