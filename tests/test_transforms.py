@@ -2,7 +2,6 @@ import io
 import json
 import os
 import pathlib
-from tempfile import TemporaryDirectory
 from unittest import mock
 
 import fs
@@ -105,15 +104,20 @@ def return_df(one, dataset_path, branch):
     }.get(dataset_path)
 
 
-def return_path_factory(temporary_folder):
-    def return_path(one, identity, branch):
-        dataset_path = identity["dataset_path"]
-        df = return_df(one, dataset_path, branch)
-        destination = os.path.join(temporary_folder, dataset_path.replace("/", ""))
-        df.write.parquet(os.path.join(destination, "spark"))
-        return destination
-
-    return return_path
+def return_path(one, identity, branch):
+    dataset_path = identity["dataset_path"]
+    df = return_df(one, dataset_path, branch)
+    destination = os.sep.join(
+        [
+            foundry_dev_tools.config.Configuration[
+                "cache_dir"
+            ],  # this is a tmp dir in unit tests
+            identity["dataset_rid"],
+            identity["last_transaction_rid"] + ".parquet",
+        ]
+    )
+    df.write.parquet(os.path.join(destination, "spark"))
+    return destination
 
 
 def get_spark_schema_mock(one, dataset_rid, last_transaction_rid, branch="master"):
@@ -126,11 +130,11 @@ def dataset_has_schema_mock(one, two, three):
 
 @pytest.fixture()
 def _run_around_tests(tmpdir):
-    with TemporaryDirectory() as temporary_folder, mock.patch(
+    with mock.patch(
         "transforms.api.Input._read_spark_df_with_sql_query", return_df
     ), mock.patch(
         "foundry_dev_tools.cached_foundry_client.CachedFoundryClient._fetch_dataset",
-        return_path_factory(temporary_folder),
+        return_path,
     ), mock.patch(
         "transforms.api.Input._dataset_has_schema", dataset_has_schema_mock
     ), mock.patch(

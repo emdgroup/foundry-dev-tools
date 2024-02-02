@@ -19,7 +19,6 @@ import fs
 import pyspark
 
 import foundry_dev_tools.config
-from foundry_dev_tools.utils.caches.spark_caches import get_dataset_path
 from foundry_dev_tools.utils.spark import get_spark_session
 from transforms.api._dataset import Input, Output
 
@@ -274,12 +273,7 @@ class TransformInput:
             FileSystem:
                 A `FileSystem` object for reading from `Foundry`.
         """
-        return FileSystem(
-            base_path=get_dataset_path(
-                foundry_dev_tools.config.Configuration["cache_dir"],
-                self._dataset_identity,
-            )
-        )
+        return FileSystem(base_path=self._local_path)
 
 
 class LightweightTransformInput(TransformInput):
