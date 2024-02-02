@@ -141,7 +141,6 @@ class Input:
             dataset_identity["dataset_path"],
             branch,
         )
-        self._cached_client._fetch_dataset(dataset_identity, branch)
         return False, dataset_identity, branch
 
     def _offline(self, alias: str, branch: str) -> "tuple[bool, dict, str]":
