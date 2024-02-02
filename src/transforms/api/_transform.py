@@ -10,6 +10,7 @@ import inspect
 import os
 import re
 from collections.abc import Callable
+from functools import cached_property
 from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
@@ -242,6 +243,7 @@ class TransformInput:
     def __init__(self, input_arg: Input):
         self._input_arg = input_arg
         self._dataset_identity = input_arg.get_dataset_identity()
+        self._local_path = input_arg.get_local_path_to_dataset()
         self.branch = input_arg.branch
         self.rid = self._dataset_identity["dataset_rid"]
         self.path = self._dataset_identity["dataset_path"]
@@ -287,16 +289,15 @@ class LightweightTransformInput(TransformInput):
         super().__init__(input_arg)
         self.branch = input_arg.branch
         self.rid = input_arg.get_dataset_identity()["dataset_rid"]
-        self._path = input_arg.get_local_path_to_dataset()
-        del self.path
+        del self.path  # we change the field to a property in this class
 
-    @property
+    @cached_property
     def _parquet_files(self) -> List[Path]:
-        return list(Path(self._path).glob("**/*.parquet"))
+        return list(Path(self._local_path).glob("**/*.parquet"))
 
-    @property
+    @cached_property
     def _csv_files(self) -> List[Path]:
-        return list(Path(self._path).glob("**/*.csv"))
+        return list(Path(self._local_path).glob("**/*.csv"))
 
     def dataframe(self):
         raise NotImplementedError(
@@ -305,7 +306,7 @@ class LightweightTransformInput(TransformInput):
 
     def path(self) -> str:
         """Download the dataset's underlying files and return a Path to them."""
-        return self._path
+        return self._local_path
 
     def pandas(self) -> "pandas.DataFrame":
         """A Pandas DataFrame containing the full view of the dataset."""
@@ -314,9 +315,7 @@ class LightweightTransformInput(TransformInput):
         return (
             pd.concat(map(pd.read_parquet, self._parquet_files), ignore_index=True)
             if self._parquet_files
-            else pd.concat(
-                map(pd.read_csv, Path(self._path).glob("*.csv")), ignore_index=True
-            )
+            else pd.concat(map(pd.read_csv, self._csv_files), ignore_index=True)
         )
 
     def arrow(self) -> "pyarrow.Table":  # noqa: F821
@@ -326,7 +325,9 @@ class LightweightTransformInput(TransformInput):
         from pyarrow import csv
 
         return (
-            pq.ParquetDataset(str(self._path) + "/", use_legacy_dataset=False).read()
+            pq.ParquetDataset(
+                str(self._local_path) + "/", use_legacy_dataset=False
+            ).read()
             if self._parquet_files
             else pa.concat_tables([csv.read_csv(p) for p in self._csv_files])
         )
@@ -344,14 +345,14 @@ class LightweightTransformInput(TransformInput):
         if lazy:
             return (
                 pl.scan_parquet(
-                    f"{self._path}/**/*.parquet",
+                    f"{self._local_path}/**/*.parquet",
                     rechunk=False,
                     low_memory=True,
                     cache=False,
                 )
                 if self._parquet_files
                 else pl.scan_csv(
-                    f"{self._path}/**/*.csv",
+                    f"{self._local_path}/**/*.csv",
                     rechunk=False,
                     low_memory=True,
                     cache=False,
@@ -360,12 +361,14 @@ class LightweightTransformInput(TransformInput):
 
         return (
             pl.read_parquet(
-                f"{self._path}/**/*.parquet",
+                f"{self._local_path}/**/*.parquet",
                 rechunk=False,
                 low_memory=True,
             )
             if self._parquet_files
-            else pl.read_csv(f"{self._path}/**/*.csv", rechunk=False, low_memory=True)
+            else pl.read_csv(
+                f"{self._local_path}/**/*.csv", rechunk=False, low_memory=True
+            )
         )
 
 
