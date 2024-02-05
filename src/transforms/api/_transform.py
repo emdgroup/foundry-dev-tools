@@ -538,7 +538,7 @@ class FileSystem:
                 result_path, "size not implemented", "modified not implemented"
             )
 
-    def open(self, path, mode="w", **kwargs):  # noqa: A003
+    def open(self, path, mode="w", **kwargs):
         """Open file in this filesystem.
 
         Args:

@@ -244,7 +244,7 @@ class Config(UserDict):
             raise KeyError(key)
         self.data[key] = None
 
-    def set(self, key, value):  # noqa: A003
+    def set(self, key, value):
         """Deprecated: Stores value in config.
 
         Args:
