@@ -116,7 +116,7 @@ def return_path(one, identity, branch):
             identity["last_transaction_rid"] + ".parquet",
         ]
     )
-    df.write.parquet(os.path.join(destination, "spark"))
+    df.write.parquet(os.path.join(destination, "spark"), mode="overwrite")
     return destination
 
 
@@ -205,7 +205,6 @@ def test_transform_one_input():
         assert output1.branch is not None
         assert output1.rid is not None
 
-        output1.filesystem()._fs.makedir("subfolder")
         with output1.filesystem().open("subfolder/test.txt", "w") as f:
             f.write("test")
         assert "subfolder/test.txt" in [file.path for file in output1.filesystem().ls()]

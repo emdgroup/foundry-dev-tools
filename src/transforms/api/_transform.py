@@ -242,7 +242,6 @@ class TransformInput:
     def __init__(self, input_arg: Input):
         self._input_arg = input_arg
         self._dataset_identity = input_arg.get_dataset_identity()
-        self._local_path = input_arg.get_local_path_to_dataset()
         self.branch = input_arg.branch
         self.rid = self._dataset_identity["dataset_rid"]
         self.path = self._dataset_identity["dataset_path"]
@@ -273,7 +272,7 @@ class TransformInput:
             FileSystem:
                 A `FileSystem` object for reading from `Foundry`.
         """
-        return FileSystem(base_path=self._local_path)
+        return FileSystem(base_path=self._input_arg.get_local_path_to_dataset())
 
 
 class LightweightTransformInput(TransformInput):
@@ -283,6 +282,7 @@ class LightweightTransformInput(TransformInput):
         super().__init__(input_arg)
         self.branch = input_arg.branch
         self.rid = input_arg.get_dataset_identity()["dataset_rid"]
+        self._local_path = input_arg.get_local_path_to_dataset()
         del self.path  # we change the field to a property in this class
 
     @cached_property
