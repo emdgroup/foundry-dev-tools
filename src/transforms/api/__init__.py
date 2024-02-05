@@ -7,7 +7,14 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 from ._configure import configure
 from ._dataset import Input, Markings, OrgMarkings, Output
-from ._decorators import incremental, transform, transform_df, transform_pandas
+from ._decorators import (
+    incremental,
+    lightweight,
+    transform,
+    transform_df,
+    transform_pandas,
+    transform_polars,
+)
 from ._transform import TransformContext
 
 __all__ = (
@@ -18,6 +25,8 @@ __all__ = (
     "transform_df",
     "transform_pandas",
     "transform",
+    "lightweight",
+    "transform_polars",
     "TransformContext",
     "incremental",
     "configure",

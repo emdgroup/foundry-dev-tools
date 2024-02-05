@@ -10,16 +10,21 @@ import inspect
 import os
 import re
 from collections.abc import Callable
+from functools import cached_property
 from os import PathLike
 from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional
 
 import fs
 import pyspark
 
 import foundry_dev_tools.config
-from foundry_dev_tools.utils.caches.spark_caches import get_dataset_path
 from foundry_dev_tools.utils.spark import get_spark_session
 from transforms.api._dataset import Input, Output
+
+DECORATOR_TYPE = Literal[
+    "spark", "pandas", "lightweight", "lightweight-pandas", "lightweight-polars"
+]
 
 
 class Transform:
@@ -35,7 +40,7 @@ class Transform:
         compute_func: Callable,
         outputs: "dict[str, Output] | None" = None,
         inputs: "dict[str, Input] | None" = None,
-        decorator: str = "spark",
+        decorator: DECORATOR_TYPE = "spark",
     ):
         """Initialize the `Transform`.
 
@@ -79,11 +84,16 @@ class Transform:
 
     def compute(self):
         """Execute the wrapped transform function."""
-        if self._type == "pandas":
-            return self._compute_pandas()
-        if self._type == "transform":
-            return self._compute_transform()
-        return self._compute_spark()
+        handlers: Dict[DECORATOR_TYPE, Callable[[], Any]] = {
+            "spark": self._compute_spark,
+            "pandas": self._compute_pandas,
+            "transform": self._compute_transform,
+            "lightweight": self._compute_lightweight,
+            "lightweight-pandas": self._compute_lightweight_pandas,
+            "lightweight-polars": self._compute_lightweight_polars,
+        }
+
+        return handlers[self._type]()
 
     def _compute_spark(
         self,
@@ -148,6 +158,50 @@ class Transform:
 
         return {name: i.dataframe() for name, i in outputs.items()}
 
+    def _compute_lightweight(self):
+        if self._use_context:
+            raise ValueError(
+                "Lightweight transforms do not support the context argument."
+            )
+
+        inputs = {
+            argument_name: LightweightTransformInput(i)
+            for argument_name, i in self.inputs.items()
+        }
+        outputs = {
+            argument_name: LightweightTransformOutput(o, argument_name)
+            for argument_name, o in self.outputs.items()
+        }
+        kwargs = {**inputs, **outputs}
+
+        self(**kwargs)
+
+        return {name: i.df for name, i in outputs.items()}
+
+    def _compute_lightweight_pandas(self):
+        if self._use_context:
+            raise ValueError(
+                "Lightweight transforms do not support the context argument."
+            )
+
+        inputs = {
+            argument_name: LightweightTransformInput(i).pandas()
+            for argument_name, i in self.inputs.items()
+        }
+        return self(**inputs)
+
+    def _compute_lightweight_polars(self):
+        if self._use_context:
+            raise ValueError(
+                "Lightweight transforms do not support the context argument."
+            )
+
+        inputs = {
+            argument_name: LightweightTransformInput(i).polars()
+            for argument_name, i in self.inputs.items()
+        }
+        return self(**inputs)
+
 
 class TransformContext:
     """The TransformContext is passed to the transform function if ctx is the first argument."""
@@ -186,7 +240,7 @@ class TransformInput:
     """TransformInput class, passed when using @transform decorator."""
 
     def __init__(self, input_arg: Input):
-        self._dataframe = input_arg.dataframe()
+        self._input_arg = input_arg
         self._dataset_identity = input_arg.get_dataset_identity()
         self.branch = input_arg.branch
         self.rid = self._dataset_identity["dataset_rid"]
@@ -199,7 +253,7 @@ class TransformInput:
             :external+spark:py:class:`~pyspark.sql.DataFrame`:
                 The dataframe for the dataset.
         """
-        return self._dataframe
+        return self._input_arg.dataframe()
 
     def pandas(self):
         """Returns the pandas dataframe of this transform input.
@@ -218,10 +272,96 @@ class TransformInput:
             FileSystem:
                 A `FileSystem` object for reading from `Foundry`.
         """
-        return FileSystem(
-            base_path=get_dataset_path(
-                foundry_dev_tools.config.Configuration["cache_dir"],
-                self._dataset_identity,
+        return FileSystem(base_path=self._input_arg.get_local_path_to_dataset())
+
+
+class LightweightTransformInput(TransformInput):
+    """LightweightTransformInput class, passed when using @lightweight decorator."""
+
+    def __init__(self, input_arg: Input):
+        super().__init__(input_arg)
+        self.branch = input_arg.branch
+        self.rid = input_arg.get_dataset_identity()["dataset_rid"]
+        self._local_path = input_arg.get_local_path_to_dataset()
+        del self.path  # we change the field to a property in this class
+
+    @cached_property
+    def _parquet_files(self) -> List[Path]:
+        return list(Path(self._local_path).glob("**/*.parquet"))
+
+    @cached_property
+    def _csv_files(self) -> List[Path]:
+        return list(Path(self._local_path).glob("**/*.csv"))
+
+    def dataframe(self):
+        raise NotImplementedError(
+            "Lightweight transforms do not support the dataframe method."
+        )
+
+    def path(self) -> str:
+        """Download the dataset's underlying files and return a Path to them."""
+        return self._local_path
+
+    def pandas(self) -> "pandas.DataFrame":
+        """A Pandas DataFrame containing the full view of the dataset."""
+        import pandas as pd
+
+        return (
+            pd.concat(map(pd.read_parquet, self._parquet_files), ignore_index=True)
+            if self._parquet_files
+            else pd.concat(map(pd.read_csv, self._csv_files), ignore_index=True)
+        )
+
+    def arrow(self) -> "pyarrow.Table":  # noqa: F821
+        """A PyArrow table containing the full view of the dataset."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        from pyarrow import csv
+
+        return (
+            pq.ParquetDataset(
+                str(self._local_path) + "/", use_legacy_dataset=False
+            ).read()
+            if self._parquet_files
+            else pa.concat_tables([csv.read_csv(p) for p in self._csv_files])
+        )
+
+    def polars(
+        self, lazy: Optional[bool] = False
+    ) -> "polars.DataFrame | polars.LazyFrame":
+        """A Polars DataFrame or LazyFrame containing the full view of the dataset.
+
+        Args:
+            lazy (bool, optional): Whether to return a LazyFrame or DataFrame. Defaults to False.
+        """
+        import polars as pl
+
+        if lazy:
+            return (
+                pl.scan_parquet(
+                    f"{self._local_path}/**/*.parquet",
+                    rechunk=False,
+                    low_memory=True,
+                    cache=False,
+                )
+                if self._parquet_files
+                else pl.scan_csv(
+                    f"{self._local_path}/**/*.csv",
+                    rechunk=False,
+                    low_memory=True,
+                    cache=False,
+                )
+            )
+
+        return (
+            pl.read_parquet(
+                f"{self._local_path}/**/*.parquet",
+                rechunk=False,
+                low_memory=True,
+            )
+            if self._parquet_files
+            else pl.read_csv(
+                f"{self._local_path}/**/*.csv", rechunk=False, low_memory=True
             )
         )
 
@@ -298,6 +438,60 @@ class TransformOutput:
         """
 
 
+class LightweightTransformOutput(TransformOutput):
+    """The output object passed to the user code at runtime.
+
+    Its aim is to mimic a subset of the API of `TransformOutput`.
+    """
+
+    def __init__(self, output: Output, argument_name: str):
+        super().__init__(output, argument_name)
+        self.branch = "no-implemented-in-foundry-dev-tools"
+        self.path = output.alias
+        self.rid = "no-implemented-in-foundry-dev-tools"
+        self.df = None
+
+    def write_pandas(
+        self, df: "pandas.DataFrame", *args, **kwargs  # noqa: F821
+    ) -> None:
+        """Write the given :class:`pandas.DataFrame` to the dataset."""
+        self.write_table(df, *args, **kwargs)
+
+    def write_table(self, df, *args, **kwargs) -> None:
+        """Write a Pandas DataFrame, Arrow Table, Polars DataFrame or LazyFrame, to a Foundry Dataset.
+
+        Note:
+            In case a path is specified, it must match the return value of ``path_for_write_table``.
+
+        Args:
+            df: pd.DataFrame, pa.Table, pl.DataFrame, pl.LazyFrame, or pathlib.Path with the data to upload
+            *args: not implemented in Foundry DevTools
+            **kwargs: not implemented in Foundry DevTools
+
+        Returns:
+            None
+        """
+        if df.__class__.__name__ == "LazyFrame":
+            df = df.collect()
+
+        if isinstance(df, (str, Path)):
+            if df != self.path_for_write_table:
+                raise ValueError(
+                    f"Path '{df}' does not match expected path '{self.path_for_write_table}'"
+                )
+
+            import pandas as pd
+
+            self.df = pd.read_parquet(df)  # make df pretty printable
+        else:
+            self.df = df
+
+    @property
+    def path_for_write_table(self):
+        """Return the path for the dataset's files to be used with write_table."""
+        return self.path
+
+
 class FileStatus(collections.namedtuple("FileStatus", ["path", "size", "modified"])):
     """A :class:`collections.namedtuple` capturing details about a `FoundryFS` file."""
 
@@ -356,4 +550,5 @@ class FileSystem:
             IO:
 
         """
+        self._fs.makedirs(os.path.dirname(path), recreate=True)
         return self._fs.open(path, mode, **kwargs)

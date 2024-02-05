@@ -9,7 +9,7 @@ import inspect
 import logging
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pyspark
 
@@ -52,8 +52,8 @@ def _as_list(list_or_single_item: "list[Any] | Any | None") -> "list[Any]":
 class Input:
     """Specification of a transform dataset input.
 
-    The actual download is initialized when the Input class is constructed.
-    It is currently not lazy loaded.
+    Some API requests may be sent when the Input class is constructed. However, the actual download
+    is only initiated when dataframe() or get_local_path_to_dataset() is called.
 
     """
 
@@ -85,24 +85,31 @@ class Input:
         self.config = foundry_dev_tools.config.Configuration.get_config()
         self._cached_client = CachedFoundryClient(self.config)
         self._cache = DiskPersistenceBackedSparkCache(**self.config)
+        self._spark_df = None
         if branch is None:
             branch = _get_branch(Path(caller_filename))
 
-        if (
+        if self._is_online:
+            (
+                self._is_spark_df_retrievable,
+                self._dataset_identity,
+                self.branch,
+            ) = self._online(alias, branch)
+        else:
+            (
+                self._is_spark_df_retrievable,
+                self._dataset_identity,
+                self.branch,
+            ) = self._offline(alias, branch)
+
+    @property
+    def _is_online(self) -> bool:
+        return (
             "transforms_freeze_cache" not in self.config
             or self.config["transforms_freeze_cache"] is False
-        ):
-            self._spark_df, self._dataset_identity, self.branch = self._online(
-                alias, branch
-            )
-        else:
-            self._spark_df, self._dataset_identity, self.branch = self._offline(
-                alias, branch
-            )
+        )
 
-    def _online(
-        self, alias, branch
-    ) -> "tuple[pyspark.sql.DataFrame | None, dict, str]":
+    def _online(self, alias, branch) -> "tuple[bool, dict, str]":
         try:
             dataset_identity = self._cached_client.api.get_dataset_identity(
                 alias, branch
@@ -122,7 +129,7 @@ class Input:
             raise DatasetHasNoTransactionsError(alias)
         if self._dataset_has_schema(dataset_identity, branch):
             return (
-                self._retrieve_spark_df(dataset_identity, branch),
+                True,
                 dataset_identity,
                 branch,
             )
@@ -134,16 +141,13 @@ class Input:
             dataset_identity["dataset_path"],
             branch,
         )
-        self._cached_client._fetch_dataset(dataset_identity, branch)
-        return None, dataset_identity, branch
+        return False, dataset_identity, branch
 
-    def _offline(
-        self, alias: str, branch: str
-    ) -> "tuple[pyspark.sql.DataFrame | None, dict, str]":
+    def _offline(self, alias: str, branch: str) -> "tuple[bool, dict, str]":
         dataset_identity = self._cache.get_dataset_identity_not_branch_aware(alias)
         if self._cache.dataset_has_schema(dataset_identity):
-            return self._cache[dataset_identity], dataset_identity, branch
-        return None, dataset_identity, branch
+            return True, dataset_identity, branch
+        return False, dataset_identity, branch
 
     def _dataset_has_schema(self, dataset_identity, branch):
         try:
@@ -228,13 +232,24 @@ class Input:
             self._cache[dataset_identity] = spark_df
         return spark_df
 
-    def dataframe(self) -> pyspark.sql.DataFrame:
+    def dataframe(self) -> Optional[pyspark.sql.DataFrame]:
         """Get the cached :external+spark:py:class:`~pyspark.sql.DataFrame` of this Input.
+
+        Only available if the input has a schema. The Spark DataFrame will get loaded the first
+        time this method is invoked.
 
         Returns:
             :external+spark:py:class:`~pyspark.sql.DataFrame`: The cached DataFrame of this Input
 
         """
+        if self._is_spark_df_retrievable and self._spark_df is None:
+            if self._is_online:
+                self._spark_df = self._retrieve_spark_df(
+                    self._dataset_identity, self.branch
+                )
+            else:
+                self._spark_df = self._cache[self._dataset_identity]
+
         return self._spark_df
 
     def get_dataset_identity(self) -> dict:
@@ -246,6 +261,22 @@ class Input:
 
         """
         return self._dataset_identity
+
+    def get_local_path_to_dataset(self) -> str:
+        """Returns path to the dataset's files on disk.
+
+        Calling this method for the first time may trigger downloading the dataset files.
+
+        Returns:
+            str:
+                path to the dataset's files on disk
+
+        """
+        return (
+            self._cached_client._fetch_dataset(self._dataset_identity, self.branch)
+            if self._is_online
+            else self._cache.get_path_to_local_dataset(self._dataset_identity)
+        )
 
 
 def _get_branch(caller_filename: Path) -> str:

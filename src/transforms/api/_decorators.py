@@ -5,9 +5,145 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 """  # noqa: E501
 import warnings
+from typing import Optional
 
 from transforms.api._dataset import Input, Output
 from transforms.api._transform import Transform
+
+
+def lightweight(
+    _maybe_transform=None,
+    *,
+    cpu_cores: Optional[float] = None,
+    memory_mb: Optional[float] = None,
+    memory_gb: Optional[float] = None,
+    gpu_type: Optional[str] = None,
+    container_image: Optional[str] = None,
+    container_tag: Optional[str] = None,
+    container_shell_command: Optional[str] = None,
+):
+    """Turn a transform into a Lightweight transform.
+
+    A Lightweight transform is a transform that runs without Spark, on a single node. Lightweight transforms are faster
+    and more cost-effective for small to medium-sized datasets. Lightweight transforms also provide more methods for
+    accessing datasets; however, they only support a subset of the API of a regular transforms, including Pandas and
+    the filesystem API. For more information, see the public documentation available at
+    https://www.palantir.com/docs/foundry/transforms-python/lightweight-overview
+
+    Args:
+        cpu_cores (float, optional): The number of CPU cores to request for the transform's container,
+            can be a fraction, not implemented in Foundry DevTools.
+        memory_mb (float, optional): The amount of memory to request for the container, in MB,
+            not implemented in Foundry DevTools.
+        memory_gb (float, optional): The amount of memory to request for the container, in GB,
+            not implemented in Foundry DevTools.
+        gpu_type (str, optional): The type of GPU to allocate for the transform.
+        container_image (str, optional): not implemented in Foundry DevTools
+        container_tag (str, optional): not implemented in Foundry DevTools
+        container_shell_command (str, optional): not implemented in Foundry DevTools
+
+    Notes:
+        Either `memory_gb` or `memory_mb` can be specified, but not both.
+
+        Specifying resources has no effect when running locally.
+
+    Examples:
+        >>> @lightweight
+        ... @transform(
+        ...     my_input=Input('/input'),
+        ...     my_output=Output('/output')
+        ... )
+        ... def compute_func(my_input, my_output):
+        ...     my_output.write_table(my_input.polars())
+
+        >>> @lightweight()
+        ... @transform(
+        ...    my_input=Input('/input'),
+        ...    my_output=Output('/output')
+        ... )
+        ... def compute_func(my_input, my_output):
+        ...     for file in my_input.filesystem().ls():
+        ...         with my_input.filesystem().open(file.path) as f1:
+        ...             with my_output.filesystem().open(file.path, "w") as f2:
+        ...                 f2.write(f1.read())
+    """
+    if container_image or container_tag or container_shell_command:
+        raise NotImplementedError(
+            "BYOC workflows enabled through container_image, container_tag, and container_shell_command "
+            "are not implemented in Foundry DevTools"
+        )
+
+    if memory_mb is not None and memory_gb is not None:
+        raise ValueError("Only one of memory_mb or memory_gb can be specified")
+
+    if cpu_cores or memory_mb or memory_gb or gpu_type:
+        warnings.warn(
+            "Setting resources for @lightweight transforms will have no effect when running locally."
+        )
+
+    def _lightweight(transform) -> Transform:
+        if not isinstance(transform, Transform):
+            raise TypeError(
+                "lightweight decorator must be used on a Transform object. "
+                "Perhaps you didn't put @lightweight as the top-most decorator?"
+            )
+
+        if transform._type not in {"transform", "pandas"}:
+            raise ValueError(
+                "You can only use @lightweight on @transform or @transform_pandas"
+            )
+
+        return Transform(
+            transform._compute_func,
+            outputs=transform.outputs,
+            inputs=transform.inputs,
+            decorator="lightweight-pandas"
+            if transform._type == "pandas"
+            else "lightweight",
+        )
+
+    return _lightweight if _maybe_transform is None else _lightweight(_maybe_transform)
+
+
+def transform_polars(output, **inputs):
+    """Register the wrapped compute function as a Polars transform.
+
+    Note:
+        To use the Polars library, you must add ``polars`` as a **run** dependency in your ``meta.yml`` file .
+        For more information, refer to the
+        :ref:`section describing the meta.yml file <transforms-python-proj-structure-meta>`.
+
+        The ``transform_polars`` decorator is just a thin wrapper around the ``lightweight`` decorator. Using it
+        results in the creation of a lightweight transform which lacks some features of a regular transform.
+
+        This works similarly to the :func:`transform_pandas` decorator, however, instead of Pandas DataFrames, the
+        user code is given and is expected to return Polars DataFrames.
+
+        Note that spark profiles can't be used with lightweight transforms, hence, neither with @transforms_polars.
+
+        >>> @transform_polars(
+        ...     Output('ri.main.foundry.dataset.out'),  # An unnamed Output spec
+        ...     first_input=Input('ri.main.foundry.dataset.in1'),
+        ...     second_input=Input('ri.main.foundry.dataset.in2'),
+        ... )
+        ... def my_compute_function(first_input, second_input):
+        ...     # type: (polars.DataFrame, polars.DataFrame) -> polars.DataFrame
+        ...     return first_input.join(second_input, on='id', how="inner")
+
+    Args:
+        output (Output): The single :class:`Output` spec for the transform.
+        **inputs (Input): kwargs comprised of named :class:`Input` specs.
+    """
+
+    def _transform_polars(compute_function):
+        return Transform(
+            compute_function,
+            outputs={"output": output},
+            inputs=inputs,
+            decorator="lightweight-polars",
+        )
+
+    return _transform_polars
 
 
 def transform_df(output, **inputs):

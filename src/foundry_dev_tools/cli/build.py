@@ -104,7 +104,13 @@ def create_log_record(log_message: str) -> logging.LogRecord:
     )
 
 
-TRANSFORM_DECORATORS = ["transform", "transform_df", "transform_pandas"]
+TRANSFORM_DECORATORS = [
+    "lightweight",
+    "transform",
+    "transform_df",
+    "transform_pandas",
+    "transform_polars",
+]
 
 
 def is_transform_file(transform_file: Path) -> bool:
@@ -112,7 +118,7 @@ def is_transform_file(transform_file: Path) -> bool:
 
     Conditions are that it must be a file (obviously)
     the name must end in ".py"
-    and the file must contain either @transform|@transform_df
+    and the file must contain a transform decorator.
     """
     if not transform_file.is_file():
         return False
@@ -126,6 +132,7 @@ def is_transform_file(transform_file: Path) -> bool:
             if isinstance(node, ast.FunctionDef) and any(
                 decorator.func.id in TRANSFORM_DECORATORS
                 for decorator in node.decorator_list
+                if hasattr(decorator, "func")
             ):
                 return True
 

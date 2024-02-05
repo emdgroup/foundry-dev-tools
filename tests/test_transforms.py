@@ -24,9 +24,11 @@ from transforms.api import (
     TransformContext,
     configure,
     incremental,
+    lightweight,
     transform,
     transform_df,
     transform_pandas,
+    transform_polars,
 )
 from transforms.api._transform import TransformInput, TransformOutput
 
@@ -102,6 +104,22 @@ def return_df(one, dataset_path, branch):
     }.get(dataset_path)
 
 
+def return_path(one, identity, branch):
+    dataset_path = identity["dataset_path"]
+    df = return_df(one, dataset_path, branch)
+    destination = os.sep.join(
+        [
+            foundry_dev_tools.config.Configuration[
+                "cache_dir"
+            ],  # this is a tmp dir in unit tests
+            identity["dataset_rid"],
+            identity["last_transaction_rid"] + ".parquet",
+        ]
+    )
+    df.write.parquet(os.path.join(destination, "spark"), mode="overwrite")
+    return destination
+
+
 def get_spark_schema_mock(one, dataset_rid, last_transaction_rid, branch="master"):
     return return_df(one, dataset_rid.replace("rid1", ""), None).schema
 
@@ -114,6 +132,9 @@ def dataset_has_schema_mock(one, two, three):
 def _run_around_tests(tmpdir):
     with mock.patch(
         "transforms.api.Input._read_spark_df_with_sql_query", return_df
+    ), mock.patch(
+        "foundry_dev_tools.cached_foundry_client.CachedFoundryClient._fetch_dataset",
+        return_path,
     ), mock.patch(
         "transforms.api.Input._dataset_has_schema", dataset_has_schema_mock
     ), mock.patch(
@@ -184,7 +205,6 @@ def test_transform_one_input():
         assert output1.branch is not None
         assert output1.rid is not None
 
-        output1.filesystem()._fs.makedir("subfolder")
         with output1.filesystem().open("subfolder/test.txt", "w") as f:
             f.write("test")
         assert "subfolder/test.txt" in [file.path for file in output1.filesystem().ls()]
@@ -208,10 +228,13 @@ def test_transform_df_one_input(mocker):
             assert_frame_equal(input1.toPandas(), spark_df_return_data_one.toPandas())
             return input1.withColumn("col1", F.lit("replaced")).select("col1")
 
-    # check that only one warning was raised
-    assert len(record) == 1
+        transform_me.compute()
+
+    # check that only one warning was raised from _dataset
+    filtered_records = [r for r in record.list if r.filename.endswith("_dataset.py")]
+    assert len(filtered_records) == 1
     # sql sampling triggers warning
-    assert "Retrieving subset" in record[0].message.args[0]
+    assert "Retrieving subset" in filtered_records[0].message.args[0]
 
     df = transform_me.compute()
     assert df.schema.names[0] == "col1"
@@ -222,7 +245,7 @@ def test_transform_df_one_input(mocker):
     from_foundry_and_cache.reset_mock()
     from_cache.reset_mock()
 
-    _ = Input("/input1")
+    Input("/input1").dataframe()
 
     from_foundry_and_cache.assert_not_called()
     from_cache.assert_called()
@@ -264,6 +287,44 @@ def test_transform_df_two_inputs():
     assert df.columns == ["a", "b"]
     EXPECTED_COUNT = 2
     assert df.count() == EXPECTED_COUNT
+
+
+@pytest.mark.usefixtures("_run_around_tests")
+def test_lightweight_transform_two_inputs():
+    @lightweight
+    @transform(
+        out=Output("/output/to/dataset"),
+        input1=Input("/input1"),
+        input2=Input("/input2"),
+    )
+    def transform_me(input1, input2, out) -> DataFrame:
+        assert_frame_equal(input1.pandas(), spark_df_return_data_one.toPandas())
+        assert_frame_equal(input2.pandas(), spark_df_return_data_two.toPandas())
+        out.write_table(pd.concat([input1.pandas(), input2.pandas()]))
+
+    result = transform_me.compute()
+    df = result["out"]
+    assert list(df.columns) == ["a", "b"]
+    EXPECTED_COUNT = 2
+    assert df.shape[0] == EXPECTED_COUNT
+
+
+@pytest.mark.usefixtures("_run_around_tests")
+def test_transform_polars_transform_two_inputs():
+    @transform_polars(
+        Output("/output/to/dataset"),
+        input1=Input("/input1"),
+        input2=Input("/input2"),
+    )
+    def transform_me(input1, input2) -> DataFrame:
+        assert_frame_equal(input1.to_pandas(), spark_df_return_data_one.toPandas())
+        assert_frame_equal(input2.to_pandas(), spark_df_return_data_two.toPandas())
+        return input1.extend(input2)
+
+    df = transform_me.compute()
+    assert df.columns == ["a", "b"]
+    EXPECTED_COUNT = 2
+    assert df.shape[0] == EXPECTED_COUNT
 
 
 @pytest.mark.usefixtures("_run_around_tests")
@@ -325,7 +386,7 @@ def test_transform_pandas_one_input(mocker):
     from_foundry_and_cache.reset_mock()
     from_cache.reset_mock()
 
-    Input("/input1")
+    Input("/input1").dataframe()
 
     from_foundry_and_cache.assert_not_called()
     from_cache.assert_called()
@@ -416,7 +477,9 @@ def test_transform_freeze_cache(mocker, tmpdir):
 
     @transform(output1=Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me_data_from_online_cache(output1, input1):
-        pass
+        input1.dataframe()
+
+    transform_me_data_from_online_cache.compute()
 
     online.assert_called()
     offline.assert_not_called()
@@ -456,6 +519,23 @@ def test_transforms_with_configure():
         )
         def transform_me_data_from_online_cache(output1, input1):
             pass
+
+
+@pytest.mark.usefixtures("_run_around_tests")
+def test_lightweight_transforms_with_resources():
+    with pytest.warns(UserWarning) as record:
+
+        @lightweight(cpu_cores=12)
+        @transform(
+            output1=Output("/output/to/dataset"),
+            input1=Input("/input1"),
+        )
+        def transform_me(output1, input1):
+            pass
+
+        assert len(record) == 1
+        record_message = record[0].message.args[0]
+        assert "will have no effect" in record_message
 
 
 @pytest.mark.usefixtures("_run_around_tests")
@@ -530,7 +610,9 @@ def test_transform_works_in_no_git_repository(mocker):
             input1=Input("/input1"),
         )
         def transform_me_data_from_online_cache(output1, input1):
-            pass
+            input1.dataframe()
+
+        transform_me_data_from_online_cache.compute()
 
 
 @pytest.mark.usefixtures("_run_around_tests")
