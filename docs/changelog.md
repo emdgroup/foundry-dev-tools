@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [1.4.0] - 2024-02-05
+
+## Added
+
+- support for lightweight transforms (#47)
+
+## Fixed
+
+- PySpark link in installation docs (#48)
+
 ## [1.3.5] - 2023-12-05
 
 ## Fixed
