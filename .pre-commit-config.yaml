@@ -14,5 +14,3 @@ repos:
   rev: 23.9.1
   hooks:
     - id: black
-      # max support version of foundry-dev-tools
-      language_version: python3.11

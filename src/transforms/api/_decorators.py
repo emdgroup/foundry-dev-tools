@@ -4,24 +4,26 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/
 https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-classes/
 
 """  # noqa: E501
+from __future__ import annotations
+
 import warnings
-from typing import Optional
+from typing import Callable
 
 from transforms.api._dataset import Input, Output
 from transforms.api._transform import Transform
 
 
 def lightweight(
-    _maybe_transform=None,
+    _maybe_transform: Transform | None = None,
     *,
-    cpu_cores: Optional[float] = None,
-    memory_mb: Optional[float] = None,
-    memory_gb: Optional[float] = None,
-    gpu_type: Optional[str] = None,
-    container_image: Optional[str] = None,
-    container_tag: Optional[str] = None,
-    container_shell_command: Optional[str] = None,
-):
+    cpu_cores: float | None = None,
+    memory_mb: float | None = None,
+    memory_gb: float | None = None,
+    gpu_type: str | None = None,
+    container_image: str | None = None,
+    container_tag: str | None = None,
+    container_shell_command: str | None = None,
+) -> Callable[[Transform], Transform]:
     """Turn a transform into a Lightweight transform.
 
     A Lightweight transform is a transform that runs without Spark, on a single node. Lightweight transforms are faster
@@ -68,44 +70,46 @@ def lightweight(
         ...                 f2.write(f1.read())
     """
     if container_image or container_tag or container_shell_command:
-        raise NotImplementedError(
+        msg = (
             "BYOC workflows enabled through container_image, container_tag, and container_shell_command "
             "are not implemented in Foundry DevTools"
         )
-
-    if memory_mb is not None and memory_gb is not None:
-        raise ValueError("Only one of memory_mb or memory_gb can be specified")
-
-    if cpu_cores or memory_mb or memory_gb or gpu_type:
-        warnings.warn(
-            "Setting resources for @lightweight transforms will have no effect when running locally."
+        raise NotImplementedError(
+            msg,
         )
 
-    def _lightweight(transform) -> Transform:
+    if memory_mb is not None and memory_gb is not None:
+        msg = "Only one of memory_mb or memory_gb can be specified"
+        raise ValueError(msg)
+
+    if cpu_cores or memory_mb or memory_gb or gpu_type:
+        warnings.warn("Setting resources for @lightweight transforms will have no effect when running locally.")
+
+    def _lightweight(transform: Transform) -> Transform:
         if not isinstance(transform, Transform):
-            raise TypeError(
+            msg = (
                 "lightweight decorator must be used on a Transform object. "
                 "Perhaps you didn't put @lightweight as the top-most decorator?"
             )
-
-        if transform._type not in {"transform", "pandas"}:
-            raise ValueError(
-                "You can only use @lightweight on @transform or @transform_pandas"
+            raise TypeError(
+                msg,
             )
 
+        if transform._type not in {"transform", "pandas"}:  # noqa: SLF001
+            msg = "You can only use @lightweight on @transform or @transform_pandas"
+            raise ValueError(msg)
+
         return Transform(
-            transform._compute_func,
+            transform._compute_func,  # noqa: SLF001
             outputs=transform.outputs,
             inputs=transform.inputs,
-            decorator="lightweight-pandas"
-            if transform._type == "pandas"
-            else "lightweight",
+            decorator="lightweight-pandas" if transform._type == "pandas" else "lightweight",  # noqa: SLF001
         )
 
     return _lightweight if _maybe_transform is None else _lightweight(_maybe_transform)
 
 
-def transform_polars(output, **inputs):
+def transform_polars(output: Output, **inputs) -> Callable[[Callable], Transform]:
     """Register the wrapped compute function as a Polars transform.
 
     Note:
@@ -135,7 +139,7 @@ def transform_polars(output, **inputs):
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_polars(compute_function):
+    def _transform_polars(compute_function: Callable) -> Transform:
         return Transform(
             compute_function,
             outputs={"output": output},
@@ -146,7 +150,7 @@ def transform_polars(output, **inputs):
     return _transform_polars
 
 
-def transform_df(output, **inputs):
+def transform_df(output: Output, **inputs) -> Callable[[Callable], Transform]:
     """Register the wrapped compute function as a dataframe transform.
 
     The ``transform_df`` decorator is used to construct a :class:`Transform` object from
@@ -172,15 +176,13 @@ def transform_df(output, **inputs):
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_df(compute_func):
-        return Transform(
-            compute_func, {"output": output}, inputs=inputs, decorator="spark"
-        )
+    def _transform_df(compute_func: Callable) -> Transform:
+        return Transform(compute_func, {"output": output}, inputs=inputs, decorator="spark")
 
     return _transform_df
 
 
-def transform_pandas(output, **inputs):
+def transform_pandas(output: Output, **inputs) -> Callable[[Callable], Transform]:
     """Register the wrapped compute function as a Pandas transform.
 
     The ``transform_pandas`` decorator is used to construct a :class:`Transform` object from
@@ -205,15 +207,13 @@ def transform_pandas(output, **inputs):
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_pandas(compute_func):
-        return Transform(
-            compute_func, {"output": output}, inputs=inputs, decorator="pandas"
-        )
+    def _transform_pandas(compute_func: Callable) -> Transform:
+        return Transform(compute_func, {"output": output}, inputs=inputs, decorator="pandas")
 
     return _transform_pandas
 
 
-def transform(**kwargs):
+def transform(**kwargs) -> Callable[[Callable], Transform]:
     """Wrap up a compute function as a Transform object.
 
     >>> from transforms.api import transform, Input, Output
@@ -235,7 +235,7 @@ def transform(**kwargs):
         The compute function is responsible for writing data to its outputs.
     """
 
-    def _transform(compute_func):
+    def _transform(compute_func: Callable) -> Transform:
         return Transform(
             compute_func,
             outputs={k: v for k, v in kwargs.items() if isinstance(v, Output)},
@@ -247,11 +247,11 @@ def transform(**kwargs):
 
 
 def incremental(
-    require_incremental=False,
-    semantic_version=1,
-    snapshot_inputs=None,
-    allow_retention=False,
-):
+    require_incremental: bool = False,  # noqa: ARG001
+    semantic_version: int = 1,  # noqa: ARG001
+    snapshot_inputs=None,  # noqa: ARG001,ANN001
+    allow_retention: bool = False,  # noqa: ARG001
+) -> Callable:
     """Not implemented in local.
 
     Args:
@@ -265,7 +265,7 @@ def incremental(
     """
     warnings.warn("@incremental functionality not implemented in Foundry DevTools")
 
-    def _transform(compute_func):
+    def _transform(compute_func: Callable) -> Callable:
         return compute_func
 
     return _transform

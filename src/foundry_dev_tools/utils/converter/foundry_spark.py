@@ -1,20 +1,22 @@
 """Helper function for conversion of data structures."""
 
+from __future__ import annotations
+
 import tempfile
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
-from foundry_dev_tools.utils.importer import import_optional_dependency
 from foundry_dev_tools.utils.spark import get_spark_session
-
-pyspark = import_optional_dependency("pyspark")
 
 if TYPE_CHECKING:
     import pyarrow as pa
+    import pyspark.sql
+
+    from foundry_dev_tools.utils import api_types
 
 
 def foundry_schema_to_spark_schema(
     foundry_schema: dict,
-) -> "pyspark.sql.types.StructType":
+) -> pyspark.sql.types.StructType:
     """Converts foundry json schema format to spark StructType schema.
 
         See the table below for supported field types:
@@ -41,22 +43,21 @@ def foundry_schema_to_spark_schema(
          Timestamp; :class:`TimestampFieldType`; datetime.timestamp; timestamp datetime
 
     Args:
-        foundry_schema (dict): output from foundry's schema API
+        foundry_schema: output from foundry's schema API
 
     Returns:
         :external+spark:py:class:`~pyspark.sql.types.StructType`:
             Spark schema from foundry schema
 
     """
+    from foundry_dev_tools._optional.pyspark import pyspark_sql_types
+
     spark_schema_json = _parse_fields(foundry_schema["fieldSchemaList"])
-    return pyspark.sql.types.StructType.fromJson(spark_schema_json)
+    return pyspark_sql_types.StructType.fromJson(spark_schema_json)
 
 
-def _parse_fields(fields: list):
-    outer_struct_type = {"type": "struct", "fields": []}
-    for field in fields:
-        outer_struct_type["fields"].append(_parse_field(field))
-    return outer_struct_type
+def _parse_fields(fields: list) -> dict:
+    return {"type": "struct", "fields": [_parse_field(field) for field in fields]}
 
 
 def _parse_field(field: dict) -> dict:
@@ -97,12 +98,15 @@ def _parse_field(field: dict) -> dict:
     return spark_field
 
 
-def spark_schema_to_foundry_schema(spark_schema, file_format="parquet") -> dict:
+def spark_schema_to_foundry_schema(
+    spark_schema: pyspark.sql.types.StructType | dict,
+    file_format: str = "parquet",
+) -> dict:
     """Converts spark_schema to foundry schema API compatible payload.
 
     Args:
-        spark_schema (:external+spark:py:class:`~pyspark.sql.types.StructType`): output from foundry's schema API
-        file_format (str): currently only parquet supported
+        spark_schema: output from foundry's schema API
+        file_format: currently only parquet supported
 
     Returns:
         :py:class:`dict`:
@@ -110,7 +114,7 @@ def spark_schema_to_foundry_schema(spark_schema, file_format="parquet") -> dict:
 
     """
     if file_format != "parquet":
-        raise NotImplementedError()
+        raise NotImplementedError
 
     if not isinstance(spark_schema, dict):
         spark_schema = spark_schema.jsonValue()
@@ -125,22 +129,21 @@ def spark_schema_to_foundry_schema(spark_schema, file_format="parquet") -> dict:
         foundry_schema["fieldSchemaList"].append(new_field)
 
     if file_format == "parquet":
-        foundry_schema[
-            "dataFrameReaderClass"
-        ] = "com.palantir.foundry.spark.input.ParquetDataFrameReader"
+        foundry_schema["dataFrameReaderClass"] = "com.palantir.foundry.spark.input.ParquetDataFrameReader"
         foundry_schema["customMetadata"] = {"format": "parquet"}
 
     return foundry_schema
 
 
 def infer_dataset_format_from_foundry_schema(
-    foundry_schema: dict, list_of_files: list
-) -> "str | None":
+    foundry_schema: api_types.FoundrySchema | None,
+    list_of_files: list,
+) -> str | None:
     """Infers dataset format from Foundry Schema dict, looking at key dataFrameReaderClass.
 
     Args:
-        foundry_schema (dict): Schema from foundry schema API
-        list_of_files (list): files of dataset, as fallback option, first file will be checked
+        foundry_schema: Schema from foundry schema API
+        list_of_files: files of dataset, as fallback option, first file will be checked
             for file ending
 
     Returns:
@@ -149,30 +152,21 @@ def infer_dataset_format_from_foundry_schema(
 
     """
     default_format = "unknown"
-    try:
+    if foundry_schema is not None:
         if "ParquetDataFrameReader" in foundry_schema["dataFrameReaderClass"]:
             default_format = "parquet"
         elif "TextDataFrameReader" in foundry_schema["dataFrameReaderClass"]:
             default_format = "csv"
-    except TypeError:
-        pass
-    if (
-        default_format == "unknown"
-        and len(list_of_files) > 0
-        and "csv" in list_of_files[0]
-    ):
+
+    if default_format == "unknown" and len(list_of_files) > 0 and "csv" in list_of_files[0]:
         default_format = "csv"
-    elif (
-        default_format == "unknown"
-        and len(list_of_files) > 0
-        and "parquet" in list_of_files[0]
-    ):
+    elif default_format == "unknown" and len(list_of_files) > 0 and "parquet" in list_of_files[0]:
         default_format = "parquet"
 
     return default_format
 
 
-def _parse_simple_type(struct_field) -> dict:
+def _parse_simple_type(struct_field: dict) -> dict:
     new_field = {"type": struct_field["type"].upper().split("(")[0]}
     if "name" in struct_field:
         new_field["name"] = struct_field["name"]
@@ -183,13 +177,11 @@ def _parse_simple_type(struct_field) -> dict:
 
     if "decimal" in struct_field["type"]:
         new_field["precision"] = int(struct_field["type"].split("(")[1].split(",")[0])
-        new_field["scale"] = int(
-            struct_field["type"].split("(")[1].split(",")[1].split(")")[0]
-        )
+        new_field["scale"] = int(struct_field["type"].split("(")[1].split(",")[1].split(")")[0])
     return new_field
 
 
-def _parse_complex_type(field) -> dict:
+def _parse_complex_type(field: dict) -> dict:
     field["type"]["type"] = field["type"]["elementType"]
     new_field = {
         "type": "ARRAY",
@@ -204,48 +196,49 @@ def _parse_complex_type(field) -> dict:
     return new_field
 
 
-def foundry_sql_data_to_spark_dataframe(
-    data: "List[List]", spark_schema: "pyspark.sql.types.StructType"
-) -> "pyspark.sql.DataFrame":
+def foundry_sql_data_to_spark_dataframe(  # noqa: C901, TODO
+    data: list[list],
+    spark_schema: pyspark.sql.types.StructType,
+) -> pyspark.sql.DataFrame:
     """Converts the result of a foundry sql API query to a spark dataframe.
 
     Args:
-        data (List[List]): list of list of data
-        spark_schema (:external+spark:py:class:`~pyspark.sql.types.StructType`): the spark schema to apply
+        data: list of list of data
+        spark_schema: the spark schema to apply
 
     Returns:
         :external+spark:py:class:`~pyspark.sql.DataFrame`:
             spark dataframe from foundry sql data
 
     """
+    from foundry_dev_tools._optional.pyspark import pyspark_sql, pyspark_sql_types
+
     timestamp_columns = []
     date_columns = []
     decimal_columns = {}
     for field in spark_schema:
-        if field.dataType == pyspark.sql.types.TimestampType():
+        if field.dataType == pyspark_sql_types.TimestampType():
             timestamp_columns.append(field.name)
-            field.dataType = pyspark.sql.types.StringType()
-        if field.dataType == pyspark.sql.types.DateType():
+            field.dataType = pyspark_sql_types.StringType()
+        if field.dataType == pyspark_sql_types.DateType():
             date_columns.append(field.name)
-            field.dataType = pyspark.sql.types.StringType()
+            field.dataType = pyspark_sql_types.StringType()
         if "decimal" in field.dataType.jsonValue():
             decimal_columns[field.name] = field.dataType.jsonValue()
-            field.dataType = pyspark.sql.types.StringType()
+            field.dataType = pyspark_sql_types.StringType()
 
     for i, row in enumerate(data):
         for j, col in enumerate(row):
-            if spark_schema[
-                j
-            ].dataType == pyspark.sql.types.DoubleType() and isinstance(col, str):
+            if spark_schema[j].dataType == pyspark_sql_types.DoubleType() and isinstance(col, str):
                 data[i][j] = float(col)
 
     spark_df = get_spark_session().createDataFrame(data, spark_schema)
     for col in timestamp_columns:
-        spark_df = spark_df.withColumn(col, pyspark.sql.functions.to_timestamp(col))
+        spark_df = spark_df.withColumn(col, pyspark_sql.functions.to_timestamp(col))
     for col in date_columns:
-        spark_df = spark_df.withColumn(col, pyspark.sql.functions.to_date(col))
+        spark_df = spark_df.withColumn(col, pyspark_sql.functions.to_date(col))
     for col, dtype in decimal_columns.items():
-        spark_df = spark_df.withColumn(col, pyspark.sql.functions.col(col).cast(dtype))
+        spark_df = spark_df.withColumn(col, pyspark_sql.functions.col(col).cast(dtype))
     return spark_df
 
 
@@ -255,7 +248,7 @@ def foundry_schema_to_read_options(
     """Converts Foundry Schema Metadata to Spark Read Options.
 
     Args:
-        foundry_schema (dict): output from foundry's schema API
+        foundry_schema: output from foundry's schema API
 
     Returns:
         :py:class:`dict`:
@@ -266,8 +259,7 @@ def foundry_schema_to_read_options(
     if (
         "textParserParams" in foundry_schema["customMetadata"]
         and "parser" in foundry_schema["customMetadata"]["textParserParams"]
-        and foundry_schema["customMetadata"]["textParserParams"]["parser"]
-        == "MULTILINE_CSV_PARSER"
+        and foundry_schema["customMetadata"]["textParserParams"]["parser"] == "MULTILINE_CSV_PARSER"
     ):
         read_options["multiline"] = "true"
     if (
@@ -285,7 +277,7 @@ def foundry_schema_to_dataset_format(
     """Infers from Foundry Schema Metadata one of 'parquet', 'avro', 'csv', 'json'.
 
     Args:
-        foundry_schema (dict): output from foundry's schema API
+        foundry_schema: output from foundry's schema API
 
     Returns:
         :py:class:`str`:
@@ -310,26 +302,28 @@ def foundry_schema_to_dataset_format(
         and foundry_schema["customMetadata"]["format"] == "json"
     ):
         return "json"
-    raise ValueError(f"Can not infer dataset format for schema {foundry_schema=}")
+    msg = f"Can not infer dataset format for schema {foundry_schema=}"
+    raise ValueError(msg)
 
 
 def arrow_stream_to_spark_dataframe(
-    stream_reader: "pa.ipc.RecordBatchStreamReader",
-) -> "pyspark.sql.DataFrame":
+    stream_reader: pa.ipc.RecordBatchStreamReader,
+) -> pyspark.sql.DataFrame:
     """Dumps an arrow stream to a parquet file in a temporary directory.
 
     And reads the parquet file with spark.
 
     Args:
-        stream_reader (:external+pyarrow:py:class:`~pyarrow.ipc.RecordBatchStreamReader`): Arrow Stream
+        stream_reader: Arrow Stream
 
     Returns:
         :external+spark:py:class:`~pyspark.sql.DataFrame`:
             converted to a Spark DataFrame
 
     """
-    import pyarrow.parquet as pq
+    from foundry_dev_tools._optional.pyarrow import pq
 
     temporary_parquet_file = f"{tempfile.mkdtemp(suffix='foundry_dev_tools_sql_temp_result_set')}/query-result.parquet"
+
     pq.write_table(stream_reader.read_all(), temporary_parquet_file, flavor="spark")
     return get_spark_session().read.format("parquet").load(temporary_parquet_file)

@@ -1,16 +1,17 @@
 """Build command and its utility functions."""
+
+from __future__ import annotations
+
 import ast
 import codecs
 import json
 import logging
 import subprocess
-import sys
 import time
-from datetime import datetime
 from numbers import Number
 from pathlib import Path
-from typing import List
-from urllib.parse import quote_plus, urlparse
+from typing import TYPE_CHECKING
+from urllib.parse import quote_plus
 
 import click
 import inquirer
@@ -22,9 +23,12 @@ from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 from websockets.typing import Subprotocol
 
-from foundry_dev_tools import Configuration, FoundryRestClient
-from foundry_dev_tools.utils.misc import TailHelper, print_horizontal_line
+from foundry_dev_tools.config.context import FoundryContext
+from foundry_dev_tools.utils.misc import TailHelper, parse_iso, print_horizontal_line
 from foundry_dev_tools.utils.repo import get_repo
+
+if TYPE_CHECKING:
+    from foundry_dev_tools.config.config_types import Host
 
 log = logging.getLogger("fdt_build")
 log.setLevel(logging.DEBUG)
@@ -41,7 +45,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
     logrecord that was emitted in pyspark.
 
     Args:
-        log_message (str): the log message from spark websocket
+        log_message: the log message from spark websocket
 
     Returns:
         logging.LogRecord
@@ -58,9 +62,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
             log_level = getattr(logging, log_data["level"], logging.ERROR)
             if "stacktrace" in log_data:
                 stack_info = codecs.decode(
-                    log_data["stacktrace"].format(
-                        exception_message=log_data["unsafeParams"]["exception_message"]
-                    ),
+                    log_data["stacktrace"].format(exception_message=log_data["unsafeParams"]["exception_message"]),
                     "unicode-escape",
                 )
             else:
@@ -81,15 +83,7 @@ def create_log_record(log_message: str) -> logging.LogRecord:
                 func=None,
                 sinfo=stack_info,
             )
-            if sys.version_info.major == 3 and sys.version_info.minor < 11:
-                # https://stackoverflow.com/a/75499881/3652805
-                log_record.created = datetime.strptime(
-                    log_data["time"], "%Y-%m-%dT%H:%M:%S.%fZ"
-                ).timestamp()
-            else:
-                log_record.created = datetime.fromisoformat(
-                    log_data["time"]
-                ).timestamp()
+            log_record.created = parse_iso(log_data["time"]).timestamp()
             return log_record
     return logging.LogRecord(
         name="",
@@ -139,34 +133,34 @@ def is_transform_file(transform_file: Path) -> bool:
     return False
 
 
-def tail_job_log(job_id: str, jwt: str):
+MAX_ATTEMPTS = 30
+
+
+def tail_job_log(ctx: FoundryContext, job_id: str):
     """Tails the job log.
 
     This method uses
     """
-    MAX_ATTEMPTS = 30
     connection_attempts = 0
-    uri = f"wss://{urlparse(Configuration['foundry_url']).hostname}/spark-reporter/ws/logs/driver/{job_id}"
+    uri = f"wss://{ctx.host.domain}/spark-reporter/ws/logs/driver/{job_id}"
     while connection_attempts < MAX_ATTEMPTS:
         try:
-            with connect(uri, subprotocols=[Subprotocol(f"Bearer-{jwt}")]) as websocket:
+            with connect(uri, subprotocols=[Subprotocol(f"Bearer-{ctx.token}")]) as websocket:
                 while log_message := websocket.recv():
                     try:
                         if isinstance(log_message, bytes):
                             log.handle(create_log_record(log_message.decode("UTF-8")))
                         else:
                             log.handle(create_log_record(log_message))
-                    except Exception as e:
-                        log.error(
+                    except Exception:  # noqa: PERF203
+                        log.exception(
                             "fdt build >>> This shouldn't happen, "
-                            f"but while parsing the log message this error occured: {e}\n"
+                            "but while parsing the log message this error occurred.",
                         )
                         log.exception("The traceback:")
-                        log.info(
-                            "fdt build >>> Will output the log message in plain:\n"
-                        )
+                        log.info("fdt build >>> Will output the log message in plain:\n")
                         log.info(escape(str(log_message)))
-        except ConnectionClosed as cce:
+        except ConnectionClosed as cce:  # noqa: PERF203
             if cce.code == 1000:
                 rprint("Spark Job Completed.")
                 break
@@ -175,19 +169,17 @@ def tail_job_log(job_id: str, jwt: str):
                 break
 
             connection_attempts += 1
-            rprint(
-                f"Waiting for Spark Driver Logs. Attempt {connection_attempts}/{MAX_ATTEMPTS}"
-            )
+            rprint(f"Waiting for Spark Driver Logs. Attempt {connection_attempts}/{MAX_ATTEMPTS}")
             time.sleep(2)
 
 
-def get_transform_files(git_dir: Path) -> List[str]:
+def get_transform_files(git_dir: Path) -> list[str]:
     """Get transform files.
 
     Gets the transform files edited in the last commit.
 
     Args:
-        git_dir (Path): path to git directory
+        git_dir: path to git directory
 
     Returns:
         list[str]: paths to transform files
@@ -196,19 +188,15 @@ def get_transform_files(git_dir: Path) -> List[str]:
         UsageError: if there are no transform files in the last commit.
     """
     diff_files = (
-        subprocess.check_output(
-            ["git", "log", "-1", "--name-only", "--pretty="], cwd=git_dir
-        )
+        subprocess.check_output(["git", "log", "-1", "--name-only", "--pretty="], cwd=git_dir)
         .decode("ascii")
         .splitlines(False)
     )
-    t_files = []
+    t_files = [f for f in diff_files if is_transform_file(git_dir.joinpath(f))]
 
-    for f in diff_files:
-        if is_transform_file(git_dir.joinpath(f)):
-            t_files.append(f)
     if len(t_files) == 0:
-        raise UsageError("No transform files in the last commit.")
+        msg = "No transform files in the last commit."
+        raise UsageError(msg)
     return t_files
 
 
@@ -216,21 +204,18 @@ def _find_rid(all_jobs: dict, name: str) -> str:
     return next(job["rid"] for job in all_jobs if job["name"] == name)
 
 
-def _get_logs(all_job_logs: dict, rid: str) -> "list[str] | None":
+def _get_logs(all_job_logs: dict, rid: str) -> list[str] | None:
     logs_by_step = all_job_logs[rid]["logsByStep"]
     if len(logs_by_step) > 0 and (logs := logs_by_step[0].get("logs")):
         return logs.splitlines(False)
     return None
 
 
-def _build_url_message(build_id: str):
-    return (
-        "Link to the foundry build: "
-        f"{Configuration['foundry_url']}/workspace/data-integration/job-tracker/builds/{build_id}"
-    )
+def _build_url_message(host: Host, build_id: str) -> str:
+    return f"Link to the foundry build: {host.url}/workspace/data-integration/job-tracker/builds/{build_id}"
 
 
-def _get_started_build(req: dict, build_rid: str) -> "str | None":
+def _get_started_build(req: dict, build_rid: str) -> str | None:
     return (
         req.get("allJobStatusReports", {})
         .get(build_rid, {})
@@ -243,25 +228,32 @@ def _get_started_build(req: dict, build_rid: str) -> "str | None":
 @click.option(
     "-t",
     "--transform",
-    help="The transform python file path e.g. transforms-python/src/myproject/datasets/transform1.py\n"
-    "If not provided you can choose (one of) the transform(s) edited in the last commit.",
-    # TODO multiple=True,
+    help=(
+        "The transform python file path e.g. transforms-python/src/myproject/datasets/transform1.py\n"
+        "If not provided you can choose (one of) the transform(s) edited in the last commit."
+    ),
 )
-def build_cli(transform):  # noqa: PLR0915
+def build_cli(transform: str):
     """Command to start a build and tail the logs.
 
     This command can be run with `fdt build`
 
     Args:
-        transform (str): the transform file to execute
+        transform: the transform file to execute
     """
-    client = FoundryRestClient()
+    ctx = FoundryContext()
+    _build_cli(transform, ctx)
+
+
+def _build_cli(transform: str, ctx: FoundryContext):  # noqa: C901,PLR0915,TODO
+    """Extra method for testing."""
     repo, ref_name, commit_hash, git_dir = get_repo()
     if transform:
         if is_transform_file(Path.cwd().joinpath(transform)):
             transform_file = transform
         else:
-            raise UsageError(f"{transform} is not a transform file.")
+            msg = f"{transform} is not a transform file."
+            raise UsageError(msg)
     else:  # user didn't supply files directly, get the files via inquirer from the last commits
         transform_file = inquirer.prompt(
             [
@@ -269,21 +261,22 @@ def build_cli(transform):  # noqa: PLR0915
                     "transform_file",
                     message="Select the transform you want to run.",
                     choices=get_transform_files(git_dir),
-                )
-            ]
+                ),
+            ],
         )["transform_file"]
     if not transform_file:
-        raise UsageError("No transform file provided.")
+        msg = "No transform file provided."
+        raise UsageError(msg)
 
-    def _req():
-        return client.start_checks_and_build(
+    def _req() -> dict:
+        return ctx.jemma.start_checks_and_builds(
             repository_id=repo,
             ref_name=ref_name,
             commit_hash=commit_hash,
-            file_paths=[transform_file],
+            file_paths={transform_file},
         )
 
-    def _finish(response: dict, exit_code: int, retries: int = 0):
+    def _finish(response: dict, exit_code: int, retries: int = 0) -> None:
         if response["buildStatus"] == "RUNNING" and retries < 30:
             time.sleep(2)
             retries += 1
@@ -294,22 +287,21 @@ def build_cli(transform):  # noqa: PLR0915
             print_horizontal_line(print_handler=rprint)
             rprint(f"Build status: {response['buildStatus']}")
             rprint()
-            rprint(_build_url_message(build_id))
+            rprint(_build_url_message(ctx.host, build_id))
             rprint()
-            job_report = client.get_build(build_id)
-            jobRids = job_report["jobRids"]
-            if len(jobRids) > 0:
+            job_report = ctx.build2.api_get_build_report(build_id).json()
+            job_rids = job_report["jobRids"]
+            if len(job_rids) > 0:
                 rprint("[bold]The resulting dataset(s):[/bold]")
-                for job_rid in jobRids:
-                    job_report = client.get_job_report(job_rid)
-                    for rid, _ in job_report["jobResults"].items():
+                for job_rid in job_rids:
+                    job_report = ctx.build2.api_get_job_report(job_rid).json()
+                    for rid in job_report["jobResults"]:
                         rprint(
-                            f"{Configuration['foundry_url']}/workspace/data-integration/dataset/preview/"
-                            + rid
-                            + "/"
-                            + branch
-                            if branch
-                            else rid
+                            (
+                                f"{ctx.host.url}/workspace/data-integration/dataset/preview/" + rid + "/" + branch
+                                if branch
+                                else rid
+                            ),
                         )
 
         raise SystemExit(exit_code)
@@ -318,15 +310,13 @@ def build_cli(transform):  # noqa: PLR0915
     checks_rid = _find_rid(first_req["allJobs"], name="Checks")
     build_rid = _find_rid(first_req["allJobs"], name="Build initialization")
 
-    def escape_rprint(s: str):
+    def escape_rprint(s: str) -> None:
         return rprint(escape(s))
 
     checks_tailer = TailHelper(escape_rprint)
     build_tailer = TailHelper(escape_rprint)
     if first_req["buildStatus"] in ("SUCCEEDED", "FAILED"):
-        rprint(
-            f"The checks and build are already finished and {first_req['buildStatus'].lower()}."
-        )
+        rprint(f"The checks and build are already finished and {first_req['buildStatus'].lower()}.")
         if (
             inquirer.prompt(
                 [
@@ -335,8 +325,8 @@ def build_cli(transform):  # noqa: PLR0915
                         "Print the logs anyways?",
                         choices=["Yes", "No"],
                         default="No",
-                    )
-                ]
+                    ),
+                ],
             )["print_logs"]
             == "Yes"
         ):
@@ -355,13 +345,13 @@ def build_cli(transform):  # noqa: PLR0915
             .get("startedBuildIds", [None])[0]
         ):
             print_horizontal_line(print_handler=rprint)
-            rprint(_build_url_message(build_id))
+            rprint(_build_url_message(ctx.host, build_id))
             print_horizontal_line(print_handler=rprint)
             tail_job_log(
-                job_id=client.get_build(build_id)["jobRids"][0].replace(
-                    "ri.foundry.main.job.", ""
-                ),
-                jwt=client._headers()["Authorization"].replace("Bearer ", ""),
+                ctx,
+                job_id=ctx.build2.api_get_build_report(build_id)
+                .json()["jobRids"][0]
+                .replace("ri.foundry.main.job.", ""),
             )
             _finish(response_json, 0)
             break

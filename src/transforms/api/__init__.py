@@ -5,9 +5,9 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 """  # noqa: E501
 
-from ._configure import configure
-from ._dataset import Input, Markings, OrgMarkings, Output
-from ._decorators import (
+from transforms.api._configure import configure
+from transforms.api._dataset import Input, Markings, OrgMarkings, Output
+from transforms.api._decorators import (
     incremental,
     lightweight,
     transform,
@@ -15,7 +15,7 @@ from ._decorators import (
     transform_pandas,
     transform_polars,
 )
-from ._transform import TransformContext
+from transforms.api._transform import TransformContext
 
 __all__ = (
     "Input",

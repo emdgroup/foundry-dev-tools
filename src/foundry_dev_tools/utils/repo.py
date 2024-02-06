@@ -1,17 +1,20 @@
 """This file provides helper function for git repos."""
+from __future__ import annotations
+
 import logging
 import subprocess
-import warnings
 from pathlib import Path
+
+from foundry_dev_tools.errors.meta import FoundryDevToolsError
 
 LOGGER = logging.getLogger(__name__)
 
 
-def get_repo(repo_dir: "Path | None" = None) -> "tuple[str,str,str,Path]":
-    """Get the repository RID from the current working directory.
+def get_repo(repo_dir: Path | None = None) -> tuple[str, str, str, Path]:
+    """Get the repository RID of the current working directory.
 
     Args:
-        repo_dir (Path | None): the path to a (sub)directory of a git repo,
+        repo_dir: the path to a (sub)directory of a git repo,
             otherwise current working directory
     Returns:
         tuple[str,str,str]: repo_rid,git_ref,git_revision_hash
@@ -29,27 +32,31 @@ def get_repo(repo_dir: "Path | None" = None) -> "tuple[str,str,str,Path]":
                                 get_git_revision_hash(git_dir),
                                 git_dir,
                             )
-            except Exception as e:
-                raise Exception(
-                    "Can't get repository RID from the gradle.properties file. Malformed file?"
-                ) from e
-            raise Exception(
-                "Can't get repository RID from the gradle.properties file. Is this really a foundry repository?"
+            except Exception as e:  # noqa: BLE001
+                msg = "Can't get repository RID from the gradle.properties file. Malformed file?"
+                raise FoundryDevToolsError(msg) from e
+            msg = "Can't get repository RID from the gradle.properties file. Is this really a foundry repository?"
+            raise FoundryDevToolsError(
+                msg,
             )
-        raise Exception(
-            "There is no gradle.properties file at the top of the git repository, can't get repository RID."
+        msg = "There is no gradle.properties file at the top of the git repository, can't get repository RID."
+        raise FoundryDevToolsError(
+            msg,
         )
-    raise Exception(
-        "If you don't provide a repository RID you need to be in a repository directory"
-        " to detect what you want to build."
+    msg = (
+        "If you don't provide a repository RID you need to be in a repository directory to detect what you want to"
+        " build."
+    )
+    raise FoundryDevToolsError(
+        msg,
     )
 
 
-def get_git_ref(git_dir: "Path | None" = None) -> str:
+def get_git_ref(git_dir: Path | None = None) -> str:
     """Get the branch ref in the supplied git directory.
 
     Args:
-        git_dir (Path | None): the path to a (sub)directory of a git repo,
+        git_dir: the path to a (sub)directory of a git repo,
             otherwise current working directory
     """
     return (
@@ -66,11 +73,11 @@ def get_git_ref(git_dir: "Path | None" = None) -> str:
     )
 
 
-def get_git_revision_hash(git_dir: "Path | None" = None) -> str:
+def get_git_revision_hash(git_dir: Path | None = None) -> str:
     """Get the git revision hash.
 
     Args:
-        git_dir (Path | None): the path to a (sub)directory of a git repo,
+        git_dir: the path to a (sub)directory of a git repo,
             otherwise current working directory
     """
     return (
@@ -87,15 +94,13 @@ def get_git_revision_hash(git_dir: "Path | None" = None) -> str:
     )
 
 
-def git_toplevel_dir(
-    git_dir: "Path | None" = None, use_git: bool = False
-) -> "Path | None":
+def git_toplevel_dir(git_dir: Path | None = None, use_git: bool = False) -> Path | None:
     """Get git top level directory.
 
     Args:
-        git_dir (Path | None): the path to a (sub)directory of a git repo,
+        git_dir: the path to a (sub)directory of a git repo,
             otherwise current working directory
-        use_git (bool): if true call git executable with subprocess,
+        use_git: if true call git executable with subprocess,
             otherwise use minimal python only implementation
 
     Returns:
@@ -104,13 +109,12 @@ def git_toplevel_dir(
 
     """
     if use_git:
-        return Path(
-            subprocess.check_output(
-                ["git", "rev-parse", "--show-toplevel"], cwd=git_dir
+        try:
+            return Path(
+                subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=git_dir).decode("utf-8").strip(),
             )
-            .decode("utf-8")
-            .strip()
-        )
+        except subprocess.CalledProcessError:
+            pass
     if git_dir is None:
         git_dir = Path.cwd()
     if git_dir.joinpath(".git").is_dir():
@@ -118,42 +122,4 @@ def git_toplevel_dir(
     for p in git_dir.resolve().parents:
         if p.joinpath(".git").is_dir():
             return p
-    return None
-
-
-def find_project_config_file(
-    project_directory: "Path | None" = None, use_git: bool = False
-) -> "Path | None":
-    """Get the project config file in a git repo.
-
-    Args:
-        project_directory (Path | None): the path to a (sub)directory of a git repo,
-            otherwise current working directory
-        use_git (bool): passed to :py:meth:git_toplevel_dir
-
-    Returns:
-        Path | None: Path to the project config or None if no file was found
-    """
-    git_directory = git_toplevel_dir(project_directory, use_git=use_git)
-    if not git_directory:
-        LOGGER.debug(
-            "Project-based config file could not be loaded, is project not managed with git?"
-        )
-        return None
-
-    project_config_file = git_directory / ".foundry_dev_tools"
-
-    if project_config_file.is_file():
-        return project_config_file
-
-    foundry_local_project_config_file = git_directory / ".foundry_local_config"
-
-    if foundry_local_project_config_file.is_file():
-        warnings.warn(
-            "Foundrylocal has been renamed to Foundry DevTools.\n"
-            f"Move the old config file {foundry_local_project_config_file} to {project_config_file}\n"
-            "The fallback to the old config file will be removed in the future!",
-            category=DeprecationWarning,
-        )
-        return foundry_local_project_config_file
     return None

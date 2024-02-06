@@ -2,10 +2,20 @@ name: Foundry DevTools CI
 
 on:
   push:
-    tags: ['v*']  # Match tags that resemble a version
-    branches:
-      - main
+    tags-ignore: ['**']
+    paths-ignore:
+      - 'docs/**'
+      - 'LICENSE'
+      - 'README.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.gitignore'
   pull_request:  # Run in every PR
+    paths-ignore:
+      - 'docs/**'
+      - 'LICENSE'
+      - 'README.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.gitignore'
   workflow_dispatch:  # Allow manually triggering the workflow
   schedule:
     # Run roughly every 15 days at 00:00 UTC
@@ -17,83 +27,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  prepare:
+  tests:
     runs-on: ubuntu-latest
-    outputs:
-      wheel-distribution: ${{ steps.wheel-distribution.outputs.path }}
-    steps:
-      - uses: actions/checkout@v3
-        with: {fetch-depth: 0}  # deep clone for setuptools-scm
-      - uses: actions/setup-python@v4
-        id: setup-python
-        with: 
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: "pyproject.toml"
-      - name: Run static analysis and format checkers
-        run: |
-          pip install .[testing,transforms] tox
-          tox -e lint
-      - name: Build package distribution files
-        run: tox -e clean,build
-      - name: Record the path of wheel distribution
-        id: wheel-distribution
-        run: echo "path=$(ls dist/*.whl)" >> $GITHUB_OUTPUT
-      - name: Store the distribution files for use in other stages
-        # `tests` and `publish` will use the same pre-built distributions,
-        # so we make sure to release the exact same package that was tested
-        uses: actions/upload-artifact@v3
-        with:
-          name: python-distribution-files
-          path: dist/
-          retention-days: 1
-
-  test:
-    needs: prepare
     strategy:
       fail-fast: false # always test both versions
       matrix:
         python:
         - "3.8"
-        - "3.11"  # newest Python that is supported by pyspark
-    runs-on: ubuntu-latest
+        - "3.12"  # newest Python that is supported by pyspark
     steps:
       - uses: actions/checkout@v3
+        with: {fetch-depth: 0}  # deep clone for hatch-vcs
       - uses: actions/setup-python@v4
-        id: setup-python
-        with:
+        with: 
           python-version: ${{ matrix.python }}
-          cache: "pip"
-          cache-dependency-path: "pyproject.toml"
-      - name: Retrieve pre-built distribution files
-        uses: actions/download-artifact@v3
-        with: {name: python-distribution-files, path: dist/}
-      - name: Install tox
-        run: pip install tox
-      - name: Run tests
-        run: >-
-          tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
-          -- -rFEx --durations 10 --color yes -m "not integration"  # pytest args
+      - name: Install hatch
+        run: pip install --upgrade hatch
+      - name: Run static analysis and format checkers
+        run: hatch run test:lint
+      - name: Run python tests
+        run: hatch run test:unit
 
-  publish:
-    needs: test
-    if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: "pyproject.toml"
-      - name: Retrieve pre-built distribution files
-        uses: actions/download-artifact@v3
-        with: {name: python-distribution-files, path: dist/}
-      - name: Install Tox
-        run: pip install tox
-      - name: Publish Package
-        env:
-          TWINE_REPOSITORY: pypi
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: tox -e publish
+  # TODO: use hatch
+  # publish:
+  #   needs: test
+  #   if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: "3.11"
+  #         cache: "pip"
+  #         cache-dependency-path: "pyproject.toml"
+  #     - name: Retrieve pre-built distribution files
+  #       uses: actions/download-artifact@v3
+  #       with: {name: python-distribution-files, path: dist/}
+  #     - name: Install Tox
+  #       run: pip install tox
+  #     - name: Publish Package
+  #       env:
+  #         TWINE_REPOSITORY: pypi
+  #         TWINE_USERNAME: __token__
+  #         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+  #       run: tox -e publish

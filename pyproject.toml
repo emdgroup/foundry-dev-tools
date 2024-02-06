@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "foundry-dev-tools"
@@ -28,37 +28,40 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
-  "pyarrow",
-  "pandas",
   "requests",
-  "fs",
-  "backoff",
   "palantir-oauth-client",
+  "polars",
+  "platformdirs",
+  "typing_extensions; python_version < \"3.11\"",
 ]
 dynamic = ["version"]
 
 [project.scripts]
 fdt = "foundry_dev_tools.cli.main:cli"
-
-[project.entry-points."fsspec.specs"]
-foundry = "foundry_dev_tools.fsspec_impl.FoundryFileSystem"
+git-credential-foundry = "foundry_dev_tools.cli.git_credential_foundry:helper"
 
 [project.optional-dependencies]
 integration = ["dask", "fastparquet"]
 testing = [
+  "pyarrow",
+  "pandas",
   "pytest",
   "pytest-mock",
-  "pytest-spark",
   "freezegun",
   "pytest-asyncio",
   "requests-mock",
-  "fsspec",
-  "timeflake",
-  "polars"
+  "polars",
 ]
-transforms = ["pyspark>=3.0.0"]
+transforms = ["pyspark>=3.0.0", "fs"]
 cli = ["click", "inquirer", "websockets", "rich", "packaging"]
 s3 = ["aiobotocore[boto3]"]
+all = ["foundry-dev-tools[transforms,cli,s3]"]
+dev = [
+  "foundry-dev-tools[all,testing,integration]",
+  "pre-commit",
+  "ruff",
+  "hatch",
+]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
@@ -67,16 +70,53 @@ Source = "https://github.com/emdgroup/foundry-dev-tools"
 Tracker = "https://github.com/emdgroup/foundry-dev-tools/issues"
 Changelog = "https://emdgroup.github.io/foundry-dev-tools/changelog.html"
 
-[tool.setuptools]
-zip-safe = false
-platforms = ["any"]
+[tool.hatch]
+build.dev-mode-dirs = ["src"]
+build.hooks.vcs.version-file = "src/foundry_dev_tools/__about__.py"
+build.targets.wheel.packages = ["src/foundry_dev_tools", "src/transforms"]
+build.targets.sdist.include = ["src"]
+version.source = "vcs"
 
-[tool.setuptools_scm]
-version_scheme = "post-release"
+[tool.hatch.envs.test]
+dev-mode = false
+features = ["transforms", "cli", "s3", "testing", "integration"]
+dependencies = ["pre-commit"]
+
+[tool.hatch.envs.test.scripts]
+unit = "pytest tests/unit {args}"
+integration = "pytest tests/integration {args}"
+lint = "pre-commit run --all-files {args:--show-diff-on-failure}"
+
+[tool.hatch.envs.dev]
+dev-mode = true
+features = ["transforms", "cli", "s3", "testing", "integration"]
+
+[tool.hatch.envs.docs]
+dev-mode = false
+features = ["transforms", "cli", "s3"]
+dependencies = [
+  "myst-parser[linkify]",
+  "sphinx>=3.2.1",
+  "sphinx-autobuild",
+  "sphinxcontrib-mermaid",
+  "sphinx-tippy",
+  "sphinx-book-theme",
+  "sphinx-inline-tabs",
+]
+
+[tool.hatch.envs.docs.env-vars]
+DOCSDIR = "{root}/docs"
+BUILDDIR = "{root}/docs/_build"
+
+[tool.hatch.envs.docs.scripts]
+build = "sphinx-build --color -b html -d {env:BUILDDIR}/doctrees {env:DOCSDIR} {env:BUILDDIR}/html"
+test = "sphinx-build --color -b doctest -d {env:BUILDDIR}/doctrees {env:DOCSDIR} {env:BUILDDIR}/doctest"
+linkcheck = "sphinx-build --color -b linkcheck -d {env:BUILDDIR}/doctrees {env:DOCSDIR} {env:BUILDDIR}/linkcheck"
+live = "sphinx-autobuild --watch README.md --ignore '{env:DOCSDIR}/api/**' {env:DOCSDIR} {env:BUILDDIR}"
 
 [tool.pytest.ini_options]
 addopts = "--verbose"
-norecursedirs = ["dist", "build", ".tox"]
+norecursedirs = ["dist", "build"]
 testpaths = "tests"
 markers = [
   "no_patch_conf: don't use autouse config patch fixture",
@@ -85,52 +125,13 @@ markers = [
 ]
 asyncio_mode = "auto"
 
-[tool.ruff]
-select = [
-  "E",
-  "F",
-  "W",
-  "PL",
-  "D",
-  "UP",
-  "B",
-  "S",
-  "RUF",
-  "A",
-  "C4",
-  "ICN",
-  "PT",
-  "RET",
-  "SIM",
-  "PTH",
-  "ERA",
-  "TCH",
-  "I",
-]
+
+[tool.black]
+target-version = ["py38"]
 line-length = 120
-ignore = [
-  "PLR0913",
-  "D104",
-  "D105",
-  "D107",
-  "B028",
-  "S603",
-  "S607",
-  "PLR2004",
-  "PTH",
-]
-unfixable = ["ERA"] # don't delete commented out code automatically
-src = ["src"]
-exclude = ["docs"]
+skip-string-normalization = true
 
-[tool.ruff.per-file-ignores]
-"tests/*" = [
-  "S101",
-  "S311",
-  "D",
-  "S608",
-] # assert, non crypto random and potential sql injection is okay in unit tests and not using docstrings in tests
-"src/foundry_dev_tools/cli/*" = ["PLW1510"]
-
-[tool.ruff.pydocstyle]
-convention = "google"
+[tool.coverage]
+report.skip_covered = true
+paths.source = ["src/"]
+report.exclude_also = ["if TYPE_CHECKING:"]

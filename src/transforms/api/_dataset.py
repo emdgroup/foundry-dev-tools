@@ -5,30 +5,31 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 """  # noqa: E501
 
+from __future__ import annotations
+
 import inspect
 import logging
+import os
 import warnings
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
-import pyspark
-
-import foundry_dev_tools.config
-from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
-from foundry_dev_tools.foundry_api_client import (
-    BranchNotFoundError,
-    DatasetHasNoSchemaError,
-    DatasetHasNoTransactionsError,
-    SQLReturnType,
-)
-from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
+from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetHasNoSchemaError, DatasetHasNoTransactionsError
+from foundry_dev_tools.utils.api_types import SQLReturnType
 from foundry_dev_tools.utils.misc import is_dataset_a_view
 from foundry_dev_tools.utils.repo import git_toplevel_dir
+from transforms import TRANSFORMS_FOUNDRY_CONTEXT
+
+if TYPE_CHECKING:
+    import pyspark
+    import pyspark.sql
+
+    from foundry_dev_tools.utils import api_types
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _as_list(list_or_single_item: "list[Any] | Any | None") -> "list[Any]":
+def _as_list(list_or_single_item: list[Any] | Any | None) -> list[Any]:  # noqa: ANN401
     """Helper function turning single values or None into lists.
 
     Args:
@@ -42,11 +43,7 @@ def _as_list(list_or_single_item: "list[Any] | Any | None") -> "list[Any]":
     if not list_or_single_item:
         return []
 
-    return (
-        list_or_single_item
-        if isinstance(list_or_single_item, list)
-        else [list_or_single_item]
-    )
+    return list_or_single_item if isinstance(list_or_single_item, list) else [list_or_single_item]
 
 
 class Input:
@@ -59,12 +56,12 @@ class Input:
 
     def __init__(
         self,
-        alias: "str | None" = None,
-        branch: "str | None" = None,
-        description=None,
-        stop_propagating=None,
-        stop_requiring=None,
-        checks=None,
+        alias: api_types.DatasetRid | api_types.FoundryPath,
+        branch: api_types.DatasetBranch | None = None,
+        description: str | None = None,  # noqa: ARG002
+        stop_propagating=None,  # noqa: ARG002,ANN001
+        stop_requiring=None,  # noqa: ARG002,ANN001
+        checks=None,  # noqa: ARG002,ANN001
     ):
         """Specification of a transform dataset input.
 
@@ -82,9 +79,6 @@ class Input:
         # extract caller filename to retrieve git information
         caller_filename = inspect.stack()[1].filename
         LOGGER.debug("Input instantiated from %s", caller_filename)
-        self.config = foundry_dev_tools.config.Configuration.get_config()
-        self._cached_client = CachedFoundryClient(self.config)
-        self._cache = DiskPersistenceBackedSparkCache(**self.config)
         self._spark_df = None
         if branch is None:
             branch = _get_branch(Path(caller_filename))
@@ -104,29 +98,25 @@ class Input:
 
     @property
     def _is_online(self) -> bool:
-        return (
-            "transforms_freeze_cache" not in self.config
-            or self.config["transforms_freeze_cache"] is False
-        )
+        return not TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_freeze_cache
 
-    def _online(self, alias, branch) -> "tuple[bool, dict, str]":
+    def _online(
+        self,
+        alias: api_types.DatasetRid | api_types.FoundryPath,
+        branch: api_types.DatasetBranch,
+    ) -> tuple[bool, api_types.DatasetIdentity, api_types.DatasetBranch]:
         try:
-            dataset_identity = self._cached_client.api.get_dataset_identity(
-                alias, branch
-            )
+            dataset_identity = TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.get_dataset_identity(alias, branch)
         except BranchNotFoundError:
             LOGGER.debug(
-                "Dataset %s not found on branch %s, "
-                "falling back to dataset from master.",
+                "Dataset %s not found on branch %s, falling back to dataset from master.",
                 alias,
                 branch,
             )
             branch = "master"
-            dataset_identity = self._cached_client.api.get_dataset_identity(
-                alias, branch
-            )
+            dataset_identity = TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.get_dataset_identity(alias, branch)
         if dataset_identity["last_transaction_rid"] is None:
-            raise DatasetHasNoTransactionsError(alias)
+            raise DatasetHasNoTransactionsError(dataset=alias)
         if self._dataset_has_schema(dataset_identity, branch):
             return (
                 True,
@@ -143,62 +133,72 @@ class Input:
         )
         return False, dataset_identity, branch
 
-    def _offline(self, alias: str, branch: str) -> "tuple[bool, dict, str]":
-        dataset_identity = self._cache.get_dataset_identity_not_branch_aware(alias)
-        if self._cache.dataset_has_schema(dataset_identity):
+    def _offline(self, alias: str, branch: str) -> tuple[bool, api_types.DatasetIdentity, str]:
+        dataset_identity = TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.get_dataset_identity_not_branch_aware(
+            alias,
+        )
+        if TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.dataset_has_schema(dataset_identity):
             return True, dataset_identity, branch
         return False, dataset_identity, branch
 
-    def _dataset_has_schema(self, dataset_identity, branch):
+    def _dataset_has_schema(
+        self,
+        dataset_identity: api_types.DatasetIdentity,
+        branch: api_types.DatasetBranch,
+    ) -> bool | None:
         try:
-            self._cached_client.api.get_dataset_schema(
+            TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.get_dataset_schema(
                 dataset_identity["dataset_rid"],
                 dataset_identity["last_transaction_rid"],
                 branch,
             )
-            return True
         except DatasetHasNoSchemaError:
             return False
+        else:
+            return True
 
-    def _retrieve_spark_df(self, dataset_identity, branch) -> pyspark.sql.DataFrame:
-        if dataset_identity in list(self._cache.keys()):
+    def _retrieve_spark_df(
+        self,
+        dataset_identity: api_types.DatasetIdentity,
+        branch: api_types.DatasetBranch,
+    ) -> pyspark.sql.DataFrame:
+        if dataset_identity in list(TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.keys()):
             return self._retrieve_from_cache(dataset_identity, branch)
         return self._retrieve_from_foundry_and_cache(dataset_identity, branch)
 
-    def _retrieve_from_cache(self, dataset_identity, branch):
-        LOGGER.debug(
-            "Returning data for %s on branch %s from cache", dataset_identity, branch
-        )
-        return self._cache[dataset_identity]
+    def _retrieve_from_cache(
+        self,
+        dataset_identity: api_types.DatasetIdentity,
+        branch: api_types.DatasetBranch,
+    ) -> pyspark.sql.DataFrame:
+        LOGGER.debug("Returning data for %s on branch %s from cache", dataset_identity, branch)
+        return TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache[dataset_identity]
 
     def _read_spark_df_with_sql_query(
-        self, dataset_path: str, branch="master"
+        self,
+        dataset_path: api_types.FoundryPath,
+        branch: api_types.DatasetBranch = "master",
     ) -> pyspark.sql.DataFrame:
         query = f"SELECT * FROM `{dataset_path}`"  # noqa: S608
-        if (
-            "transforms_sql_sample_select_random" in self.config
-            and self.config["transforms_sql_sample_select_random"] is True
-        ):
+        if TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_sample_select_random:
             query = query + " ORDER BY RAND()"
-        if (
-            "transforms_sql_sample_row_limit" in self.config
-            and self.config["transforms_sql_sample_row_limit"] is not None
-        ):
-            query = query + f" LIMIT {self.config['transforms_sql_sample_row_limit']}"
-        LOGGER.debug(
-            "Executing Foundry/SparkSQL Query: %s \n on branch %s", query, branch
-        )
-        return self._cached_client.api.query_foundry_sql(
-            query, branch=branch, return_type=SQLReturnType.SPARK
+        query = query + f" LIMIT {TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_sample_row_limit}"
+        LOGGER.debug("Executing Foundry/SparkSQL Query: %s \n on branch %s", query, branch)
+        return TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.query_foundry_sql(
+            query,
+            branch=branch,
+            return_type=SQLReturnType.SPARK,
         )
 
     def _retrieve_from_foundry_and_cache(
-        self, dataset_identity: dict, branch: str
+        self,
+        dataset_identity: api_types.DatasetIdentity,
+        branch: str,
     ) -> pyspark.sql.DataFrame:
         LOGGER.debug("Caching data for %s on branch %s", dataset_identity, branch)
         transaction = dataset_identity["last_transaction"]["transaction"]
         if is_dataset_a_view(transaction):
-            foundry_stats = self._cached_client.api.foundry_stats(
+            foundry_stats = TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.foundry_stats(
                 dataset_identity["dataset_rid"],
                 dataset_identity["last_transaction"]["rid"],
             )
@@ -208,31 +208,28 @@ class Input:
         size_in_mega_bytes = size_in_bytes / 1024 / 1024
         size_in_mega_bytes_rounded = round(size_in_mega_bytes, ndigits=2)
         LOGGER.debug("Dataset has size of %s MegaBytes.", size_in_mega_bytes_rounded)
-        if (
-            "transforms_force_full_dataset_download" in self.config
-            and self.config["transforms_force_full_dataset_download"] is True
-        ) or (
-            size_in_mega_bytes < self.config["transforms_sql_dataset_size_threshold"]
+        if (TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_force_full_dataset_download) or (
+            size_in_mega_bytes < TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_dataset_size_threshold
         ):
-            spark_df = self._cached_client.load_dataset(
-                dataset_identity["dataset_rid"], branch
+            spark_df = TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.load_dataset(
+                dataset_identity["dataset_rid"],
+                branch,
             )
         else:
             dataset_name = dataset_identity["dataset_path"].split("/")[-1]
             warnings.warn(
-                f"Retrieving subset ({self.config['transforms_sql_sample_row_limit']} rows) of dataset '{dataset_name}'"
+                f"Retrieving subset ({TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_sample_row_limit} rows)"
+                f" of dataset '{dataset_name}'"
                 f" with rid '{dataset_identity['dataset_rid']}' "
                 f"because dataset size {size_in_mega_bytes_rounded} megabytes >= "
-                f"{self.config['transforms_sql_dataset_size_threshold']} megabytes "
-                f"(as defined in config['transforms_sql_dataset_size_threshold'])."
+                f"{TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_dataset_size_threshold} megabytes "
+                f"(as defined in config['transforms_sql_dataset_size_threshold']).",
             )
-            spark_df = self._read_spark_df_with_sql_query(
-                dataset_identity["dataset_path"], branch
-            )
-            self._cache[dataset_identity] = spark_df
+            spark_df = self._read_spark_df_with_sql_query(dataset_identity["dataset_path"], branch)
+            TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache[dataset_identity] = spark_df
         return spark_df
 
-    def dataframe(self) -> Optional[pyspark.sql.DataFrame]:
+    def dataframe(self) -> pyspark.sql.DataFrame | None:
         """Get the cached :external+spark:py:class:`~pyspark.sql.DataFrame` of this Input.
 
         Only available if the input has a schema. The Spark DataFrame will get loaded the first
@@ -244,15 +241,13 @@ class Input:
         """
         if self._is_spark_df_retrievable and self._spark_df is None:
             if self._is_online:
-                self._spark_df = self._retrieve_spark_df(
-                    self._dataset_identity, self.branch
-                )
+                self._spark_df = self._retrieve_spark_df(self._dataset_identity, self.branch)
             else:
-                self._spark_df = self._cache[self._dataset_identity]
+                self._spark_df = TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache[self._dataset_identity]
 
         return self._spark_df
 
-    def get_dataset_identity(self) -> dict:
+    def get_dataset_identity(self) -> api_types.DatasetIdentity:
         """Returns identity of this Input.
 
         Returns:
@@ -272,10 +267,15 @@ class Input:
                 path to the dataset's files on disk
 
         """
-        return (
-            self._cached_client._fetch_dataset(self._dataset_identity, self.branch)
+        return os.fspath(
+            TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client._fetch_dataset(  # noqa: SLF001
+                self._dataset_identity,
+                self.branch,
+            )
             if self._is_online
-            else self._cache.get_path_to_local_dataset(self._dataset_identity)
+            else TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.get_path_to_local_dataset(
+                self._dataset_identity,
+            ),
         )
 
 
@@ -309,10 +309,10 @@ class Output:
 
     def __init__(
         self,
-        alias: "str | None" = None,
-        sever_permissions: "bool | None" = False,
-        description: "str | None" = None,
-        checks=None,
+        alias: str | None = None,
+        sever_permissions: bool | None = False,  # noqa: ARG002
+        description: str | None = None,  # noqa: ARG002
+        checks=None,  # noqa: ANN001,ARG002
     ):
         """Specification of a transform output.
 
@@ -329,7 +329,7 @@ class Output:
 class UnmarkingDef:
     """Base class for unmarking datasets configuration."""
 
-    def __init__(self, marking_ids: "list[str] | str", on_branches: "list[str] | str"):
+    def __init__(self, marking_ids: list[str] | str, on_branches: list[str] | str | None):
         """Default constructor.
 
         Args:
