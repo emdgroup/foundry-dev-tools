@@ -32,7 +32,7 @@ jobs:
           cache-dependency-path: "pyproject.toml"
       - name: Run static analysis and format checkers
         run: |
-          pip install .[testing,transforms] tox
+          pip install .[testing,transforms] tox-uv tox
           tox -e lint
       - name: Build package distribution files
         run: tox -e clean,build
@@ -69,7 +69,7 @@ jobs:
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
       - name: Install tox
-        run: pip install tox
+        run: pip install tox-uv tox
       - name: Run tests
         run: >-
           tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
@@ -90,7 +90,7 @@ jobs:
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
       - name: Install Tox
-        run: pip install tox
+        run: pip install tox-uv tox
       - name: Publish Package
         env:
           TWINE_REPOSITORY: pypi
