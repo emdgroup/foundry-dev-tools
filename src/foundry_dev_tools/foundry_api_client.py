@@ -323,6 +323,24 @@ class FoundryRestClient:
         _raise_for_status_verbose(response)
         return response.json()
 
+    def get_branches(self, dataset_rid: str) -> list[str]:
+        """Returns a list of branches available a dataset.
+
+        Args:
+            dataset_rid (str): Unique identifier of the dataset
+
+        Returns:
+            list[str]:
+                with keys id (name) the dataset branches
+
+        """
+        response = self._request(
+            "GET",
+            f"{self.catalog}/catalog/datasets/{dataset_rid}/branches2",
+        )
+        _raise_for_status_verbose(response)
+        return response.json()
+
     def get_branch(self, dataset_rid: str, branch: str) -> dict:
         """Returns branch information.
 
