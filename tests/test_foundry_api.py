@@ -108,6 +108,9 @@ def test_monster_integration_test(client):  # noqa: PLR0915, TODO?
         _ = client.create_branch(ds["rid"], BRANCH)
     branch_returned = client.get_branch(ds["rid"], BRANCH)
     assert branch == branch_returned
+    branch_list = client.get_branches(ds["rid"])
+    assert len(branch_list) == 1
+    assert branch_list[0] == BRANCH
 
     assert client.get_dataset_identity(ds["rid"], BRANCH) == {
         "dataset_path": dataset_path,
