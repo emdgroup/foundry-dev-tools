@@ -109,7 +109,7 @@ def parse_iso(iso_str: str) -> datetime:
     """Parses iso string to datetime."""
     if sys.version_info < (3, 11):
         # https://stackoverflow.com/a/75499881/3652805
-        return datetime.strptime(  # noqa: DTZ007 , maybe https://github.com/astral-sh/ruff/issues/1306
+        return datetime.strptime(  # noqa: DTZ007 , https://github.com/astral-sh/ruff/issues/10601
             iso_str,
             f"%Y-%m-%dT%H:%M:%S{('.%f' if '.' in iso_str else '')}%z",
         )
