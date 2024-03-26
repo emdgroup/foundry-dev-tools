@@ -1,0 +1,88 @@
+<svg class="rich-terminal" viewBox="0 0 1495 220.79999999999998" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Regular"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+        font-style: normal;
+        font-weight: 400;
+    }
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .terminal-201592001-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .terminal-201592001-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .terminal-201592001-r1 { fill: #cc555a;font-weight: bold }
+.terminal-201592001-r2 { fill: #cc555a }
+.terminal-201592001-r3 { fill: #c5c8c6 }
+.terminal-201592001-r4 { fill: #d0b344;font-weight: bold }
+.terminal-201592001-r5 { fill: #98729f }
+.terminal-201592001-r6 { fill: #ff2c7a }
+.terminal-201592001-r7 { fill: #68a0b3;font-weight: bold }
+.terminal-201592001-r8 { fill: #98a84b;font-weight: bold }
+    </style>
+
+    <defs>
+    <clipPath id="terminal-201592001-clip-terminal">
+      <rect x="0" y="0" width="1475.1999999999998" height="169.79999999999998" />
+    </clipPath>
+    <clipPath id="terminal-201592001-line-0">
+    <rect x="0" y="1.5" width="1476.2" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-201592001-line-1">
+    <rect x="0" y="25.9" width="1476.2" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-201592001-line-2">
+    <rect x="0" y="50.3" width="1476.2" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-201592001-line-3">
+    <rect x="0" y="74.7" width="1476.2" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-201592001-line-4">
+    <rect x="0" y="99.1" width="1476.2" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-201592001-line-5">
+    <rect x="0" y="123.5" width="1476.2" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1493" height="218.8" rx="8"/><text class="terminal-201592001-title" fill="#c5c8c6" text-anchor="middle" x="746" y="27">Foundry&#160;DevTools&#160;Configuration</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#terminal-201592001-clip-terminal)">
+    
+    <g class="terminal-201592001-matrix">
+    <text class="terminal-201592001-r1" x="0" y="20" textLength="12.2" clip-path="url(#terminal-201592001-line-0)">[</text><text class="terminal-201592001-r1" x="12.2" y="20" textLength="12.2" clip-path="url(#terminal-201592001-line-0)">0</text><text class="terminal-201592001-r1" x="24.4" y="20" textLength="12.2" clip-path="url(#terminal-201592001-line-0)">]</text><text class="terminal-201592001-r1" x="36.6" y="20" textLength="207.4" clip-path="url(#terminal-201592001-line-0)">&#160;Site&#160;config&#160;file</text><text class="terminal-201592001-r2" x="244" y="20" textLength="317.2" clip-path="url(#terminal-201592001-line-0)">:&#160;may&#160;need&#160;admin&#160;rights&#160;to</text><text class="terminal-201592001-r4" x="573.4" y="20" textLength="73.2" clip-path="url(#terminal-201592001-line-0)">create</text><text class="terminal-201592001-r5" x="658.8" y="20" textLength="109.8" clip-path="url(#terminal-201592001-line-0)">/Library/</text><text class="terminal-201592001-r6" x="768.6" y="20" textLength="134.2" clip-path="url(#terminal-201592001-line-0)">Application</text><text class="terminal-201592001-r3" x="902.8" y="20" textLength="463.6" clip-path="url(#terminal-201592001-line-0)">&#160;Support/foundry-dev-tools/config.toml</text><text class="terminal-201592001-r3" x="1476.2" y="20" textLength="12.2" clip-path="url(#terminal-201592001-line-0)">
+</text><text class="terminal-201592001-r7" x="0" y="44.4" textLength="12.2" clip-path="url(#terminal-201592001-line-1)">[</text><text class="terminal-201592001-r7" x="12.2" y="44.4" textLength="12.2" clip-path="url(#terminal-201592001-line-1)">1</text><text class="terminal-201592001-r7" x="24.4" y="44.4" textLength="12.2" clip-path="url(#terminal-201592001-line-1)">]</text><text class="terminal-201592001-r7" x="36.6" y="44.4" textLength="219.6" clip-path="url(#terminal-201592001-line-1)">&#160;User&#160;config&#160;file:</text><text class="terminal-201592001-r8" x="268.4" y="44.4" textLength="48.8" clip-path="url(#terminal-201592001-line-1)">edit</text><text class="terminal-201592001-r5" x="329.4" y="44.4" textLength="414.8" clip-path="url(#terminal-201592001-line-1)">/Users/user/.foundry-dev-tools/</text><text class="terminal-201592001-r6" x="744.2" y="44.4" textLength="134.2" clip-path="url(#terminal-201592001-line-1)">config.toml</text><text class="terminal-201592001-r3" x="1476.2" y="44.4" textLength="12.2" clip-path="url(#terminal-201592001-line-1)">
+</text><text class="terminal-201592001-r7" x="0" y="68.8" textLength="12.2" clip-path="url(#terminal-201592001-line-2)">[</text><text class="terminal-201592001-r7" x="12.2" y="68.8" textLength="12.2" clip-path="url(#terminal-201592001-line-2)">2</text><text class="terminal-201592001-r7" x="24.4" y="68.8" textLength="12.2" clip-path="url(#terminal-201592001-line-2)">]</text><text class="terminal-201592001-r7" x="36.6" y="68.8" textLength="219.6" clip-path="url(#terminal-201592001-line-2)">&#160;User&#160;config&#160;file:</text><text class="terminal-201592001-r8" x="268.4" y="68.8" textLength="48.8" clip-path="url(#terminal-201592001-line-2)">edit</text><text class="terminal-201592001-r5" x="329.4" y="68.8" textLength="500.2" clip-path="url(#terminal-201592001-line-2)">/Users/user/.config/foundry-dev-tools/</text><text class="terminal-201592001-r6" x="829.6" y="68.8" textLength="134.2" clip-path="url(#terminal-201592001-line-2)">config.toml</text><text class="terminal-201592001-r3" x="1476.2" y="68.8" textLength="12.2" clip-path="url(#terminal-201592001-line-2)">
+</text><text class="terminal-201592001-r7" x="0" y="93.2" textLength="12.2" clip-path="url(#terminal-201592001-line-3)">[</text><text class="terminal-201592001-r7" x="12.2" y="93.2" textLength="12.2" clip-path="url(#terminal-201592001-line-3)">3</text><text class="terminal-201592001-r7" x="24.4" y="93.2" textLength="12.2" clip-path="url(#terminal-201592001-line-3)">]</text><text class="terminal-201592001-r7" x="36.6" y="93.2" textLength="219.6" clip-path="url(#terminal-201592001-line-3)">&#160;User&#160;config&#160;file:</text><text class="terminal-201592001-r4" x="268.4" y="93.2" textLength="73.2" clip-path="url(#terminal-201592001-line-3)">create</text><text class="terminal-201592001-r5" x="353.8" y="93.2" textLength="280.6" clip-path="url(#terminal-201592001-line-3)">/Users/user/Library/</text><text class="terminal-201592001-r6" x="634.4" y="93.2" textLength="134.2" clip-path="url(#terminal-201592001-line-3)">Application</text><text class="terminal-201592001-r3" x="768.6" y="93.2" textLength="463.6" clip-path="url(#terminal-201592001-line-3)">&#160;Support/foundry-dev-tools/config.toml</text><text class="terminal-201592001-r3" x="1476.2" y="93.2" textLength="12.2" clip-path="url(#terminal-201592001-line-3)">
+</text><text class="terminal-201592001-r4" x="0" y="117.6" textLength="12.2" clip-path="url(#terminal-201592001-line-4)">[</text><text class="terminal-201592001-r4" x="12.2" y="117.6" textLength="12.2" clip-path="url(#terminal-201592001-line-4)">4</text><text class="terminal-201592001-r4" x="24.4" y="117.6" textLength="12.2" clip-path="url(#terminal-201592001-line-4)">]</text><text class="terminal-201592001-r4" x="36.6" y="117.6" textLength="256.2" clip-path="url(#terminal-201592001-line-4)">&#160;Project&#160;config&#160;file:</text><text class="terminal-201592001-r4" x="305" y="117.6" textLength="73.2" clip-path="url(#terminal-201592001-line-4)">create</text><text class="terminal-201592001-r5" x="390.4" y="117.6" textLength="756.4" clip-path="url(#terminal-201592001-line-4)">/Users/user/git/github.com..emdgroup..foundry-dev-tools/</text><text class="terminal-201592001-r6" x="1146.8" y="117.6" textLength="280.6" clip-path="url(#terminal-201592001-line-4)">.foundry_dev_tools.toml</text><text class="terminal-201592001-r3" x="1476.2" y="117.6" textLength="12.2" clip-path="url(#terminal-201592001-line-4)">
+</text><text class="terminal-201592001-r3" x="0" y="142" textLength="597.8" clip-path="url(#terminal-201592001-line-5)">This&#160;will&#160;launch&#160;the&#160;file&#160;in&#160;your&#160;default&#160;editor.</text><text class="terminal-201592001-r3" x="1476.2" y="142" textLength="12.2" clip-path="url(#terminal-201592001-line-5)">
+</text><text class="terminal-201592001-r3" x="0" y="166.4" textLength="780.8" clip-path="url(#terminal-201592001-line-6)">Which&#160;file&#160;do&#160;you&#160;want&#160;to&#160;open?&#160;Enter&#160;a&#160;number&#160;between&#160;0&#160;and&#160;4:&#160;</text>
+    </g>
+    </g>
+</svg>

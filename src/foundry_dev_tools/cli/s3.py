@@ -1,4 +1,7 @@
 """Provides authentication for the aws cli to the foundry s3 compatible API."""
+
+from __future__ import annotations
+
 import configparser
 import datetime
 import difflib
@@ -13,13 +16,12 @@ import click
 from rich import print as rprint
 from rich.markdown import Markdown
 
-from foundry_dev_tools import Configuration, FoundryRestClient
+from foundry_dev_tools import FoundryContext
 
 
 @click.group("s3")
 def s3_cli():
     """CLI for the s3 compatible foundry datasets API."""
-    pass
 
 
 @click.command("init")
@@ -40,7 +42,7 @@ def s3_cli_init():
             if not click.confirm(
                 "This will remove your current aws profile "
                 "called 'foundry' and replace it with our credential helper.\n"
-                "Do you want to continue?"
+                "Do you want to continue?",
             ):
                 sys.exit(1)
             cp.remove_section("profile foundry")
@@ -49,14 +51,15 @@ def s3_cli_init():
         if platform.system() == "Windows"
         else f"sh -c '{sys.executable} -m foundry_dev_tools.cli.main s3 auth 2>/dev/tty'"
     )
+    ctx = FoundryContext()
     cp.read_dict(
         {
             "profile foundry": {
                 "credential_process": credential_process,
                 "region": "foundry",
-                "endpoint_url": f"{Configuration['foundry_url']}/io/s3",
-            }
-        }
+                "endpoint_url": f"{ctx.host.url}/io/s3",
+            },
+        },
     )
     buf = io.StringIO()
     cp.write(buf)
@@ -68,19 +71,19 @@ def s3_cli_init():
             new_config.splitlines(),
             fromfile="old config",
             tofile="new config",
-        )
+        ),
     )
     if diff:
         rprint(
             Markdown(
                 f"""## Changes to your config:
 ```diff
-{diff}```"""
-            )
+{diff}```""",
+            ),
         )
         if previous_config:
             backup_path = aws_config_file.with_name(
-                "config.bak." + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                "config.bak." + datetime.datetime.now().strftime("%Y%m%d%H%M%S"),  # noqa: DTZ005
             )
 
             shutil.copy(
@@ -88,7 +91,7 @@ def s3_cli_init():
                 backup_path,
             )
             rprint(
-                f"Created backup of previous config -> {os.fspath(backup_path.absolute())}"
+                f"Created backup of previous config -> {os.fspath(backup_path.absolute())}",
             )
 
     with aws_config_file.open("w+") as aws_config_fd:
@@ -103,14 +106,14 @@ def s3_cli_auth():
     # https://github.com/aws/aws-sdk/issues/358
     orig = sys.stdout
     sys.stdout = sys.stderr
-    fc = FoundryRestClient()
-    creds = fc.get_s3_credentials()
+    ctx = FoundryContext()
+    creds = ctx.s3.get_credentials()
     sys.stdout = orig
-    print(
+    click.echo(
         "{"
-        f'"Version": 1,"AccessKeyId":"{creds["access_key"]}","SecretAccessKey":"{creds["secret_key"]}"'
-        f',"SessionToken":"{creds["token"]}","Expiration":"{creds["expiry_time"]}"'
-        "}"
+        f"\"Version\": 1,\"AccessKeyId\":\"{creds['access_key']}\",\"SecretAccessKey\":\"{creds['secret_key']}\""
+        f",\"SessionToken\":\"{creds['token']}\",\"Expiration\":\"{creds['expiry_time']}\""
+        "}",
     )
 
 

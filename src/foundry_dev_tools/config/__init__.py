@@ -1,0 +1,1 @@
+"""Configuration for Foundry DevTools."""

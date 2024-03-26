@@ -3,34 +3,39 @@
 :relative-images:
 ```
 
-## Contents
-
 ```{toctree}
 :maxdepth: 2
 :caption: Contents
+:hidden:
 
 Overview <self>
-Installation <installation>
-Usage and Examples <usage_and_examples>
-CLI <cli>
-s3
-Development <develop>
-Architecture <architecture>
+getting_started/index
+configuration
+changelog
 License <license>
-Contributors <contributors>
-Changelog <changelog>
 ```
 
-# Reference
+```{toctree}
+:caption: Examples
+:hidden:
+
+examples/index
+```
+
+```{toctree}
+:caption: Development
+:hidden:
+
+dev/index
+```
 
 ```{toctree}
 :maxdepth: 2
 :titlesonly:
 :caption: Reference
+:hidden:
 
-foundry-dev-tools reference <api/foundry_dev_tools>
-transforms reference <api/transforms>
-
+api/foundry_dev_tools
 ```
 
 ## Indices and tables

@@ -5,9 +5,10 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 """  # noqa: E501
 import warnings
+from typing import Callable
 
 
-def configure(*args, **kwargs):
+def configure(*args, **kwargs) -> Callable:  # noqa: ARG001
     """Not implemented in local.
 
     Args:
@@ -19,7 +20,7 @@ def configure(*args, **kwargs):
     """
     warnings.warn("@configure functionality not implemented in Foundry DevTools")
 
-    def _configure(compute_func):
+    def _configure(compute_func: Callable) -> Callable:
         return compute_func
 
     return _configure

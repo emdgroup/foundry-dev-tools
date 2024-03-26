@@ -1,4 +1,5 @@
 """Custom foundry boto3 credential provider used by the FoundryRestClient."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -8,7 +9,7 @@ import botocore.credentials
 import botocore.session
 
 if TYPE_CHECKING:
-    from foundry_dev_tools import FoundryRestClient
+    from foundry_dev_tools.clients.s3_client import S3Client
 
 
 class CustomFoundryCredentialProvider(botocore.credentials.CredentialProvider):
@@ -19,14 +20,45 @@ class CustomFoundryCredentialProvider(botocore.credentials.CredentialProvider):
 
     def __init__(
         self,
-        foundry_rest_client: FoundryRestClient,
+        s3_client: S3Client,
         session: botocore.session.Session | None = None,
     ):
-        self.foundry_rest_client = foundry_rest_client
+        self.s3_client = s3_client
         super().__init__(session)
 
-    def load(self):
+    def load(self) -> botocore.credentials.DeferredRefreshableCredentials:
         """Return the credentials from FoundryRestClient."""
         return botocore.credentials.DeferredRefreshableCredentials(
-            self.foundry_rest_client.get_s3_credentials, method="sts-assume-role"
+            self.s3_client.get_credentials,
+            method="sts-assume-role",
         )
+
+
+def parse_s3_credentials_response(requests_response_text: str) -> dict:
+    """Parses the AssumeRoleWithWebIdentity XML response."""
+    return {
+        "access_key": requests_response_text[
+            requests_response_text.find("<AccessKeyId>")
+            + len("<AccessKeyId>") : requests_response_text.rfind(
+                "</AccessKeyId>",
+            )
+        ],
+        "secret_key": requests_response_text[
+            requests_response_text.find("<SecretAccessKey>")
+            + len("<SecretAccessKey>") : requests_response_text.rfind(
+                "</SecretAccessKey>",
+            )
+        ],
+        "token": requests_response_text[
+            requests_response_text.find("<SessionToken>")
+            + len("<SessionToken>") : requests_response_text.rfind(
+                "</SessionToken>",
+            )
+        ],
+        "expiry_time": requests_response_text[
+            requests_response_text.find("<Expiration>")
+            + len("<Expiration>") : requests_response_text.rfind(
+                "</Expiration>",
+            )
+        ],
+    }

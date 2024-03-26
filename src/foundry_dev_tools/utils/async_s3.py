@@ -3,6 +3,7 @@
 Basically the same as :py:mod:`foundry_dev_tools.utils.s3`, except that it's async
 this was needed for S3Fs to work, which is used by pandas.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -14,12 +15,10 @@ import botocore.credentials
 import botocore.session
 
 if TYPE_CHECKING:
-    from foundry_dev_tools import FoundryRestClient
+    from foundry_dev_tools.clients.s3_client import S3Client
 
 
-class CustomAsyncFoundryCredentialProvider(
-    botocore.credentials.SharedCredentialProvider
-):
+class CustomAsyncFoundryCredentialProvider(botocore.credentials.SharedCredentialProvider):
     """Boto3 credential provider for s3 credentials."""
 
     METHOD = "foundry"
@@ -27,17 +26,15 @@ class CustomAsyncFoundryCredentialProvider(
 
     def __init__(
         self,
-        foundry_rest_client: FoundryRestClient,
+        s3_client: S3Client,
         session: aiobotocore.session.Session | None = None,
     ):
-        self.foundry_rest_client = foundry_rest_client
+        self.s3_client = s3_client
         super().__init__(session)
 
-    async def load(self):
+    async def load(self) -> aiobotocore.credentials.AioDeferredRefreshableCredentials:
         """Return the credentials from FoundryRestClient."""
         return aiobotocore.credentials.AioDeferredRefreshableCredentials(
-            self._refresh, method="sts-assume-role"
+            self.s3_client.get_credentials,
+            method="sts-assume-role",
         )
-
-    async def _refresh(self):
-        return self.foundry_rest_client.get_s3_credentials()

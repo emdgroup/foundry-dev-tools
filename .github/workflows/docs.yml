@@ -22,11 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: {python-version: "3.11"}
+        with: {python-version: "3.12"}
       - name: Build Docs
         run: |
-          pip install tox
-          tox -e docs
+          pip install --upgrade hatch
+          hatch run docs:build
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v1
         with:
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
+      # pages: write
       id-token: write
     environment:
       name: github-pages

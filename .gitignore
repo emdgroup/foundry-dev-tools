@@ -29,25 +29,31 @@ tags
 *.egg-info
 
 # Unittest and coverage
-htmlcov/*
+/htmlcov/*
 .coverage
 .tox
 junit.xml
 coverage.xml
 .pytest_cache/
-htmlcov
+/htmlcov
 
 # Build and docs folder/files
-build/*
-dist/*
-sdist/*
-docs/_rst/*
-docs/_build/*
-docs/api/*
+/build/*
+/dist/*
+/sdist/*
+/docs/_rst/*
+/docs/_build/*
+/docs/_build
+/docs/api/*
+/docs/api
 cover/*
 MANIFEST
 
 # Per-project virtualenvs
 .venv*/
-tests/local_experiments
-tests/foundry_mock_root
+/tests/local_experiments
+/tests/foundry_mock_root
+
+# __about__.py generated from VCS
+/src/foundry_dev_tools/__about__.py
+.foundry_dev_tools.toml

@@ -1,5 +1,3 @@
-# This file is execfile()d with the current directory set to its containing dir.
-#
 # This file only contains a selection of the most common options. For a full
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
@@ -24,34 +22,20 @@ sys.path.insert(0, os.path.join(__location__, "../src"))
 # This hack is necessary since RTD does not issue `sphinx-apidoc` before running
 # `sphinx-build -b html . _build/html`. See Issue:
 # https://github.com/readthedocs/readthedocs.org/issues/1139
-# DON'T FORGET: Check the box "Install your project inside a virtualenv using
-# setup.py install" in the RTD Advanced Settings.
-# Additionally it helps us to avoid running apidoc manually
 
-try:  # for Sphinx >= 1.7
-    from sphinx.ext import apidoc
-except ImportError:
-    from sphinx import apidoc
+from sphinx.ext import apidoc
 
 output_dir = os.path.join(__location__, "api")
 foundry_dev_tools_module_dir = os.path.join(__location__, "../src/foundry_dev_tools")
-transforms_module_dir = os.path.join(__location__, "../src/transforms")
 try:
     shutil.rmtree(output_dir)
 except FileNotFoundError:
     pass
 
 try:
-    args = ["--implicit-namespaces", "-M", "-T", "-f", "-o", output_dir]
+    args = ["--implicit-namespaces", "-M", "-T", "-f", "-e", "-o", output_dir]
 
-    apidoc.main(
-        [
-            *args,
-            foundry_dev_tools_module_dir,
-            foundry_dev_tools_module_dir + "/__init__.py",
-        ]
-    )
-    apidoc.main([*args, transforms_module_dir])
+    apidoc.main([*args, foundry_dev_tools_module_dir, foundry_dev_tools_module_dir + "/__init__.py"])
 except Exception as e:
     print(f"Running `sphinx-apidoc` failed!\n{e}")
 
@@ -63,6 +47,8 @@ except Exception as e:
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
+    "myst_parser",
+    # "autodoc2",
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
@@ -74,17 +60,40 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosectionlabel",
+    "sphinx_tippy",
+    "sphinxcontrib.mermaid",
+    "sphinx_inline_tabs",
 ]
 
+autoclass_content = "init"
+autodoc_default_options = {
+    "undoc-members": True,
+}
+autodoc_typehints = "description"
+autodoc_class_signature = "separated"
+autodoc_member_order = "bysource"
 autosectionlabel_prefix_document = True
+
+tippy_skip_anchor_classes = ("headerlink", "sd-stretched-link", "sd-rounded-pill")
+tippy_anchor_parent_selector = "article.bd-article"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
-# Enable markdown
-extensions.append("myst_parser")
+# does currently not support google docstrings
+# # -- Autodoc ------------------------------------------------------------------
 
-# Configure MyST-Parser
+# autodoc2_packages = [
+#     {"path": "../src/foundry_dev_tools", "exclude_files": ["__about__.py"]},
+#     {"path": "../src/transforms"},
+# ]
+
+# autodoc2_hidden_objects = ["dunder", "private", "inherited"]
+# nitpicky = True
+
+
+# -- MyST-Parser --------------------------------------------------------------
+
 myst_enable_extensions = [
     "amsmath",
     "colon_fence",
@@ -96,7 +105,11 @@ myst_enable_extensions = [
     "smartquotes",
     "substitution",
     "tasklist",
+    "attrs_block",
 ]
+myst_fence_as_directive = ["mermaid"]
+
+napoleon_google_docstring = True
 
 # The suffix of source filenames.
 source_suffix = [".rst", ".md"]
@@ -120,7 +133,7 @@ copyright = "2023, (Merck KGaA, Darmstadt, Germany)"
 # If you don`t need the separation provided between version and release,
 # just set them both to the same value.
 try:
-    from foundry_dev_tools.__about__ import __version__ as version
+    from foundry_dev_tools import __version__ as version
 except ImportError:
     version = ""
 
@@ -173,7 +186,7 @@ todo_emit_warnings = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "furo"
+html_theme = "sphinx_book_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -183,7 +196,8 @@ html_theme = "furo"
 #    "page_width": "1200px"
 # }'
 html_theme_options = {
-    "navigation_with_keys": True,
+    "show_navbar_depth": 2,
+    "show_toc_level": 4,
 }
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -306,11 +320,11 @@ intersphinx_mapping = {
     "werkzeug": ("https://werkzeug.palletsprojects.com/en/latest", None),
     "sphinx": ("https://www.sphinx-doc.org/en/master", None),
     "python": ("https://docs.python.org/" + python_version, None),
-    "matplotlib": ("https://matplotlib.org", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
     "numpy": ("https://numpy.org/doc/stable", None),
     "sklearn": ("https://scikit-learn.org/stable", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "setuptools": ("https://setuptools.pypa.io/en/stable/", None),
     "pyscaffold": ("https://pyscaffold.org/en/stable", None),
     "requests": ("https://requests.readthedocs.io/en/latest", None),
