@@ -34,13 +34,13 @@ Upload the complete content of a local folder to a dataset in Foundry
 import os
 from foundry_dev_tools import FoundryRestClient
 
-upload_folder = "/path/to/folder-to-upload"
-target_dataset_path = "/paht/to/test_folder_upload"
+upload_folder = "/local-path/to/folder-to-upload"
+target_dataset_path = "/path/to/foundry-dataset"
 
-filenames = os.listdir(upload_folder)
-filepaths = list(map(lambda file: os.sep.join([upload_folder, file]), filenames))
-dataset_paths_in_foundry = list(map(lambda file: file, filenames))
-path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths))
+file_paths = [file for file in Path(upload_folder).rglob("*") if file.is_file() and not file.name.startswith(".")]
+dataset_paths_in_foundry = [str(file_path.relative_to(upload_folder)) for file_path in file_paths]
+path_file_dict = dict(zip(dataset_paths_in_foundry, file_paths))
+
 rest_client = FoundryRestClient()
 dataset_rid = rest_client.get_dataset_rid(dataset_path=target_dataset_path)
 transaction_rid = rest_client.open_transaction(dataset_rid=dataset_rid,
