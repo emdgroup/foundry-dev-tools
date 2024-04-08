@@ -30,7 +30,6 @@ classifiers = [
 dependencies = [
   "requests",
   "palantir-oauth-client",
-  "polars",
   "platformdirs",
   "typing_extensions; python_version < \"3.11\"",
 ]
