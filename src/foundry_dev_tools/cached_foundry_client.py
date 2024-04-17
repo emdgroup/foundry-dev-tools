@@ -98,7 +98,7 @@ class CachedFoundryClient:
     def _fetch_dataset(self, dataset_identity: api_types.DatasetIdentity, branch: str = "master") -> Path:
         last_transaction = dataset_identity["last_transaction"]
 
-        if self.cache.get(dataset_identity) is not None:
+        if dataset_identity in list(self.cache.keys()):
             return self._return_local_path_of_cached_dataset(dataset_identity, branch)
         try:
             foundry_schema = self.api.get_dataset_schema(

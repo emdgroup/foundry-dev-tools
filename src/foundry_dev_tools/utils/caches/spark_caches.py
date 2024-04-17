@@ -96,34 +96,6 @@ class DiskPersistenceBackedSparkCache(MutableMapping[api_types.DatasetIdentity, 
             msg = f"{key}"
             raise KeyError(msg) from exc
 
-    def _read_parquet(self, key: api_types.DatasetIdentity) -> pyspark.sql.DataFrame:
-        path = self._get_storage_location(key, "parquet")
-        return get_spark_session().read.format("parquet").load(os.fspath(path.joinpath("spark", "*")))
-
-    def _read_csv(self, key: api_types.DatasetIdentity) -> pyspark.sql.DataFrame:
-        path = self._get_storage_location(key, "csv")
-        schema, read_options = self._load_spark_schema(path=path)
-        reader = get_spark_session().read.format("csv")
-        if read_options:
-            for dict_key, value in read_options.items():
-                reader = reader.option(dict_key, value)
-        return reader.load(os.fspath(path.joinpath("*")), schema=schema)
-
-    def _load_spark_schema(self, path: Path) -> tuple[pyspark.sql.types.StructType, ReadOptions]:
-        with path.joinpath("_schema.json").open(encoding="UTF-8") as file:
-            spark_or_foundry_schema = json.load(file)
-        if "fieldSchemaList" not in spark_or_foundry_schema:
-            legacy_read_options = {"header": "true"}
-            from foundry_dev_tools._optional.pyspark import pyspark_sql_types
-
-            return (
-                pyspark_sql_types.StructType.fromJson(spark_or_foundry_schema),
-                legacy_read_options,
-            )
-        return foundry_schema_to_spark_schema(spark_or_foundry_schema), foundry_schema_to_read_options(
-            spark_or_foundry_schema,
-        )
-
     def __len__(self) -> int:
         return len(self.metadata_store)
 
@@ -299,7 +271,7 @@ def _load_spark_schema(path: Path) -> tuple[pyspark.sql.types.StructType, dict]:
 
 
 def _read_parquet(path: Path) -> pyspark.sql.DataFrame:
-    return get_spark_session().read.format("parquet").load(os.fspath(path.joinpath("spark", "*")))
+    return get_spark_session().read.format("parquet").load(os.fspath(path.joinpath("*")))
 
 
 def _read_csv(
