@@ -7,6 +7,7 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 
 import inspect
 import logging
+import os
 import warnings
 from pathlib import Path
 from typing import Any, Optional
@@ -24,6 +25,7 @@ from foundry_dev_tools.foundry_api_client import (
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.misc import is_dataset_a_view
 from foundry_dev_tools.utils.repo import git_toplevel_dir
+from foundry_dev_tools.utils.spark import get_spark_session
 
 LOGGER = logging.getLogger(__name__)
 
@@ -242,6 +244,21 @@ class Input:
             :external+spark:py:class:`~pyspark.sql.DataFrame`: The cached DataFrame of this Input
 
         """
+        if os.environ.get("FDT_S3_DIRECT_MODE") is not None:
+            spark_session = get_spark_session()
+            fc = CachedFoundryClient(self.config).api
+            s3_creds = fc.get_s3_credentials()
+            hostname = f"{self.config['foundry_url']}/io/s3"
+
+            dataset_rid = self.get_dataset_identity()['dataset_rid'].replace('.', '-')
+
+            spark_session.conf.set(f"fs.s3a.bucket.{dataset_rid}.access.key", s3_creds['access_key'])
+            spark_session.conf.set(f"fs.s3a.bucket.{dataset_rid}.secret.key", s3_creds['secret_key'])
+            spark_session.conf.set(f"fs.s3a.bucket.{dataset_rid}.session.token", s3_creds['token'])
+            spark_session.conf.set(f"fs.s3a.bucket.{dataset_rid}.endpoint", hostname)
+            spark_session.conf.set(f"fs.s3a.bucket.{dataset_rid}.endpoint.region", "foundry")
+            spark_session.conf.set(f"fs.s3a.bucket.{dataset_rid}.path.style.access", "true")
+            return spark_session.read.format("parquet").load(f"s3a://{dataset_rid}/*")
         if self._is_spark_df_retrievable and self._spark_df is None:
             if self._is_online:
                 self._spark_df = self._retrieve_spark_df(

@@ -15,6 +15,7 @@ def get_spark_session() -> "pyspark.sql.SparkSession":
     spark_session = (
         pyspark.sql.SparkSession.builder.master("local[*]")
         .appName("foundry-dev-tools")
+        .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.1") \
         .getOrCreate()
     )
     spark_session.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
