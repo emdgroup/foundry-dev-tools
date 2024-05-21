@@ -1494,11 +1494,13 @@ def v1_to_v2_config(config: dict) -> tuple[TokenProvider, dict]:
     """Converts the `config` argument to the new v2 config."""
     _config = get_config_dict() or {}
     tp = None
-    jwt, client_id, client_secret, foundry_url = (
+    jwt, client_id, client_secret, foundry_url, grant_type, scopes = (
         config.pop("jwt", None),
         config.pop("client_id", None),
         config.pop("client_secret", None),
         config.pop("foundry_url", None),
+        config.pop("grant_type", None),
+        config.pop("scopes", None),
     )
     domain = None
     scheme = None
@@ -1529,7 +1531,12 @@ def v1_to_v2_config(config: dict) -> tuple[TokenProvider, dict]:
                     "scheme": scheme,
                     "token_provider": {
                         "name": "oauth",
-                        "config": {"client_id": client_id, "client_secret": client_secret},
+                        "config": {
+                            "client_id": client_id,
+                            "client_secret": client_secret,
+                            "grant_type": grant_type,
+                            "scopes": scopes,
+                        },
                     },
                 },
             },
