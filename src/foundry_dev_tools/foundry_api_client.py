@@ -1490,20 +1490,21 @@ class FoundryRestClient:
         return self.ctx.s3.get_credentials(expiration_duration)
 
 
-def v1_to_v2_config(config: dict) -> tuple[TokenProvider, dict]:
+def v1_to_v2_config(config: dict) -> tuple[TokenProvider, dict]:  # noqa: C901,PLR0912
     """Converts the `config` argument to the new v2 config."""
     _config = get_config_dict() or {}
     tp = None
     jwt, client_id, client_secret, foundry_url, grant_type, scopes = (
-        config.pop("jwt", None),
-        config.pop("client_id", None),
-        config.pop("client_secret", None),
+        config.pop("jwt", False),
+        config.pop("client_id", False),
+        config.pop("client_secret", False),
         config.pop("foundry_url", None),
-        config.pop("grant_type", None),
-        config.pop("scopes", None),
+        config.pop("grant_type", False),
+        config.pop("scopes", False),
     )
     domain = None
     scheme = None
+    _config.setdefault("credentials", {})
     if foundry_url:
         parsed_foundry_url = urlparse(foundry_url)
         if not parsed_foundry_url.scheme:
@@ -1511,36 +1512,32 @@ def v1_to_v2_config(config: dict) -> tuple[TokenProvider, dict]:
             raise AttributeError(msg)
         domain = parsed_foundry_url.netloc
         scheme = parsed_foundry_url.scheme
+        _config["credentials"]["domain"] = domain
+        if scheme:
+            _config["credentials"]["scheme"] = scheme
 
     elif domain := _config.get("credentials", {}).get("domain"):
         scheme = _config.get("credentials", {}).get("scheme")
-
-    if not domain:
-        msg = "No foundry url or domain supplied."
-        raise AttributeError(msg)
+    _config["credentials"].setdefault("token_provider", {})
 
     if jwt:
-        tp = parse_credentials_config(
-            {"credentials": {"domain": domain, "scheme": scheme, "token_provider": {"config": {"jwt": jwt}}}},
-        )
-    elif client_id:
-        tp = parse_credentials_config(
-            {
-                "credentials": {
-                    "domain": domain,
-                    "scheme": scheme,
-                    "token_provider": {
-                        "name": "oauth",
-                        "config": {
-                            "client_id": client_id,
-                            "client_secret": client_secret,
-                            "grant_type": grant_type,
-                            "scopes": scopes,
-                        },
-                    },
-                },
-            },
-        )
+        _config["credentials"]["token_provider"]["name"] = "jwt"
+        _config["credentials"]["token_provider"]["config"] = {"jwt": jwt}
+    elif client_id is not False:
+        _config["credentials"]["token_provider"]["name"] = "oauth"
+        _config["credentials"]["token_provider"].setdefault("config", {})
+        _config["credentials"]["token_provider"]["config"].pop("jwt", None)
+        _config["credentials"]["token_provider"]["config"]["client_id"] = client_id
+
+    if _config["credentials"]["token_provider"]["name"] == "oauth":
+        if client_secret is not False:
+            _config["credentials"]["token_provider"]["config"]["client_secret"] = client_secret
+        if grant_type is not False:
+            _config["credentials"]["token_provider"]["config"]["grant_type"] = grant_type
+        if scopes is not False:
+            _config["credentials"]["token_provider"]["config"]["scopes"] = scopes
+    tp = parse_credentials_config(_config)
+
     if tp is None:
         msg = "Can't create token provider without jwt or client_id(/client_secret) set."
         raise AttributeError(msg)
