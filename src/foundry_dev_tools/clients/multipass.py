@@ -1,4 +1,5 @@
 """Implementation of the multipass API."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -105,6 +106,11 @@ class MultipassClient(APIClient):
         logo_uri: str | None,
         organization_rid: str,
         allowed_organization_rids: list | None = None,
+        resources: list[api_types.Rid] | None = None,
+        operations: list[str] | None = None,
+        marking_ids: list[str] | None = None,
+        role_set_id: str | None = None,
+        role_grants: dict[str, list[str]] | None = None,
         **kwargs,
     ) -> requests.Response:
         """Creates Foundry Third Party application (TPA).
@@ -124,6 +130,11 @@ class MultipassClient(APIClient):
             organization_rid: Parent Organization of this TPA
             allowed_organization_rids: Passing None or empty list means TPA is activated for all
                 Foundry organizations
+            resources: Resources allowed to access by the client, otherwise no resource restrictions
+            operations: Operations the client can be granted, otherwise no operation restrictions
+            marking_ids: Markings allowed to access by the client, otherwise no marking restrictions
+            role_set_id: roles allowed for this client, defaults to `oauth2-client`
+            role_grants: mapping between roles and principal ids dict[role id,list[principal id]]
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
 
@@ -149,14 +160,19 @@ class MultipassClient(APIClient):
             "POST",
             "clients",
             json={
-                "allowedOrganizationRids": allowed_organization_rids or [],
+                "organizationRid": organization_rid,
                 "clientType": str(client_type),
                 "displayName": display_name,
                 "description": description,
+                "logoUri": logo_uri,
                 "grantTypes": [str(grant) for grant in grant_types],
                 "redirectUris": redirect_uris,
-                "logoUri": logo_uri,
-                "organizationRid": organization_rid,
+                "allowedOrganizationRids": allowed_organization_rids,
+                "resources": resources,
+                "operations": operations,
+                "markingIds": marking_ids,
+                "roleSetId": role_set_id,
+                "roleGrants": role_grants,
             },
             **kwargs,
         )
@@ -185,6 +201,10 @@ class MultipassClient(APIClient):
         logo_uri: str | None,
         organization_rid: str,
         allowed_organization_rids: list | None = None,
+        resources: list[api_types.Rid] | None = None,
+        operations: list[str] | None = None,
+        marking_ids: list[str] | None = None,
+        role_set_id: str | None = None,
         **kwargs,
     ) -> requests.Response:
         """Updates Foundry Third Party application (TPA).
@@ -205,6 +225,10 @@ class MultipassClient(APIClient):
             organization_rid: Parent Organization of this TPA
             allowed_organization_rids: Passing None or empty list means TPA is activated for all
                 Foundry organizations
+            resources: Resources allowed to access by the client, otherwise no resource restrictions
+            operations: Operations the client can be granted, otherwise no operation restrictions
+            marking_ids: Markings allowed to access by the client, otherwise no marking restrictions
+            role_set_id: roles allowed for this client, defaults to `oauth2-client`
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Reponse in following structure:
@@ -228,14 +252,18 @@ class MultipassClient(APIClient):
             "PUT",
             f"clients/{client_id}",
             json={
-                "allowedOrganizationRids": allowed_organization_rids or [],
-                "clientType": client_type,
+                "organizationRid": organization_rid,
+                "clientType": str(client_type),
                 "displayName": display_name,
                 "description": description,
-                "grantTypes": grant_types,
-                "redirectUris": redirect_uris,
                 "logoUri": logo_uri,
-                "organizationRid": organization_rid,
+                "grantTypes": [str(grant) for grant in grant_types],
+                "redirectUris": redirect_uris,
+                "allowedOrganizationRids": allowed_organization_rids,
+                "resources": resources,
+                "operations": operations,
+                "markingIds": marking_ids,
+                "roleSetId": role_set_id,
             },
             **kwargs,
         )
@@ -280,6 +308,9 @@ class MultipassClient(APIClient):
         client_id: str,
         operations: list | None = None,
         resources: list | None = None,
+        marking_ids: list[str] | None = None,
+        grant_types: list[api_types.MultipassGrantType] | None = None,
+        require_consent: bool = True,
         **kwargs,
     ) -> requests.Response:
         """Enables Foundry Third Party application (TPA).
@@ -290,6 +321,13 @@ class MultipassClient(APIClient):
                 if None or empty list is passed, all scopes will be activated.
             resources: Compass Project RID's that this TPA is allowed to access,
                 if None or empty list is passed, unrestricted access will be given.
+            marking_ids: Marking Ids that this TPA is allowed to access,
+                if None or empty list is passed, unrestricted access will be given.
+            grant_types: Grant types that this TPA is allowed to use to access resources,
+                if None is passed, no grant type restrictions
+                if an empty list is passed, no grant types are allowed for this TPA
+            require_consent: Wether users need to provide consent for this application to act on their behalf,
+                defaults to true
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Response with the following structure:
@@ -311,6 +349,12 @@ class MultipassClient(APIClient):
         return self.api_request(
             "PUT",
             f"client-installations/{client_id}",
-            json={"operations": operations or [], "resources": resources or []},
+            json={
+                "operations": operations,
+                "resources": resources,
+                "markingIds": marking_ids,
+                "grantTypes": grant_types,
+                "require_consent": require_consent,
+            },
             **kwargs,
         )

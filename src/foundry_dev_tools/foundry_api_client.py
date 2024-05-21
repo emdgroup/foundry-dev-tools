@@ -1162,14 +1162,20 @@ class FoundryRestClient:
 
     def create_third_party_application(
         self,
-        client_type: str,
+        client_type: api_types.MultipassClientType,
         display_name: str,
         description: str | None,
-        grant_types: list,
+        grant_types: list[api_types.MultipassGrantType],
         redirect_uris: list | None,
         logo_uri: str | None,
         organization_rid: str,
         allowed_organization_rids: list | None = None,
+        resources: list[api_types.Rid] | None = None,
+        operations: list[str] | None = None,
+        marking_ids: list[str] | None = None,
+        role_set_id: str | None = None,
+        role_grants: dict[str, list[str]] | None = None,
+        **kwargs,
     ) -> dict:
         """Creates Foundry Third Party application (TPA).
 
@@ -1177,21 +1183,26 @@ class FoundryRestClient:
         User must have 'Manage OAuth 2.0 clients' workflow permissions.
 
         Args:
-            client_type (str): Server Application (CONFIDENTIAL) or
+            client_type: Server Application (CONFIDENTIAL) or
                 Native or single-page application (PUBLIC)
-            display_name (str): Display name of the TPA
-            description (str | None): Long description of the TPA
-            grant_types (list): Usually, ["AUTHORIZATION_CODE", "REFRESH_TOKEN"] (authorization code grant)
+            display_name: Display name of the TPA
+            description: Long description of the TPA
+            grant_types: Usually, ["AUTHORIZATION_CODE", "REFRESH_TOKEN"] (authorization code grant)
                 or ["REFRESH_TOKEN", "CLIENT_CREDENTIALS"] (client credentials grant)
-            redirect_uris (list | None): Redirect URLs of TPA, used in combination with AUTHORIZATION_CODE grant
-            logo_uri (str | None): URI or embedded image 'data:image/png;base64,<...>'
-            organization_rid (str): Parent Organization of this TPA
-            allowed_organization_rids (list): Passing None or empty list means TPA is activated for all
+            redirect_uris: Redirect URLs of TPA, used in combination with AUTHORIZATION_CODE grant
+            logo_uri: URI or embedded image 'data:image/png;base64,<...>'
+            organization_rid: Parent Organization of this TPA
+            allowed_organization_rids: Passing None or empty list means TPA is activated for all
                 Foundry organizations
+            resources: Resources allowed to access by the client, otherwise no resource restrictions
+            operations: Operations the client can be granted, otherwise no operation restrictions
+            marking_ids: Markings allowed to access by the client, otherwise no marking restrictions
+            role_set_id: roles allowed for this client, defaults to `oauth2-client`
+            role_grants: mapping between roles and principal ids dict[role id,list[principal id]]
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
-        Returns:
-            dict:
-                See below for the structure
+
+        See below for the structure
 
         .. code-block:: python
 
@@ -1211,13 +1222,19 @@ class FoundryRestClient:
         """
         return self.ctx.multipass.api_create_third_party_application(
             api_types.MultipassClientType(client_type),
-            display_name,
-            description,
-            grant_types,
-            redirect_uris,
-            logo_uri,
-            organization_rid,
-            allowed_organization_rids,
+            display_name=display_name,
+            description=description,
+            grant_types=grant_types,
+            redirect_uris=redirect_uris,
+            logo_uri=logo_uri,
+            organization_rid=organization_rid,
+            allowed_organization_rids=allowed_organization_rids,
+            resources=resources,
+            operations=operations,
+            marking_ids=marking_ids,
+            role_set_id=role_set_id,
+            role_grants=role_grants,
+            **kwargs,
         ).json()
 
     def delete_third_party_application(self, client_id: str) -> requests.Response:
@@ -1231,14 +1248,19 @@ class FoundryRestClient:
     def update_third_party_application(
         self,
         client_id: str,
-        client_type: str,
+        client_type: api_types.MultipassClientType,
         display_name: str,
         description: str | None,
-        grant_types: list,
+        grant_types: list[api_types.MultipassGrantType],
         redirect_uris: list | None,
         logo_uri: str | None,
         organization_rid: str,
         allowed_organization_rids: list | None = None,
+        resources: list[api_types.Rid] | None = None,
+        operations: list[str] | None = None,
+        marking_ids: list[str] | None = None,
+        role_set_id: str | None = None,
+        **kwargs,
     ) -> dict:
         """Updates Foundry Third Party application (TPA).
 
@@ -1246,22 +1268,25 @@ class FoundryRestClient:
         User must have 'Manage OAuth 2.0 clients' workflow permissions.
 
         Args:
-            client_id (str): The unique identifier of the TPA.
-            client_type (str): Server Application (CONFIDENTIAL) or
+            client_id: The unique identifier of the TPA.
+            client_type: Server Application (CONFIDENTIAL) or
                 Native or single-page application (PUBLIC)
-            display_name (str): Display name of the TPA
-            description (str): Long description of the TPA
-            grant_types (list): Usually, ["AUTHORIZATION_CODE", "REFRESH_TOKEN"] (authorization code grant)
+            display_name: Display name of the TPA
+            description: Long description of the TPA
+            grant_types: Usually, ["AUTHORIZATION_CODE", "REFRESH_TOKEN"] (authorization code grant)
                 or ["REFRESH_TOKEN", "CLIENT_CREDENTIALS"] (client credentials grant)
-            redirect_uris (list): Redirect URLs of TPA, used in combination with AUTHORIZATION_CODE grant
-            logo_uri (str): URI or embedded image 'data:image/png;base64,<...>'
-            organization_rid (str): Parent Organization of this TPA
-            allowed_organization_rids (list): Passing None or empty list means TPA is activated for all
+            redirect_uris: Redirect URLs of TPA, used in combination with AUTHORIZATION_CODE grant
+            logo_uri: URI or embedded image 'data:image/png;base64,<...>'
+            organization_rid: Parent Organization of this TPA
+            allowed_organization_rids: Passing None or empty list means TPA is activated for all
                 Foundry organizations
+            resources: Resources allowed to access by the client, otherwise no resource restrictions
+            operations: Operations the client can be granted, otherwise no operation restrictions
+            marking_ids: Markings allowed to access by the client, otherwise no marking restrictions
+            role_set_id: roles allowed for this client, defaults to `oauth2-client`
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
-        Returns:
-            dict:
-                With the following structure
+        Reponse in following structure:
 
         .. code-block:: python
 
@@ -1279,15 +1304,20 @@ class FoundryRestClient:
 
         """
         return self.ctx.multipass.api_update_third_party_application(
-            client_id,
-            api_types.MultipassClientType(client_type),
-            display_name,
-            description,
-            grant_types,
-            redirect_uris,
-            logo_uri,
-            organization_rid,
-            allowed_organization_rids,
+            client_id=client_id,
+            client_type=api_types.MultipassClientType(client_type),
+            display_name=display_name,
+            description=description,
+            grant_types=grant_types,
+            redirect_uris=redirect_uris,
+            logo_uri=logo_uri,
+            organization_rid=organization_rid,
+            allowed_organization_rids=allowed_organization_rids,
+            resources=resources,
+            operations=operations,
+            marking_ids=marking_ids,
+            role_set_id=role_set_id,
+            **kwargs,
         ).json()
 
     def rotate_third_party_application_secret(
@@ -1321,19 +1351,34 @@ class FoundryRestClient:
         """
         return self.ctx.multipass.api_rotate_third_party_application_secret(client_id).json()
 
-    def enable_third_party_application(self, client_id: str, operations: list | None, resources: list | None) -> dict:
+    def enable_third_party_application(
+        self,
+        client_id: str,
+        operations: list | None = None,
+        resources: list | None = None,
+        marking_ids: list[str] | None = None,
+        grant_types: list[api_types.MultipassGrantType] | None = None,
+        require_consent: bool = True,
+        **kwargs,
+    ) -> dict:
         """Enables Foundry Third Party application (TPA).
 
         Args:
-            client_id (str): The unique identifier of the TPA.
-            operations (list): Scopes that this TPA is allowed to use (To be confirmed)
+            client_id: The unique identifier of the TPA.
+            operations: Scopes that this TPA is allowed to use (To be confirmed)
                 if None or empty list is passed, all scopes will be activated.
-            resources (list): Compass Project RID's that this TPA is allowed to access,
+            resources: Compass Project RID's that this TPA is allowed to access,
                 if None or empty list is passed, unrestricted access will be given.
+            marking_ids: Marking Ids that this TPA is allowed to access,
+                if None or empty list is passed, unrestricted access will be given.
+            grant_types: Grant types that this TPA is allowed to use to access resources,
+                if None is passed, no grant type restrictions
+                if an empty list is passed, no grant types are allowed for this TPA
+            require_consent: Wether users need to provide consent for this application to act on their behalf,
+                defaults to true
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
-        Returns:
-            dict:
-                With the following structure
+        Response with the following structure:
 
         .. code-block:: python
 
@@ -1349,7 +1394,15 @@ class FoundryRestClient:
             }
 
         """
-        return self.ctx.multipass.api_enable_third_party_application(client_id, operations, resources).json()
+        return self.ctx.multipass.api_enable_third_party_application(
+            client_id,
+            operations=operations,
+            resources=resources,
+            marking_ids=marking_ids,
+            grant_types=grant_types,
+            require_consent=require_consent,
+            **kwargs,
+        ).json()
 
     def start_checks_and_build(
         self,
@@ -1442,10 +1495,10 @@ def v1_to_v2_config(config: dict) -> tuple[TokenProvider, dict]:
     _config = get_config_dict() or {}
     tp = None
     jwt, client_id, client_secret, foundry_url = (
-        config.pop("jwt"),
-        config.pop("client_id"),
-        config.pop("client_secret"),
-        config.pop("foundry_url"),
+        config.pop("jwt", None),
+        config.pop("client_id", None),
+        config.pop("client_secret", None),
+        config.pop("foundry_url", None),
     )
     domain = None
     scheme = None
