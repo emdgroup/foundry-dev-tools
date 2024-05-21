@@ -107,7 +107,7 @@ class MultipassClient(APIClient):
 
     def api_create_third_party_application(
         self,
-        client_type: api_types.MultipassClientType,
+        client_type: api_types.MultipassClientType | str,
         display_name: str,
         description: str | None,
         grant_types: list[api_types.MultipassGrantType | str],
