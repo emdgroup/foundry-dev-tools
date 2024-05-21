@@ -91,9 +91,6 @@ def _test_crud_inner(mocker):
             "jwt": None,
         },
     )
-    # Delete JWT that comes from local config file
-    if "jwt" in tpa_client._config:
-        del tpa_client._config["jwt"]
 
     tpa_user_info = tpa_client.get_user_info()
     assert tpa_user_info["username"] == client_id
