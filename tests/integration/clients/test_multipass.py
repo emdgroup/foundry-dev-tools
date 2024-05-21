@@ -70,7 +70,7 @@ def _test_crud_inner(mocker):
     )
     assert enabled_app["installation"]["resources"] == []
     assert enabled_app["installation"]["operations"] == []
-    assert enabled_app["installation"]["requireConsent"] is False
+    assert enabled_app["installation"]["requireConsent"] is True
 
     enabled_app = client.enable_third_party_application(
         client_id=client_id,

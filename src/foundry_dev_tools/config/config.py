@@ -73,7 +73,7 @@ class Config:
             transforms_output_folder: When @transform in combination with TransformOutput.filesystem() is used,
                 files are written to this folder.
             rich_traceback: enables a prettier traceback provided by the module `rich` See: https://rich.readthedocs.io/en/stable/traceback.html
-            debug: enbales debug logging
+            debug: enables debug logging
 
         """
         self.requests_ca_bundle = os.fspath(requests_ca_bundle) if requests_ca_bundle else None
