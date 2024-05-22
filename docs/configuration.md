@@ -27,9 +27,12 @@ config = {} # token provider implementation specific configuration
   - The `name` value lets you select the token provider implemention, per default, this is "jwt"
   - The `config` [table] options depends on the [`token_provider`](#foundry_dev_tools.config.token_provider) implementation.
 
-:::{seealso}
-[Getting Started - Credentials Configuration](/getting_started/installation.md#credentials-configuration)
-:::
+Examples from [Getting Started - Credentials Configuration](/getting_started/installation.md#credentials-configuration):
+
+```{include} /getting_started/installation.md
+:start-after: "<!-- include -->"
+:end-before: "<!-- include_end -->"
+```
 
 ## Configuration Options
 

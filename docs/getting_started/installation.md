@@ -104,6 +104,8 @@ If you've never used TOML, [here](/configuration.md#quick-toml-overview) is a qu
 
 ## Credentials Configuration
 
+<!-- includes are for including that part in configuration.md -->
+<!-- include -->
 ````{tab} JWT
 The following contents are needed for the JWT authentication:
 ```toml
@@ -144,6 +146,7 @@ grant_type = "client_credentials"
 ````
 
 `````
+<!-- include_end -->
 
 :::{seealso}
 For more info about the configuration: [](/configuration.md)
