@@ -1,4 +1,5 @@
 """The DataProxy API client."""
+
 from __future__ import annotations
 
 import shutil
@@ -92,15 +93,6 @@ class DataProxyClient(APIClient):
                     path_in_foundry_dataset=key,
                 )
         else:
-
-            def _upload_file(path_in_dataset: PathInDataset, path: Path):
-                self.upload_dataset_file(
-                    dataset_rid,
-                    transaction_rid,
-                    path=path,
-                    path_in_foundry_dataset=path_in_dataset,
-                )
-
             with ThreadPoolExecutor(
                 max_workers=max_workers,
             ) as pool:
