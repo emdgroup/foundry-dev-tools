@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import sys
 import time
 from typing import TYPE_CHECKING
 from unittest import mock
 
+import pytest
 import requests_mock
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
-from foundry_dev_tools.config.token_provider import (
-    CachedTokenProvider,
-)
+from foundry_dev_tools.config.token_provider import AppServiceTokenProvider, CachedTokenProvider
+from foundry_dev_tools.errors.config import FoundryConfigError
 from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvider
 
 if TYPE_CHECKING:
@@ -52,3 +53,22 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
             json={"access_token": foundry_token, "expires_in": 0},
         )
         assert ctx.token == foundry_token
+
+
+def test_app_service_token_provider():
+    with mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}):
+        tp = AppServiceTokenProvider()
+        with pytest.raises(FoundryConfigError):
+            str(tp.token)
+
+    # flask
+    from argparse import Namespace
+
+    tp.request = Namespace(headers={"X-Foundry-AccessToken": "bla"})
+
+    assert tp.token == "bla"  # noqa: S105
+
+    # streamlit takes precedence
+    tp._get_websocket_headers = lambda: {"X-Foundry-AccessToken": "bla2"}
+
+    assert tp.token == "bla2"  # noqa: S105

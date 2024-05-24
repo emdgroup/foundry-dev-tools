@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Iterable
 from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.config.token_provider import (
     TOKEN_PROVIDER_MAPPING,
+    AppServiceTokenProvider,
     JWTTokenProvider,
     TokenProvider,
 )
@@ -174,6 +175,10 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
         if tp_config:
             ci = check_init(JWTTokenProvider, "credentials", {"host": host, **tp_config})
             return JWTTokenProvider(**ci)
+
+        # use flask/dash/streamlit provider when used in the app service
+        if "APP_SERVICE_TS" in os.environ:
+            return AppServiceTokenProvider()
         msg = (
             "To authenticate with Foundry you need a TokenProvider. The token provider can be configured either via the"
             " configuration file or the token_provider FoundryContext parameter."

@@ -1,12 +1,15 @@
 """The Foundry DevTools Token providers."""
+
 from __future__ import annotations
 
 import base64
 import time
 from functools import cached_property
+from typing import ClassVar
 
 import palantir_oauth_client
 import requests
+from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
 from foundry_dev_tools.errors.config import TokenProviderConfigError
@@ -183,11 +186,47 @@ class OAuthTokenProvider(CachedTokenProvider):
         raise NotImplementedError(msg)
 
 
+class AppServiceTokenProvider(TokenProvider):
+    """Token Provider for the AppService, which gets the token via a header from flask/dash/streamlit."""
+
+    header: ClassVar[str] = "X-Foundry-AccessToken"
+
+    def __init__(self):
+        try:
+            from streamlit.web.server.websocket_headers import _get_websocket_headers
+
+            self._get_websocket_headers = _get_websocket_headers
+        except ImportError:
+            self._get_websocket_headers = None
+
+        try:
+            from flask import request
+
+            self.request = request
+        except ImportError:
+            self.request = None
+
+    @property
+    def token(self) -> Token:
+        """Gets the token from the request headers."""
+        if (
+            self._get_websocket_headers is not None
+            and (headers := self._get_websocket_headers())
+            and (token := CaseInsensitiveDict(headers).get(self.header))
+        ):
+            return token
+        if self.request and (token := self.request.headers.get(self.header)):
+            return token
+        msg = "Could not get Foundry token from flask/dash/streamlit headers."
+        raise TokenProviderConfigError(msg)
+
+
 # markers for documentation
 # [begin token_provider mapping]
 TOKEN_PROVIDER_MAPPING = {
     "jwt": JWTTokenProvider,
     "oauth": OAuthTokenProvider,
+    "app_service": AppServiceTokenProvider,
     **entry_point_fdt_token_provider(),
 }
 # [end token_provider mapping]
