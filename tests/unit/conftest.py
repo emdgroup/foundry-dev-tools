@@ -77,3 +77,14 @@ def mock_config_location(tmp_path_factory, request) -> Generator[dict[Path, None
     )
     with mock.patch("foundry_dev_tools.config.config.cfg_files", return_value=paths):
         yield paths
+
+
+@pytest.fixture()
+def git_env():
+    return {
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_COMMITTER_NAME": "Jon Doe",
+        "GIT_COMMITTER_EMAIL": "john@doe",
+        "GIT_AUTHOR_NAME": "Jon Doe",
+        "GIT_AUTHOR_EMAIL": "john@doe",
+    }

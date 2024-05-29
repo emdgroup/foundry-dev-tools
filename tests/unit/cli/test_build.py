@@ -449,15 +449,7 @@ def test_build(
     )
 
 
-def test_get_transform_files(tmpdir: py.path.LocalPath):
-    git_env = {
-        "HOME": str(tmpdir),
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_COMMITTER_NAME": "pytest get_transform_files test",
-        "GIT_COMMITTER_EMAIL": "pytest@get_transform_files.py",
-        "GIT_AUTHOR_NAME": "pytest get_transform_files test",
-        "GIT_AUTHOR_EMAIL": "pytest@get_transform_files.py",
-    }  # should use default configs
+def test_get_transform_files(tmpdir: py.path.LocalPath, git_env: dict):
     with tmpdir.as_cwd():
         from foundry_dev_tools.cli.build import (
             TRANSFORM_DECORATORS,
