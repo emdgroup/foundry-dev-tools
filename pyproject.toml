@@ -33,6 +33,7 @@ dependencies = [
   "platformdirs",
   "tomli; python_version <\"3.11\"",
   "typing_extensions; python_version < \"3.11\"",
+  "backports-datetime-fromisoformat==2.0.1; python_version < \"3.11\"",
 ]
 dynamic = ["version"]
 
