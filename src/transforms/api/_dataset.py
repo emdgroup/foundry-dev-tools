@@ -286,7 +286,14 @@ def _get_branch(caller_filename: Path) -> str:
         # or Jupyter lab on Windows
         git_dir = Path.cwd()
 
-    head_file = git_dir.joinpath(".git", "HEAD")
+    if git_dir.joinpath(".git").is_file():
+        # Infer branch from git submoduel
+        with git_dir.joinpath(".git").open() as gf:
+            rel_submodule_git_dir = gf.read().strip().replace("gitdir: ", "")
+        head_file = git_dir.joinpath(rel_submodule_git_dir, "HEAD").resolve()
+    else:
+        head_file = git_dir.joinpath(".git", "HEAD")
+
     if head_file.is_file():
         with head_file.open() as hf:
             ref = hf.read().strip()
