@@ -287,7 +287,7 @@ def _get_branch(caller_filename: Path) -> str:
         git_dir = Path.cwd()
 
     if git_dir.joinpath(".git").is_file():
-        # Infer branch from git submoduel
+        # Infer branch from git submodule
         with git_dir.joinpath(".git").open() as gf:
             rel_submodule_git_dir = gf.read().strip().replace("gitdir: ", "")
         head_file = git_dir.joinpath(rel_submodule_git_dir, "HEAD").resolve()
