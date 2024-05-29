@@ -454,15 +454,7 @@ def test_build(a, b, c, d, e, f, g, caplog):
         assert result.exit_code == 0
 
 
-def test_get_transform_files(tmpdir: "py.path.LocalPath"):
-    GIT_ENV = {
-        "HOME": str(tmpdir),
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_COMMITTER_NAME": "pytest get_transform_files test",
-        "GIT_COMMITTER_EMAIL": "pytest@get_transform_files.py",
-        "GIT_AUTHOR_NAME": "pytest get_transform_files test",
-        "GIT_AUTHOR_EMAIL": "pytest@get_transform_files.py",
-    }  # should use default configs
+def test_get_transform_files(tmpdir: "py.path.LocalPath", git_env: dict):
     with tmpdir.as_cwd():
         from foundry_dev_tools.cli.build import (
             TRANSFORM_DECORATORS,
@@ -470,7 +462,7 @@ def test_get_transform_files(tmpdir: "py.path.LocalPath"):
             is_transform_file,
         )
 
-        subprocess.check_call(["git", "init"], env=GIT_ENV)
+        subprocess.check_call(["git", "init"], env=git_env)
         t = Path("transforms-python", "examples")
         t.mkdir(parents=True)
         tfiles = []
@@ -481,8 +473,8 @@ def test_get_transform_files(tmpdir: "py.path.LocalPath"):
                     f"from transforms.api import {decorator},Output\n\n@transform_df()\ndef test_transform():\n    pass"
                 )
             tfiles.append(transform_file.as_posix())  # git returns with forward slash
-        subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
-        subprocess.check_call(["git", "commit", "-m", "transform commit"], env=GIT_ENV)
+        subprocess.check_call(["git", "add", "-A"], env=git_env)
+        subprocess.check_call(["git", "commit", "-m", "transform commit"], env=git_env)
 
         for f in tfiles:
             assert is_transform_file(Path(f))
@@ -491,9 +483,9 @@ def test_get_transform_files(tmpdir: "py.path.LocalPath"):
         assert get_transform_files(Path.cwd()) == tfiles
         with tmpdir.join("get_transform.txt").open("w+") as gttxt:
             gttxt.write("something something")
-        subprocess.check_call(["git", "add", "-A"], env=GIT_ENV)
+        subprocess.check_call(["git", "add", "-A"], env=git_env)
         subprocess.check_call(
-            ["git", "commit", "-m", "no transform in last commit"], env=GIT_ENV
+            ["git", "commit", "-m", "no transform in last commit"], env=git_env
         )
         with pytest.raises(UsageError, match="No transform files in the last commit."):
             get_transform_files(Path.cwd())

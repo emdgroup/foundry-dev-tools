@@ -206,3 +206,14 @@ def complex_dataset_fixture(client, spark_session, tmpdir):
             foundry_schema=FOUNDRY_SCHEMA_COMPLEX_DATASET,
         )
         yield ds_rid
+
+
+@pytest.fixture()
+def git_env():
+    return {
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_COMMITTER_NAME": "Jon Doe",
+        "GIT_COMMITTER_EMAIL": "john@doe",
+        "GIT_AUTHOR_NAME": "Jon Doe",
+        "GIT_AUTHOR_EMAIL": "john@doe",
+    }
