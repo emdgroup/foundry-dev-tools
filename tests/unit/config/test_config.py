@@ -10,6 +10,7 @@ from foundry_dev_tools.config import config
 from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.config.token_provider import AppServiceTokenProvider, JWTTokenProvider, OAuthTokenProvider
 from foundry_dev_tools.errors.config import (
+    FoundryConfigError,
     MissingCredentialsConfigError,
     MissingFoundryHostError,
     TokenProviderConfigError,
@@ -114,6 +115,6 @@ def test_parse_credentials_config(mock_config_location):
             "credentials",
             {"host": Host("example.com"), "client_id": "test"},
         )
-    with mock.patch.dict(os.environ, {"APP_SERVICE_TS": "1"}):
+    with mock.patch.dict(os.environ, {"APP_SERVICE_TS": "1"}), pytest.raises(FoundryConfigError):  # noqa: PT012
         ccfg = config.parse_credentials_config({"credentials": {"domain": "example.com"}})
         assert isinstance(ccfg, AppServiceTokenProvider)

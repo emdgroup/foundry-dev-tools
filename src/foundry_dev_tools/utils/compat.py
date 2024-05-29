@@ -9,14 +9,15 @@ from urllib.parse import urlparse
 from foundry_dev_tools.config.config import TokenProvider, get_config_dict, parse_credentials_config
 
 
-def v1_to_v2_config_dict(config: dict, env: bool = True) -> dict:  # noqa: C901
+def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True) -> dict:  # noqa: C901
     """Converts the `config` argument to the new v2 config.
 
     Args:
         config: the v1 dictionary to convert
         env: whether to include the environment variables in the conversion
+        get_config: wether to get the config from files and merge it
     """
-    _config = get_config_dict(env=env) or {}
+    _config = (get_config_dict(env=env) if get_config else None) or {}
     jwt, client_id, client_secret, foundry_url, grant_type, scopes = (
         config.pop("jwt", False),
         config.pop("client_id", False),
@@ -103,4 +104,4 @@ def get_v1_environment_variables() -> dict:
             "The v1 environment variables are deprecated, please use the v2 environment variables instead",
             DeprecationWarning,
         )
-    return v1_to_v2_config_dict(v1_env_config, env=False)
+    return v1_to_v2_config_dict(v1_env_config, env=False, get_config=False)
