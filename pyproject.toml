@@ -31,6 +31,7 @@ dependencies = [
   "requests",
   "palantir-oauth-client",
   "platformdirs",
+  "tomli; python_version <\"3.11\"",
   "typing_extensions; python_version < \"3.11\"",
 ]
 dynamic = ["version"]
