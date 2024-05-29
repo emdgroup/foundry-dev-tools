@@ -26,8 +26,16 @@ def test_git_toplevel_dir(use_git: bool, tmpdir: "py.path.LocalPath"):
     # Test if git submodules can be recognized as toplevel_dir
     # First create an empty local repository and initialize it
     subprocess.check_call(["git", "init", "dummy_repo"], cwd=toplevel)
+
     subprocess.check_call(
-        ["git", "commit", "--allow-empty", "-m", "Initialize"],
+        [
+            "git",
+            "commit",
+            "--author='John Doe <john@doe.com>'",
+            "--allow-empty",
+            "-m",
+            "Initialize",
+        ],
         cwd=toplevel.joinpath("dummy_repo"),
     )
 
