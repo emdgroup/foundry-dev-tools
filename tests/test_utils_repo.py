@@ -23,6 +23,24 @@ def test_git_toplevel_dir(use_git: bool, tmpdir: "py.path.LocalPath"):
         git_dir_cwd = git_toplevel_dir(use_git=use_git)
     assert git_dir_cwd == toplevel
 
+    # Test if git submodules can be recognized as toplevel_dir
+    # Use foundry-dev-tools as dummy submodule
+    subprocess.check_call(
+        [
+            "git",
+            "submodule",
+            "add",
+            "https://github.com/emdgroup/foundry-dev-tools.git",
+            "dummy_submodule",
+        ],
+        cwd=toplevel,
+    )
+    toplevel_submodule = toplevel.joinpath("dummy_submodule")
+    git_dir_submodule = git_toplevel_dir(
+        Path(tmpdir.mkdir("dummy_submodule", "submodule_subdirectory")), use_git=use_git
+    )
+    assert git_dir_submodule == toplevel_submodule
+
 
 def test_get_repo(tmpdir: "py.path.LocalPath"):
     repo_rid = f"ri.stemma.main.repository{uuid.uuid4()}"
