@@ -113,10 +113,10 @@ def git_toplevel_dir(
         )
     if git_dir is None:
         git_dir = Path.cwd()
-    if git_dir.joinpath(".git").is_dir():
+    if git_dir.joinpath(".git").exists():
         return git_dir
     for p in git_dir.resolve().parents:
-        if p.joinpath(".git").is_dir():
+        if p.joinpath(".git").exists():
             return p
     return None
 
