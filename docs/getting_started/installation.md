@@ -29,11 +29,9 @@ after you activated it, just run:
 
 ````{tab} pip
 ```shell
-pip install 'foundry-dev-tools[cli]'
+pip install 'foundry-dev-tools'
 ```
-[CLI](cli) is an optional dependency but can be helpful for configuration and environment setup.
-
-If you want to use everything provided by FoundryDevTools (running transforms locally, s3 compatible dataset api and the cli) you can use the following command:
+If you want to use everything provided by FoundryDevTools (running transforms locally and the s3 compatible dataset api) you can use the following command:
 
 ```shell
 pip install 'foundry-dev-tools[all]'
@@ -45,13 +43,6 @@ pip install 'foundry-dev-tools[all]'
 ```shell
 conda install -c conda-forge foundry-dev-tools
 ```
-
-To also install the CLI, you need to install these optional dependencies:
-
-```shell
-conda install -c conda-forge click inquirer websockets rich packaging
-```
-
 ````
 
 :::{seealso}
@@ -87,16 +78,6 @@ Foundry DevTools CLI [config command](/getting_started/cli.md#the-config-command
   - C:\\ProgramData\\foundry-dev-tools\\config.toml (system-wide)
   - \%USERPROFILE\%\\AppData\\Local\\foundry-dev-tools\\config.toml (user)
   - \%USERPROFILE\%\\AppData\\Roaming\\foundry-dev-tools\\config.toml (user)
-
-If you don't want to install the CLI dependencies, you can run the following code, to list the possible config file locations:
-```python
-from foundry_dev_tools.utils.config import cfg_files
-
-for x in cfg_files().keys():
-    print(x)
-```
-
-Or in one line: `python -c 'from foundry_dev_tools.utils.config import cfg_files; [print(x) for x in cfg_files().keys()]'`
 
 :::{seealso}
 If you've never used TOML, [here](/configuration.md#quick-toml-overview) is a quick overview.

@@ -34,6 +34,11 @@ dependencies = [
   "tomli; python_version <\"3.11\"",
   "typing_extensions; python_version < \"3.11\"",
   "backports-datetime-fromisoformat==2.0.1; python_version < \"3.11\"",
+  "click",
+  "inquirer",
+  "websockets",
+  "rich",
+  "packaging",
 ]
 dynamic = ["version"]
 
@@ -42,6 +47,7 @@ fdt = "foundry_dev_tools.cli.main:cli"
 git-credential-foundry = "foundry_dev_tools.cli.git_credential_foundry:helper"
 
 [project.optional-dependencies]
+
 integration = ["dask", "fastparquet"]
 testing = [
   "pyarrow",
@@ -54,9 +60,8 @@ testing = [
   "polars",
 ]
 transforms = ["pyspark>=3.0.0", "fs"]
-cli = ["click", "inquirer", "websockets", "rich", "packaging"]
 s3 = ["aiobotocore[boto3]"]
-all = ["foundry-dev-tools[transforms,cli,s3]"]
+all = ["foundry-dev-tools[transforms,s3]"]
 dev = [
   "foundry-dev-tools[all,testing,integration]",
   "pre-commit",
@@ -80,7 +85,7 @@ version.source = "vcs"
 
 [tool.hatch.envs.test]
 dev-mode = false
-features = ["transforms", "cli", "s3", "testing", "integration"]
+features = ["transforms", "s3", "testing", "integration"]
 dependencies = ["pre-commit"]
 
 [tool.hatch.envs.test.scripts]
@@ -90,11 +95,11 @@ lint = "pre-commit run --all-files {args:--show-diff-on-failure}"
 
 [tool.hatch.envs.dev]
 dev-mode = true
-features = ["transforms", "cli", "s3", "testing", "integration"]
+features = ["transforms", "s3", "testing", "integration"]
 
 [tool.hatch.envs.docs]
 dev-mode = false
-features = ["transforms", "cli", "s3"]
+features = ["transforms", "s3"]
 dependencies = [
   "myst-parser[linkify]",
   "sphinx>=3.2.1",

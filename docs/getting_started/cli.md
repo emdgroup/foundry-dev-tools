@@ -1,7 +1,5 @@
 # CLI
 
-The required dependencies for the CLI can be installed with `pip install 'foundry-dev-tools[cli]'`.
-
 ## The info command
 
 This is a quick way to find out, if your environment is correctly setup to use Foundry DevTools.
