@@ -10,6 +10,7 @@ from typing import ClassVar
 import palantir_oauth_client
 import requests
 from requests.structures import CaseInsensitiveDict
+from streamlit.web.server.browser_websocket_handler import BrowserWebSocketHandler
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
 from foundry_dev_tools.errors.config import TokenProviderConfigError
@@ -186,23 +187,22 @@ class OAuthTokenProvider(CachedTokenProvider):
         raise NotImplementedError(msg)
 
 
-class AppServiceTokenProvider(TokenProvider):
+class AppServiceTokenProvider(CachedTokenProvider):
     """Token Provider for the AppService, which gets the token via a header from flask/dash/streamlit."""
 
     header: ClassVar[str] = "X-Foundry-AccessToken"
+    __clock_skew = 300
 
     def __init__(self, host: Host):
         super().__init__(host)
         try:
-            from streamlit.web.server.websocket_headers import _get_websocket_headers
+            from streamlit import runtime
+            from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
-            self._get_websocket_headers = _get_websocket_headers
+            self.streamlit_ctx = get_script_run_ctx()
+            self.runtime = runtime
         except ImportError:
-            self._get_websocket_headers = None
-        else:
-            if (headers := self._get_websocket_headers()) and (token := CaseInsensitiveDict(headers).get(self.header)):
-                self._token = token
-                return
+            self.streamlit_ctx = None
 
         try:
             from flask import request
@@ -210,18 +210,23 @@ class AppServiceTokenProvider(TokenProvider):
             self.request = request
         except ImportError:
             self.request = None
-        else:
-            if token := self.request.headers.get(self.header):
-                self._token = token
-                return
+
+    def _get_websocket_headers(self) -> CaseInsensitiveDict | None:
+        session_client = self.runtime.get_instance().get_client(self.streamlit_ctx.session_id)
+        if session_client is not None and isinstance(session_client, BrowserWebSocketHandler):
+            return CaseInsensitiveDict(session_client.request.headers)
+        return None
+
+    def _request_token(self) -> tuple[Token, float]:
+        if self.streamlit_ctx is not None and (
+            (headers := self._get_websocket_headers()) and (token := headers.get(self.header))
+        ):
+            return token, 3600.0
+        if self.request is not None and (token := self.request.headers.get(self.header)):
+            return token, 3600.0
 
         msg = "Could not get Foundry token from flask/dash/streamlit headers.\n"
         raise TokenProviderConfigError(msg)
-
-    @property
-    def token(self) -> Token:
-        """Returns the token from the provider."""
-        return self._token
 
 
 # markers for documentation
