@@ -218,7 +218,11 @@ class AppServiceTokenProvider(TokenProvider):
             return token
         if self.request and (token := self.request.headers.get(self.header)):
             return token
-        msg = "Could not get Foundry token from flask/dash/streamlit headers."
+        msg = (
+            "Could not get Foundry token from flask/dash/streamlit headers.\n"
+            f"DEBUG: {self._get_websocket_headers}\n"
+            + (str(self._get_websocket_headers()) if self._get_websocket_headers is not None else "")
+        )
         raise TokenProviderConfigError(msg)
 
 
