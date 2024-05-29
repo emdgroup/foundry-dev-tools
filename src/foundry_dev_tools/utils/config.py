@@ -7,6 +7,7 @@ And the function that checks if the kwargs for a __init__ are correct,
 currently used for the :py:class:`foundry_dev_tools.config.config.Config`
 and the token providers :py:mod:`foundry_dev_tools.config.token_provider`.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -137,7 +138,10 @@ def get_environment_variable_config() -> dict:
                     o[cfg_part] = {}
                 o = o[cfg_part]
             o[parts[-1]] = value
-    return env_dict
+    from foundry_dev_tools.utils.compat import get_v1_environment_variables  # otherwise circular import
+
+    v1_env_dict = get_v1_environment_variables()
+    return merge_dicts(env_dict, v1_env_dict)
 
 
 @lru_cache(maxsize=None)

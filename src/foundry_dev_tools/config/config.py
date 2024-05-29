@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
 from foundry_dev_tools.config.config_types import Host
@@ -14,6 +15,7 @@ from foundry_dev_tools.config.token_provider import (
     TokenProvider,
 )
 from foundry_dev_tools.errors.config import (
+    FoundryConfigError,
     MissingCredentialsConfigError,
     MissingFoundryHostError,
     TokenProviderConfigError,
@@ -29,7 +31,6 @@ from foundry_dev_tools.utils.config import (
 
 if TYPE_CHECKING:
     from os import PathLike
-    from pathlib import Path
 
 # compatibility for python version < 3.11
 if sys.version_info < (3, 11):
@@ -111,10 +112,16 @@ def _load_config_files(config_files: Iterable[Path]) -> dict:
         if cfg_file.exists():
             c = _load_config_file(cfg_file) or {}
             config = merge_dicts(config, c)
+    # When no files were found, check for old config
+    if len(config) == 0:
+        p = Path("~/.foundry-dev-tools/config").expanduser()
+        if p.exists() and not p.is_dir():
+            msg = "Please use the `fdt config migrate` command to migrate the v1 config to the v2 config format."
+            raise FoundryConfigError(msg)
     return config
 
 
-def get_config_dict(profile: str | None = None) -> dict | None:
+def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None:
     """Loads config from the config files and environment variables.
 
     Profiles make configs like this possible:
@@ -129,9 +136,14 @@ def get_config_dict(profile: str | None = None) -> dict | None:
 
     Where 'integration.config' will be loaded instead of 'config'
     if the profile is set to integration.
+
+    Args:
+        profile: The profile to use, if None the default profile is used
+        env: Whether to load the environment variables
     """
     config = _load_config_files(cfg_files())
-    config = merge_dicts(config, get_environment_variable_config())
+    if env:
+        config = merge_dicts(config, get_environment_variable_config())
     if not config:
         return None
     if profile is None:
