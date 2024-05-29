@@ -190,7 +190,7 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
 
         # use flask/dash/streamlit provider when used in the app service
         if "APP_SERVICE_TS" in os.environ:
-            return AppServiceTokenProvider()
+            return AppServiceTokenProvider(host=host)
         msg = (
             "To authenticate with Foundry you need a TokenProvider. The token provider can be configured either via the"
             " configuration file or the token_provider FoundryContext parameter."

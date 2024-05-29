@@ -191,7 +191,8 @@ class AppServiceTokenProvider(TokenProvider):
 
     header: ClassVar[str] = "X-Foundry-AccessToken"
 
-    def __init__(self):
+    def __init__(self, host: Host):
+        super().__init__(host)
         try:
             from streamlit.web.server.websocket_headers import _get_websocket_headers
 
