@@ -56,19 +56,33 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
 
 
 def test_app_service_token_provider():
-    with mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}):
-        tp = AppServiceTokenProvider()
-        with pytest.raises(FoundryConfigError):
-            str(tp.token)
+    with mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}), pytest.raises(
+        FoundryConfigError,
+    ):
+        tp = AppServiceTokenProvider(TEST_HOST)
 
-    # flask
     from argparse import Namespace
 
-    tp.request = Namespace(headers={"X-Foundry-AccessToken": "bla"})
-
-    assert tp.token == "bla"  # noqa: S105
+    # flask
+    with mock.patch.dict(
+        sys.modules,
+        {
+            "streamlit.web.server.websocket_headers": None,
+            "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
+        },
+    ):
+        tp = AppServiceTokenProvider(TEST_HOST)
+        assert tp.token == "bla"  # noqa: S105
 
     # streamlit takes precedence
-    tp._get_websocket_headers = lambda: {"X-Foundry-AccessToken": "bla2"}
-
-    assert tp.token == "bla2"  # noqa: S105
+    with mock.patch.dict(
+        sys.modules,
+        {
+            "streamlit.web.server.websocket_headers": Namespace(
+                _get_websocket_headers=lambda: {"X-Foundry-AccessToken": "bla2"},
+            ),
+            "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
+        },
+    ):
+        tp = AppServiceTokenProvider(TEST_HOST)
+        assert tp.token == "bla2"  # noqa: S105

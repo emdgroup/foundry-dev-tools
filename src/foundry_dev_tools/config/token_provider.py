@@ -199,6 +199,10 @@ class AppServiceTokenProvider(TokenProvider):
             self._get_websocket_headers = _get_websocket_headers
         except ImportError:
             self._get_websocket_headers = None
+        else:
+            if (headers := self._get_websocket_headers()) and (token := CaseInsensitiveDict(headers).get(self.header)):
+                self._token = token
+                return
 
         try:
             from flask import request
@@ -206,24 +210,18 @@ class AppServiceTokenProvider(TokenProvider):
             self.request = request
         except ImportError:
             self.request = None
+        else:
+            if token := self.request.headers.get(self.header):
+                self._token = token
+                return
+
+        msg = "Could not get Foundry token from flask/dash/streamlit headers.\n"
+        raise TokenProviderConfigError(msg)
 
     @property
     def token(self) -> Token:
-        """Gets the token from the request headers."""
-        if (
-            self._get_websocket_headers is not None
-            and (headers := self._get_websocket_headers())
-            and (token := CaseInsensitiveDict(headers).get(self.header))
-        ):
-            return token
-        if self.request and (token := self.request.headers.get(self.header)):
-            return token
-        msg = (
-            "Could not get Foundry token from flask/dash/streamlit headers.\n"
-            f"DEBUG: {self._get_websocket_headers}\n"
-            + (str(self._get_websocket_headers()) if self._get_websocket_headers is not None else "")
-        )
-        raise TokenProviderConfigError(msg)
+        """Returns the token from the provider."""
+        return self._token
 
 
 # markers for documentation
