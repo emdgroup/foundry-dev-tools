@@ -24,13 +24,22 @@ def test_git_toplevel_dir(use_git: bool, tmpdir: py.path.LocalPath):
     assert git_dir_cwd == toplevel
 
     # Test if git submodules can be recognized as toplevel_dir
-    # Use foundry-dev-tools as dummy submodule
+    # First create an empty local repository and initialize it
+    subprocess.check_call(["git", "init", "dummy_repo"], cwd=toplevel)
+    subprocess.check_call(
+        ["git", "commit", "--allow-empty", "-m", "Initialize"],
+        cwd=toplevel.joinpath("dummy_repo"),
+    )
+
+    # Add local repository as submodule to toplevel repo
     subprocess.check_call(
         [
             "git",
+            "-c",
+            "protocol.file.allow=always",
             "submodule",
             "add",
-            "https://github.com/emdgroup/foundry-dev-tools.git",
+            "./dummy_repo",
             "dummy_submodule",
         ],
         cwd=toplevel,
