@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [1.4.2] - 2024-06-03
+
+## Added
+  - Support for git submodules in transforms (#57)
+
 ## [1.4.1] - 2024-05-29
 
 ## Added
@@ -203,6 +208,7 @@ and this project adheres to [Semantic Versioning].
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+[1.4.2]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.3.5...v1.4.0
 [1.3.5]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.3.4...v1.3.5
