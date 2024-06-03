@@ -3,9 +3,10 @@ import glob
 import os
 import os.path
 import random
+import subprocess
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import numpy as np
 
@@ -401,3 +402,34 @@ def generate_test_dataset(spark_session, output_folder, n_rows=50000):
     df = spark_session.createDataFrame(pdf, schema=schema).repartition(10)
     spark_write_path = f"{output_folder}/spark"
     df.write.format("parquet").save(path=spark_write_path)
+
+
+def add_git_submodule(git_dir: Path, submodule_name: str, git_env: Dict) -> None:
+    # First create an empty local repository and initialize it
+    subprocess.check_call(["git", "init", "dummy_repo"], cwd=git_dir, env=git_env)
+    subprocess.check_call(
+        [
+            "git",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "Initialize",
+        ],
+        cwd=git_dir.joinpath("dummy_repo"),
+        env=git_env,
+    )
+
+    # Add local repository as submodule to toplevel repo
+    subprocess.check_call(
+        [
+            "git",
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "./dummy_repo",
+            submodule_name,
+        ],
+        cwd=git_dir,
+        env=git_env,
+    )

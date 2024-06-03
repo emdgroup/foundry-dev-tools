@@ -23,7 +23,7 @@ from foundry_dev_tools.foundry_api_client import (
 )
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.misc import is_dataset_a_view
-from foundry_dev_tools.utils.repo import git_toplevel_dir
+from foundry_dev_tools.utils.repo import get_branch
 
 LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class Input:
         self._cache = DiskPersistenceBackedSparkCache(**self.config)
         self._spark_df = None
         if branch is None:
-            branch = _get_branch(Path(caller_filename))
+            branch = get_branch(Path(caller_filename))
 
         if self._is_online:
             (
@@ -277,27 +277,6 @@ class Input:
             if self._is_online
             else self._cache.get_path_to_local_dataset(self._dataset_identity)
         )
-
-
-def _get_branch(caller_filename: Path) -> str:
-    git_dir = git_toplevel_dir(caller_filename)
-    if not git_dir:
-        # fallback for VS Interactive Console
-        # or Jupyter lab on Windows
-        git_dir = Path.cwd()
-
-    head_file = git_dir.joinpath(".git", "HEAD")
-    if head_file.is_file():
-        with head_file.open() as hf:
-            ref = hf.read().strip()
-
-        if ref.startswith("ref: refs/heads/"):
-            return ref[16:]
-
-        return "HEAD"  # immitate behaviour of `git rev-parse --abbrev-ref HEAD`
-
-    warnings.warn("Could not detect git branch of project, falling back to 'master'.")
-    return "master"
 
 
 class Output:
