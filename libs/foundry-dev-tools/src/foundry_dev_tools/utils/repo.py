@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import warnings
 from pathlib import Path
 
 from foundry_dev_tools.errors.meta import FoundryDevToolsError
@@ -124,3 +125,39 @@ def git_toplevel_dir(git_dir: Path | None = None, use_git: bool = False) -> Path
         if p.joinpath(".git").exists():
             return p
     return None
+
+
+def get_branch(caller_filename: Path) -> str:
+    """Get name of current checked out git branch as defined in the git HEAD file.
+
+    Args:
+        caller_filename (Path): Path of file that calls the function
+
+    Returns:
+        str: Name of checked out branch
+    """
+    git_dir = git_toplevel_dir(caller_filename)
+    if not git_dir:
+        # fallback for VS Interactive Console
+        # or Jupyter lab on Windows
+        git_dir = Path.cwd()
+
+    if git_dir.joinpath(".git").is_file():
+        # Infer branch from git submodule
+        with git_dir.joinpath(".git").open() as gf:
+            rel_submodule_git_dir = gf.read().strip().replace("gitdir: ", "")
+        head_file = git_dir.joinpath(rel_submodule_git_dir, "HEAD").resolve()
+    else:
+        head_file = git_dir.joinpath(".git", "HEAD")
+
+    if head_file.is_file():
+        with head_file.open() as hf:
+            ref = hf.read().strip()
+
+        if ref.startswith("ref: refs/heads/"):
+            return ref[16:]
+
+        return "HEAD"  # immitate behaviour of `git rev-parse --abbrev-ref HEAD`
+
+    warnings.warn("Could not detect git branch of project, falling back to 'master'.")
+    return "master"

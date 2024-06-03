@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetHasNoSchemaError, DatasetHasNoTransactionsError
 from foundry_dev_tools.utils.api_types import SQLReturnType
 from foundry_dev_tools.utils.misc import is_dataset_a_view
-from foundry_dev_tools.utils.repo import git_toplevel_dir
+from foundry_dev_tools.utils.repo import get_branch
 from transforms import TRANSFORMS_FOUNDRY_CONTEXT
 
 if TYPE_CHECKING:
@@ -81,7 +81,7 @@ class Input:
         LOGGER.debug("Input instantiated from %s", caller_filename)
         self._spark_df = None
         if branch is None:
-            branch = _get_branch(Path(caller_filename))
+            branch = get_branch(Path(caller_filename))
 
         if self._is_online:
             (
@@ -277,34 +277,6 @@ class Input:
                 self._dataset_identity,
             ),
         )
-
-
-def _get_branch(caller_filename: Path) -> str:
-    git_dir = git_toplevel_dir(caller_filename)
-    if not git_dir:
-        # fallback for VS Interactive Console
-        # or Jupyter lab on Windows
-        git_dir = Path.cwd()
-
-    if git_dir.joinpath(".git").is_file():
-        # Infer branch from git submodule
-        with git_dir.joinpath(".git").open() as gf:
-            rel_submodule_git_dir = gf.read().strip().replace("gitdir: ", "")
-        head_file = git_dir.joinpath(rel_submodule_git_dir, "HEAD").resolve()
-    else:
-        head_file = git_dir.joinpath(".git", "HEAD")
-
-    if head_file.is_file():
-        with head_file.open() as hf:
-            ref = hf.read().strip()
-
-        if ref.startswith("ref: refs/heads/"):
-            return ref[16:]
-
-        return "HEAD"  # immitate behaviour of `git rev-parse --abbrev-ref HEAD`
-
-    warnings.warn("Could not detect git branch of project, falling back to 'master'.")
-    return "master"
 
 
 class Output:
