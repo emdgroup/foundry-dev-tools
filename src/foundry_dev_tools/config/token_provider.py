@@ -9,8 +9,6 @@ from typing import ClassVar
 
 import palantir_oauth_client
 import requests
-from requests.structures import CaseInsensitiveDict
-from streamlit.web.server.browser_websocket_handler import BrowserWebSocketHandler
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
 from foundry_dev_tools.errors.config import TokenProviderConfigError
@@ -71,16 +69,16 @@ class JWTTokenProvider(TokenProvider):
 class CachedTokenProvider(TokenProvider):
     """Parent class for token providers which get their token dynamically and need caching."""
 
-    __cached: Token | None = None
-    __valid_until: float = -1
+    _cached: Token | None = None
+    _valid_until: float = -1
     # time to remove from expiry
     # e.g. it will request a new token if your token expires in 5 seconds
-    __clock_skew: int = 10
+    _clock_skew: int = 10
 
     def invalidate_cache(self):
         """Invalidates the token cache."""
-        self.__cached = None
-        self.__valid_until = -1
+        self._cached = None
+        self._valid_until = -1
 
     def _request_token(self) -> tuple[Token, float]:
         """Requests the token from the dynamic source."""
@@ -90,9 +88,9 @@ class CachedTokenProvider(TokenProvider):
     @property
     def token(self) -> Token:
         """Returns the token from a dynamic source and caches it."""
-        if not self.__cached or self.__valid_until < time.time() + 10:
-            self.__cached, self.__valid_until = self._request_token()
-        return self.__cached
+        if not self._cached or self._valid_until < time.time() + 10:
+            self._cached, self._valid_until = self._request_token()
+        return self._cached
 
 
 DEFAULT_OAUTH_SCOPES = [
@@ -191,41 +189,35 @@ class AppServiceTokenProvider(CachedTokenProvider):
     """Token Provider for the AppService, which gets the token via a header from flask/dash/streamlit."""
 
     header: ClassVar[str] = "X-Foundry-AccessToken"
-    __clock_skew = 300
 
     def __init__(self, host: Host):
         super().__init__(host)
         try:
-            from streamlit import runtime
-            from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
-
-            self.streamlit_ctx = get_script_run_ctx()
-            self.runtime = runtime
+            from streamlit.web.server.websocket_headers import _get_websocket_headers
         except ImportError:
-            self.streamlit_ctx = None
-
+            pass
+        else:
+            if (headers := _get_websocket_headers()) and (token := headers.get(self.header)):
+                self._cached = token
+                self._valid_until = time.time() + 3600
+                return
         try:
             from flask import request
-
-            self.request = request
         except ImportError:
-            self.request = None
-
-    def _get_websocket_headers(self) -> CaseInsensitiveDict | None:
-        session_client = self.runtime.get_instance().get_client(self.streamlit_ctx.session_id)
-        if session_client is not None and isinstance(session_client, BrowserWebSocketHandler):
-            return CaseInsensitiveDict(session_client.request.headers)
-        return None
+            pass
+        else:
+            try:
+                if request is not None and (token := request.headers.get(self.header)):
+                    self._cached = token
+                    self._valid_until = time.time() + 3600
+                    return
+            except RuntimeError:
+                pass
+        msg = "Could not get Foundry token from flask/dash/streamlit headers."
+        raise TokenProviderConfigError(msg)
 
     def _request_token(self) -> tuple[Token, float]:
-        if self.streamlit_ctx is not None and (
-            (headers := self._get_websocket_headers()) and (token := headers.get(self.header))
-        ):
-            return token, 3600.0
-        if self.request is not None and (token := self.request.headers.get(self.header)):
-            return token, 3600.0
-
-        msg = "Could not get Foundry token from flask/dash/streamlit headers.\n"
+        msg = "Token is expired. Please refresh the web page."
         raise TokenProviderConfigError(msg)
 
 

@@ -7,6 +7,7 @@ from unittest import mock
 
 import pytest
 import requests_mock
+from freezegun import freeze_time
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
 from foundry_dev_tools.config.token_provider import AppServiceTokenProvider, CachedTokenProvider
@@ -56,12 +57,11 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
 
 
 def test_app_service_token_provider():
-    with mock.patch.dict(sys.modules, {"streamlit.runtime.scriptrunner.script_run_context": None, "flask": None}):
+    with mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}), pytest.raises(
+        FoundryConfigError,
+        match="Could not get Foundry token from flask/dash/streamlit headers.",
+    ):
         tp = AppServiceTokenProvider(TEST_HOST)
-        with pytest.raises(
-            FoundryConfigError,
-        ):
-            str(tp.token)
 
     from argparse import Namespace
 
@@ -69,7 +69,7 @@ def test_app_service_token_provider():
     with mock.patch.dict(
         sys.modules,
         {
-            "streamlit.runtime.scriptrunner.script_run_context": None,
+            "streamlit.web.server.websocket_headers": None,
             "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
         },
     ):
@@ -80,10 +80,14 @@ def test_app_service_token_provider():
     with mock.patch.dict(
         sys.modules,
         {
-            "streamlit.runtime.scriptrunner.script_run_context": Namespace(get_script_run_ctx=lambda: True),
+            "streamlit.web.server.websocket_headers": Namespace(
+                _get_websocket_headers=lambda: {"X-Foundry-AccessToken": "bla2"},
+            ),
             "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
         },
-    ):
+    ), freeze_time("0s"):
         tp = AppServiceTokenProvider(TEST_HOST)
-        with mock.patch.object(tp, "_get_websocket_headers", return_value={"X-Foundry-AccessToken": "bla2"}):
-            assert tp.token == "bla2"  # noqa: S105
+        assert tp.token == "bla2"  # noqa: S105:
+
+    with freeze_time("1h"), pytest.raises(FoundryConfigError, match="Token is expired. Please refresh the web page."):
+        str(tp.token)
