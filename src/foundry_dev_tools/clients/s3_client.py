@@ -44,6 +44,28 @@ class S3Client:
             "endpoint_url": self.get_url(),
         }
 
+    def get_polars_storage_options(self) -> dict:
+        """Get the foundry s3 credentials in the format that polars expects.
+
+        https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html
+
+        Example:
+            >>> ctx = FoundryContext()
+            >>> storage_options = ctx.s3.get_polars_storage_options()
+            >>> df = pl.read_parquet(
+            ...     "s3://ri.foundry.main.dataset.<uuid>/**/*.parquet", storage_options=storage_options
+            ... )
+        """
+        credentials = self.get_credentials()
+        return {
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "aws_session_token": credentials["token"],
+            "aws_region": "foundry",
+            "aws_endpoint": self.get_url(),
+            "aws_virtual_hosted_style_request": "false",
+        }
+
     def _get_boto3_session(self) -> boto3.Session:
         """Returns the boto3 session with foundry s3 credentials applied.
 
