@@ -9,6 +9,7 @@ from typing import ClassVar
 
 import palantir_oauth_client
 import requests
+from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
 from foundry_dev_tools.errors.config import TokenProviderConfigError
@@ -197,7 +198,7 @@ class AppServiceTokenProvider(CachedTokenProvider):
         except ImportError:
             pass
         else:
-            if (headers := _get_websocket_headers()) and (token := headers.get(self.header)):
+            if (headers := _get_websocket_headers()) and (token := CaseInsensitiveDict(headers).get(self.header)):
                 self._cached = token
                 self._valid_until = time.time() + 3600
                 return
