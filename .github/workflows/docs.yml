@@ -21,28 +21,33 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with: {python-version: "3.12"}
+        with: {fetch-depth: 0}  # deep clone for git tag
+      - uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.12"
+          cache: true
       - name: Build Docs
+        working-directory: ./docs
         run: |
-          pip install --upgrade hatch
-          hatch run docs:build
+          pdm install
+          pdm run build
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v1
         with:
           path: 'docs/_build/html'
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v1
+  # TODO: how to test?
+  # deploy:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     # pages: write
+  #     id-token: write
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   steps:
+  #     - name: Deploy to GitHub Pages
+  #       id: deployment
+  #       uses: actions/deploy-pages@v1

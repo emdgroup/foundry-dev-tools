@@ -39,8 +39,8 @@ coverage.xml
 
 # Build and docs folder/files
 /build/*
-/dist/*
-/sdist/*
+dist
+sdist
 /docs/_rst/*
 /docs/_build/*
 /docs/_build
@@ -55,5 +55,9 @@ MANIFEST
 /tests/foundry_mock_root
 
 # __about__.py generated from VCS
-/src/foundry_dev_tools/__about__.py
+__about__.py
 .foundry_dev_tools.toml
+
+# pdm
+.pdm-python
+.pdm-build

@@ -20,8 +20,8 @@ from foundry_dev_tools.utils.clients import build_api_url
 from tests.unit.mocks import TEST_HOST
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from types import TracebackType
-    from typing import Sequence
 
     import py.path
 
@@ -373,7 +373,7 @@ class WebSocketMock:
         websockets.frames.Close(1000, "close"),
     ),
 )
-@mock.patch("foundry_dev_tools.cli.build.is_transform_file", return_value=True)
+@mock.patch("foundry_dev_tools.cli.build._is_transform_file", return_value=True)
 @mock.patch(
     "foundry_dev_tools.utils.misc.print_horizontal_line",
 )
@@ -440,7 +440,8 @@ def test_build(
     compl = "Spark Job Completed."
     assert (
         output[output.index(compl) + len(compl) :]
-        == "Build status: SUCCEEDEDLink to the foundry build: " + TEST_HOST.url + "/workspace/data-integration/job-tr"
+        == "Build status: SUCCEEDEDLink to the foundry build: " + TEST_HOST.url
+        + "/workspace/data-integration/job-tr"
         "acker/builds/ri.foundry.main.build.0e7ca16b-49f1-4b2d-953e-21b18bc7c560The resulting dataset(s):"
         + TEST_HOST.url
         + "/workspace/data-integration/dataset/preview/ri.foundry.main.dataset.81d943dd-8b84-46ba-b720-5e227de8bb6a/dev"
@@ -460,8 +461,8 @@ def test_get_transform_files(tmpdir: py.path.LocalPath):
     with tmpdir.as_cwd():
         from foundry_dev_tools.cli.build import (
             TRANSFORM_DECORATORS,
-            get_transform_files,
-            is_transform_file,
+            _get_transform_files,
+            _is_transform_file,
         )
 
         subprocess.check_call(["git", "init"], env=git_env)
@@ -480,13 +481,13 @@ def test_get_transform_files(tmpdir: py.path.LocalPath):
         subprocess.check_call(["git", "commit", "-m", "transform commit"], env=git_env)
 
         for f in tfiles:
-            assert is_transform_file(Path(f))
+            assert _is_transform_file(Path(f))
 
-        assert not is_transform_file(Path("does not exist"))
-        assert get_transform_files(Path.cwd()) == tfiles
+        assert not _is_transform_file(Path("does not exist"))
+        assert _get_transform_files(Path.cwd()) == tfiles
         with tmpdir.join("get_transform.txt").open("w+") as gttxt:
             gttxt.write("something something")
         subprocess.check_call(["git", "add", "-A"], env=git_env)
         subprocess.check_call(["git", "commit", "-m", "no transform in last commit"], env=git_env)
         with pytest.raises(UsageError, match="No transform files in the last commit."):
-            get_transform_files(Path.cwd())
+            _get_transform_files(Path.cwd())

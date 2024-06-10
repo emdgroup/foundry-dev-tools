@@ -23,6 +23,7 @@ You can hover over the links, and a little popup will appear that reveals whats 
 installation
 foundry_dev_tools
 transforms
-s3
 cli
+s3
+git_credential_helper
 ```

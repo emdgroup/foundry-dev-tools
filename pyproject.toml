@@ -1,143 +1,45 @@
-[build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
-
 [project]
 name = "foundry-dev-tools"
-readme = "README.md"
-description = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
-requires-python = ">=3.8,<4"
+version = "0.1.0"
+description = "Default template for PDM package"
 authors = [
-  { name = "Nicolas Renkamp", email = "nicolas.renkamp@merckgroup.com" },
   { name = "Jonas Wunderlich", email = "jonas.wunderlich@merckgroup.com" },
 ]
+dependencies = []
+requires-python = ">=3.9"
+readme = "README.md"
 license = { text = "Apache-2.0" }
-classifiers = [
-  "Development Status :: 5 - Production/Stable",
-  "Programming Language :: Python",
-  "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Intended Audience :: Developers",
-  "Operating System :: POSIX :: Linux",
-  "Operating System :: MacOS",
-  "Operating System :: Microsoft :: Windows",
-  "Topic :: Scientific/Engineering :: Information Analysis",
-]
-dependencies = [
-  "requests",
-  "palantir-oauth-client",
-  "platformdirs",
-  "tomli; python_version <\"3.11\"",
-  "typing_extensions; python_version < \"3.11\"",
-  "backports-datetime-fromisoformat==2.0.1; python_version < \"3.11\"",
-  "click",
-  "inquirer",
-  "websockets",
-  "rich",
-  "packaging",
-]
-dynamic = ["version"]
 
-[project.scripts]
-fdt = "foundry_dev_tools.cli.main:cli"
-git-credential-foundry = "foundry_dev_tools.cli.git_credential_foundry:helper"
 
-[project.optional-dependencies]
+[tool.pdm]
+distribution = false
 
-integration = ["dask", "fastparquet"]
-testing = [
-  "pyarrow",
-  "pandas",
-  "pytest",
-  "pytest-mock",
-  "freezegun",
-  "pytest-asyncio",
-  "requests-mock",
-  "polars",
-]
-transforms = ["pyspark>=3.0.0", "fs"]
-s3 = ["aiobotocore[boto3]"]
-all = ["foundry-dev-tools[transforms,s3]"]
+[tool.pdm.dev-dependencies]
 dev = [
-  "foundry-dev-tools[all,testing,integration]",
+  "-e file:///${PROJECT_ROOT}/libs/transforms",
+  "-e file:///${PROJECT_ROOT}/libs/foundry-dev-tools[s3,testing,integration]",
   "pre-commit",
   "ruff",
-  "hatch",
 ]
 
-[project.urls]
-Homepage = "https://emdgroup.github.io/foundry-dev-tools"
-Documentation = "https://emdgroup.github.io/foundry-dev-tools"
-Source = "https://github.com/emdgroup/foundry-dev-tools"
-Tracker = "https://github.com/emdgroup/foundry-dev-tools/issues"
-Changelog = "https://emdgroup.github.io/foundry-dev-tools/changelog.html"
-
-[tool.hatch]
-build.dev-mode-dirs = ["src"]
-build.hooks.vcs.version-file = "src/foundry_dev_tools/__about__.py"
-build.targets.wheel.packages = ["src/foundry_dev_tools", "src/transforms"]
-build.targets.sdist.include = ["src"]
-version.source = "vcs"
-
-[tool.hatch.envs.test]
-dev-mode = false
-features = ["transforms", "s3", "testing", "integration"]
-dependencies = ["pre-commit"]
-
-[tool.hatch.envs.test.scripts]
-unit = "pytest tests/unit {args}"
-integration = "pytest tests/integration {args}"
+[tool.pdm.scripts]
+unit = "pytest tests/unit"
+integration = "pytest tests/integration"
 lint = "pre-commit run --all-files {args:--show-diff-on-failure}"
-
-[tool.hatch.envs.dev]
-dev-mode = true
-features = ["transforms", "s3", "testing", "integration"]
-
-[tool.hatch.envs.docs]
-dev-mode = false
-features = ["transforms", "s3"]
-dependencies = [
-  "myst-parser[linkify]",
-  "sphinx>=3.2.1",
-  "sphinx-autobuild",
-  "sphinxcontrib-mermaid",
-  "sphinx-tippy",
-  "sphinx-book-theme",
-  "sphinx-inline-tabs",
-]
-
-[tool.hatch.envs.docs.env-vars]
-DOCSDIR = "{root}/docs"
-BUILDDIR = "{root}/docs/_build"
-
-[tool.hatch.envs.docs.scripts]
-build = "sphinx-build --color -b html -d {env:BUILDDIR}/doctrees {env:DOCSDIR} {env:BUILDDIR}/html"
-test = "sphinx-build --color -b doctest -d {env:BUILDDIR}/doctrees {env:DOCSDIR} {env:BUILDDIR}/doctest"
-linkcheck = "sphinx-build --color -b linkcheck -d {env:BUILDDIR}/doctrees {env:DOCSDIR} {env:BUILDDIR}/linkcheck"
-live = "sphinx-autobuild --watch README.md --ignore '{env:DOCSDIR}/api/**' {env:DOCSDIR} {env:BUILDDIR}"
+ci.composite = ["lint","unit"]
 
 [tool.pytest.ini_options]
 addopts = "--verbose"
 norecursedirs = ["dist", "build"]
 testpaths = "tests"
-markers = [
-  "no_patch_conf: don't use autouse config patch fixture",
-  "integration: mark test to run only integration tests",
-  "performance: mark test to run only performance tests",
-]
 asyncio_mode = "auto"
 
-
 [tool.black]
-target-version = ["py38"]
+target-version = ["py39"]
 line-length = 120
 skip-string-normalization = true
 
 [tool.coverage]
 report.skip_covered = true
-paths.source = ["src/"]
+paths.source = ["libs/transforms/src","libs/foundry-dev-tools/src"]
 report.exclude_also = ["if TYPE_CHECKING:"]

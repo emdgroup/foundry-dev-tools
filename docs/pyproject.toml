@@ -1,0 +1,41 @@
+[project]
+name = "foundry-dev-tools-docs"
+version = "0.0.0"
+description = "Foundry DevTools docs"
+authors = [
+  { name = "Jonas Wunderlich", email = "jonas.wunderlich@merckgroup.com" },
+]
+dependencies = [
+  "myst-parser[linkify]",
+  "sphinx>=3.2.1",
+  "sphinx-autobuild",
+  "sphinxcontrib-mermaid",
+  "sphinx-tippy",
+  "sphinx-book-theme",
+  "sphinx-inline-tabs",
+]
+requires-python = ">=3.9"
+readme = "../README.md"
+license = { text = "Apache-2.0" }
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.dev-dependencies]
+dev = [
+  "-e file:///${PROJECT_ROOT}/../libs/transforms",
+  "-e file:///${PROJECT_ROOT}/../libs/foundry-dev-tools[s3]",
+
+]
+
+[tool.pdm.scripts]
+_.env = { DOCSDIR = "./", BUILDDIR = "./_build" }
+build = "sphinx-build --color -b html -d ${BUILDDIR}/doctrees ${DOCSDIR} ${BUILDDIR}/html"
+test = "sphinx-build --color -b doctest -d ${BUILDDIR}/doctrees ${DOCSDIR} ${BUILDDIR}/doctest"
+linkcheck = "sphinx-build --color -b linkcheck -d ${BUILDDIR}/doctrees ${DOCSDIR} ${BUILDDIR}/linkcheck"
+live = "sphinx-autobuild --watch ${DOCSDIR}/../README.md --watch ${DOCSDIR}/../libs/foundry-dev-tools --watch ${DOCSDIR}/../libs/transforms --ignore '${DOCSDIR}/api/**' ${DOCSDIR} ${BUILDDIR}"

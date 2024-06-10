@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(__location__, "../src"))
 from sphinx.ext import apidoc
 
 output_dir = os.path.join(__location__, "api")
-foundry_dev_tools_module_dir = os.path.join(__location__, "../src/foundry_dev_tools")
+foundry_dev_tools_module_dir = os.path.join(__location__, "../libs/foundry-dev-tools/src/foundry_dev_tools")
 try:
     shutil.rmtree(output_dir)
 except FileNotFoundError:

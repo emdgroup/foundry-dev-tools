@@ -68,12 +68,15 @@ def test_get_environment_variable_config(mocker: MockerFixture):
     assert "othervalue" not in str(result)
 
     mocker.patch.dict(os.environ, v1_env)
-    with pytest.warns(
-        UserWarning,
-        match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
-    ), pytest.warns(
-        DeprecationWarning,
-        match="The v1 environment variables are deprecated, please use the v2 environment variables instead",
+    with (
+        pytest.warns(
+            UserWarning,
+            match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
+        ),
+        pytest.warns(
+            DeprecationWarning,
+            match="The v1 environment variables are deprecated, please use the v2 environment variables instead",
+        ),
     ):
         result = get_environment_variable_config()
 
@@ -86,12 +89,15 @@ def test_get_environment_variable_config(mocker: MockerFixture):
         },
     }
     mocker.patch.dict(os.environ, v1_oauth_env, clear=True)
-    with pytest.warns(
-        UserWarning,
-        match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
-    ), pytest.warns(
-        DeprecationWarning,
-        match="The v1 environment variables are deprecated, please use the v2 environment variables instead",
+    with (
+        pytest.warns(
+            UserWarning,
+            match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
+        ),
+        pytest.warns(
+            DeprecationWarning,
+            match="The v1 environment variables are deprecated, please use the v2 environment variables instead",
+        ),
     ):
         result = get_environment_variable_config()
 

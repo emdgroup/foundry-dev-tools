@@ -21,9 +21,12 @@ from tests.utils import remove_transforms_modules
 def _transforms_context_fixture(request, tmp_path_factory):
     remove_transforms_modules()
     cache_dir = tmp_path_factory.mktemp("fdt_transforms_unit_test_cache")
-    with mock.patch("foundry_dev_tools.config.context.FoundryContext", FoundryMockContext), mock.patch(
-        "transforms.TRANSFORMS_FOUNDRY_CONTEXT",
-        FoundryMockContext(Config(cache_dir=cache_dir), MockTokenProvider(jwt="fdt_transforms_tests")),
+    with (
+        mock.patch("foundry_dev_tools.config.context.FoundryContext", FoundryMockContext),
+        mock.patch(
+            "transforms.TRANSFORMS_FOUNDRY_CONTEXT",
+            FoundryMockContext(Config(cache_dir=cache_dir), MockTokenProvider(jwt="fdt_transforms_tests")),
+        ),
     ):
         yield
 
@@ -127,18 +130,25 @@ def _run_around_tests(spark_df_return_data_one, spark_df_return_data_two, spark_
     def dataset_has_schema_mock(one, two, three) -> bool:
         return True
 
-    with mock.patch("transforms.api.Input._read_spark_df_with_sql_query", return_df), mock.patch(
-        "foundry_dev_tools.cached_foundry_client.CachedFoundryClient._fetch_dataset",
-        return_path,
-    ), mock.patch("transforms.api.Input._dataset_has_schema", dataset_has_schema_mock), mock.patch(
-        "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
-        get_dataset_identity_mock,
-    ), mock.patch(
-        "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_stats",
-        get_dataset_stats_mock,
-    ), mock.patch(
-        "foundry_dev_tools.utils.converter.foundry_spark.foundry_schema_to_spark_schema",
-        get_spark_schema_mock,
+    with (
+        mock.patch("transforms.api.Input._read_spark_df_with_sql_query", return_df),
+        mock.patch(
+            "foundry_dev_tools.cached_foundry_client.CachedFoundryClient._fetch_dataset",
+            return_path,
+        ),
+        mock.patch("transforms.api.Input._dataset_has_schema", dataset_has_schema_mock),
+        mock.patch(
+            "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_identity",
+            get_dataset_identity_mock,
+        ),
+        mock.patch(
+            "foundry_dev_tools.foundry_api_client.FoundryRestClient.get_dataset_stats",
+            get_dataset_stats_mock,
+        ),
+        mock.patch(
+            "foundry_dev_tools.utils.converter.foundry_spark.foundry_schema_to_spark_schema",
+            get_spark_schema_mock,
+        ),
     ):
         yield
 

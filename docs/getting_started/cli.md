@@ -29,7 +29,7 @@ fdt config
 ### Edit a config file
 
 ```shell
-fdt config -e
+fdt config edit
 ```
 
 <img src="/pictures/fdt_config_edit_example.svg"/>

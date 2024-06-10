@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
@@ -10,6 +10,7 @@ from foundry_dev_tools.utils.config import CFG_FILE_NAME
 from tests.unit.mocks import MOCK_ADAPTER, FoundryMockContext, MockTokenProvider
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
     from pathlib import Path
 
 

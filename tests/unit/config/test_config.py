@@ -115,8 +115,11 @@ def test_parse_credentials_config(mock_config_location):
             "credentials",
             {"host": Host("example.com"), "client_id": "test"},
         )
-    with mock.patch.dict(os.environ, {"APP_SERVICE_TS": "1"}), pytest.raises(
-        FoundryConfigError,
-        match="Could not get Foundry token from flask/dash/streamlit headers.",
+    with (
+        mock.patch.dict(os.environ, {"APP_SERVICE_TS": "1"}),
+        pytest.raises(
+            FoundryConfigError,
+            match="Could not get Foundry token from flask/dash/streamlit headers.",
+        ),
     ):
         config.parse_credentials_config({"credentials": {"domain": "example.com"}})

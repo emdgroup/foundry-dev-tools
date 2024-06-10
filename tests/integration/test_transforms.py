@@ -134,11 +134,14 @@ def test_file_download(mocker, input_dataset_fixture, request):
     with warnings.catch_warnings():
         # we expect no sql fallback warnings
         warnings.simplefilter("error")
-        with mock.patch.object(
-            TRANSFORMS_FOUNDRY_CONTEXT.config,
-            "transforms_force_full_dataset_download",
-            True,
-        ), mock.patch.object(TRANSFORMS_FOUNDRY_CONTEXT.config, "transforms_sql_dataset_size_threshold", 1):
+        with (
+            mock.patch.object(
+                TRANSFORMS_FOUNDRY_CONTEXT.config,
+                "transforms_force_full_dataset_download",
+                True,
+            ),
+            mock.patch.object(TRANSFORMS_FOUNDRY_CONTEXT.config, "transforms_sql_dataset_size_threshold", 1),
+        ):
 
             @transform_df(
                 Output("/path/to/output1"),

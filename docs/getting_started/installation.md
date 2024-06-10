@@ -34,7 +34,7 @@ pip install 'foundry-dev-tools'
 If you want to use everything provided by FoundryDevTools (running transforms locally and the s3 compatible dataset api) you can use the following command:
 
 ```shell
-pip install 'foundry-dev-tools[all]'
+pip install 'foundry-dev-tools[full]'
 ```
 
 ````
@@ -55,7 +55,7 @@ With the [`fdt info`](/getting_started/cli.md#the-info-command) command you can 
 
 ## Create a Basic Configuration File
 
-After you've installed foundry-dev-tools successfully, run in a shell `fdt config -e`.
+After you've installed foundry-dev-tools successfully, run in a shell `fdt config edit`.
 Select the config file you want to edit. You probably want to edit one of the **user** configuration files.
 
 :::{seealso}
@@ -141,10 +141,10 @@ It is required to run `transforms` and the `CachedFoundryClient`, the PySpark ve
 For PySpark to work, you'll also need to install Java, but PySpark is currently only compatible with Java 8/11/17.
 
 ````{tab} pip
-If you use `foundry-dev-tools[transforms]` to install, it will install the PySpark dependency as well:
+If you use `foundry-dev-tools-transforms` to install, it will install the PySpark dependency as well:
 
 ```shell
-pip install 'foundry-dev-tools[transforms]'
+pip install 'foundry-dev-tools-transforms'
 ```
 ````
 

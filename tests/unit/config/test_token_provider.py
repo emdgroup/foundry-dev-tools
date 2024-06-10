@@ -15,7 +15,7 @@ from foundry_dev_tools.errors.config import FoundryConfigError
 from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvider
 
 if TYPE_CHECKING:
-    from typing import Generator
+    from collections.abc import Generator
 
 
 def generate_tokens_with_expiry(expiries: list[int]) -> Generator[tuple[Token, float], None, None]:
@@ -57,9 +57,12 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
 
 
 def test_app_service_token_provider():
-    with mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}), pytest.raises(
-        FoundryConfigError,
-        match="Could not get Foundry token from flask/dash/streamlit headers.",
+    with (
+        mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}),
+        pytest.raises(
+            FoundryConfigError,
+            match="Could not get Foundry token from flask/dash/streamlit headers.",
+        ),
     ):
         tp = AppServiceTokenProvider(TEST_HOST)
 
@@ -77,15 +80,18 @@ def test_app_service_token_provider():
         assert tp.token == "bla"  # noqa: S105
 
     # streamlit takes precedence
-    with mock.patch.dict(
-        sys.modules,
-        {
-            "streamlit.web.server.websocket_headers": Namespace(
-                _get_websocket_headers=lambda: {"X-Foundry-AccessToken": "bla2"},
-            ),
-            "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
-        },
-    ), freeze_time("0s"):
+    with (
+        mock.patch.dict(
+            sys.modules,
+            {
+                "streamlit.web.server.websocket_headers": Namespace(
+                    _get_websocket_headers=lambda: {"X-Foundry-AccessToken": "bla2"},
+                ),
+                "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
+            },
+        ),
+        freeze_time("0s"),
+    ):
         tp = AppServiceTokenProvider(TEST_HOST)
         assert tp.token == "bla2"  # noqa: S105:
 
