@@ -25,7 +25,7 @@ def test_add_get_delete(spark_session, test_context_mock):
     assert len(pc) == 0
     with pytest.raises(KeyError):
         pc.get_dataset_identity_not_branch_aware("/d1")
-    insert = spark_session.createDataFrame(data=[[1, 2], [3, 4]], schema="a: int, b: int")
+    insert = spark_session.createDataFrame(data=[[1, 2], [3, 4]], schema="a: int, b: int").coalesce(1)
     pc[to_dict("d1", "t11", "/d1")] = insert
     retrieve = pc[to_dict("d1", "t11", "/d1")]
     assert_frame_equal(insert.toPandas(), retrieve.toPandas())
