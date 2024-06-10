@@ -26,6 +26,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: true
+          cache-dependency-path: ./docs/pdm.lock
       - name: Build Docs
         working-directory: ./docs
         run: |

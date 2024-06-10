@@ -70,6 +70,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: true
-      - name: publish packages
+      - name: publish foundry-dev-tools
+        working-directory: /lib/foundry-dev-tools/
+        run: pdm publish --repository http://testuser:123@localhost:3141/testuser/dev/+simple/
+      - name: publish foundry-dev-tools-transforms
+        working-directory: /lib/transforms/
         run: pdm publish --repository http://testuser:123@localhost:3141/testuser/dev/+simple/
         
