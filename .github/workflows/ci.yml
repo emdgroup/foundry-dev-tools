@@ -2,7 +2,9 @@ name: Foundry DevTools CI
 
 on:
   push:
-    tags-ignore: ['**']
+    tags: ["v*"]
+    branches:
+      - main
     paths-ignore:
       - 'docs/**'
       - 'LICENSE'
@@ -10,7 +12,9 @@ on:
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/pull_request_template.md'
       - '.gitignore'
-  pull_request:  # Run in every PR
+  pull_request: 
+    branches:
+      - main
     paths-ignore:
       - 'docs/**'
       - 'LICENSE'
