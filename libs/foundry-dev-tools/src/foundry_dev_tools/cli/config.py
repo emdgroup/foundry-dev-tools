@@ -152,17 +152,17 @@ def migrate():
 @config_cli.command("migrate-project")
 @click.argument(
     "project_directory",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, resolve_path=True, path_type=Path),
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, resolve_path=True),
     required=False,
 )
-def migrate_project(project_directory: Path | None):
+def migrate_project(project_directory: str | None):
     """Migrates the project config file to the v2 project config."""
+    project_dir = Path(project_directory) if project_directory else None
     console = Console(markup=True)
-    d = git_toplevel_dir(project_directory)
+    d = git_toplevel_dir(project_dir)
     if d is None:
         console.print(
-            f"The given project path {project_directory if project_directory else Path.cwd()!s}"
-            " is not a git repository.",
+            f"The given project path {project_dir if project_dir else Path.cwd()!s}" " is not a git repository.",
         )
         sys.exit(1)
     v1_proj_conf = d.joinpath(".foundry_dev_tools")

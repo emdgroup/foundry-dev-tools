@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -70,7 +71,7 @@ def test_migrate_project(fs):
     assert res.exit_code == 1
 
     fs.create_dir("/project/.git")
-    res = cli_runner.invoke(migrate_project, args=[proj_dir.path])
+    res = cli_runner.invoke(migrate_project, args=[os.fspath(proj_dir.path)])
     assert "The project /project does not have a v1 project config" in res.stdout
 
     v1_proj_file = fs.create_file("/project/.foundry_dev_tools")
@@ -80,7 +81,7 @@ def test_migrate_project(fs):
     jwt=123
     """
     )
-    res = cli_runner.invoke(migrate_project, args=[proj_dir.path], input="y\n")
+    res = cli_runner.invoke(migrate_project, args=[os.fspath(proj_dir.path)], input="y\n")
     restdout = res.stdout.replace("\n", "")
     assert "Write the converted config to /project/.foundry_dev_tools.toml?" in restdout
     assert "Moving /project/.foundry_dev_tools to /project/.foundry_dev_tools.backup" in restdout
