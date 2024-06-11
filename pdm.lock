@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:78b56f54f69ea1f62d1b80ef0f0da6a48754a0991d220620a285c105224eeea1"
+content_hash = "sha256:48454d3015a97691973f413c5059954d4565ce82890e129ea9281a25f5968770"
 
 [[package]]
 name = "aiobotocore"
@@ -124,9 +124,6 @@ version = "0.11.0"
 requires_python = ">=3.6"
 summary = "itertools and builtins for AsyncIO and mixed iterables"
 groups = ["dev"]
-dependencies = [
-    "typing-extensions>=4.0; python_version < \"3.10\"",
-]
 files = [
     {file = "aioitertools-0.11.0-py3-none-any.whl", hash = "sha256:04b95e3dab25b449def24d7df809411c10e62aab0cbe31a50ca4e68748c43394"},
     {file = "aioitertools-0.11.0.tar.gz", hash = "sha256:42c68b8dd3a69c2bf7f2233bf7df4bb58b557bca5252ac02ed5187bbc67d6831"},
@@ -261,7 +258,6 @@ dependencies = [
     "jmespath<2.0.0,>=0.7.1",
     "python-dateutil<3.0.0,>=2.1",
     "urllib3!=2.2.0,<3,>=1.25.4; python_version >= \"3.10\"",
-    "urllib3<1.27,>=1.25.4; python_version < \"3.10\"",
 ]
 files = [
     {file = "botocore-1.34.106-py3-none-any.whl", hash = "sha256:4baf0e27c2dfc4f4d0dee7c217c716e0782f9b30e8e1fff983fce237d88f73ae"},
@@ -599,8 +595,8 @@ files = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "1.4.1.dev35+g76120ae.d20240610"
-requires_python = ">=3.9"
+version = "1.4.1.dev41+ga8ec307.d20240611"
+requires_python = ">=3.10"
 editable = true
 path = "./libs/foundry-dev-tools"
 summary = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
@@ -622,8 +618,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools-transforms"
-version = "1.4.1.dev35"
-requires_python = ">=3.9"
+version = "1.4.1.dev41"
+requires_python = ">=3.10"
 editable = true
 path = "./libs/transforms"
 summary = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
@@ -637,9 +633,9 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "1.4.1.dev35"
+version = "1.4.1.dev41"
 extras = ["integration", "s3", "testing"]
-requires_python = ">=3.9"
+requires_python = ">=3.10"
 editable = true
 path = "./libs/foundry-dev-tools"
 summary = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
