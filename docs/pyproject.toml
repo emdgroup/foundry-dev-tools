@@ -14,7 +14,7 @@ dependencies = [
   "sphinx-book-theme",
   "sphinx-inline-tabs",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "../README.md"
 license = { text = "Apache-2.0" }
 

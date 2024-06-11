@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from enum import EnumMeta
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ if sys.version_info < (3, 11):
     MonkeyPatch.patch_fromisoformat()
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 
 def decamelize(camel_case: str) -> str:

@@ -243,7 +243,7 @@ class CachedFoundryClient:
             # to be under spark/
             folder = round(time.time() * 1000) if mode == "APPEND" else "spark"
             dataset_paths_in_foundry = [f"{folder}/" + file for file in filenames]
-            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths))
+            path_file_dict = dict(zip(dataset_paths_in_foundry, filepaths, strict=False))
             dataset_rid, transaction_id = self._save_objects(
                 path_file_dict,
                 dataset_path_or_rid,

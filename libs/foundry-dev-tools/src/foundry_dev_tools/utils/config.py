@@ -12,23 +12,17 @@ from __future__ import annotations
 
 import inspect
 import os
-import sys
 import warnings
 from functools import cache
+from importlib.metadata import entry_points
+from os import PathLike
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import platformdirs
 
 from foundry_dev_tools.errors.config import FoundryConfigError
 from foundry_dev_tools.utils.repo import git_toplevel_dir
-
-if sys.version_info < (3, 10):
-    from importlib_metadata import entry_points
-else:
-    from importlib.metadata import entry_points
-
-from os import PathLike
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from foundry_dev_tools.clients.api_client import APIClient

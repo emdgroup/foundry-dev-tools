@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import TYPE_CHECKING
 
 import requests_mock
 
@@ -19,6 +19,8 @@ TEST_HOST = Host(TEST_DOMAIN, TEST_SCHEME)
 DEFAULT_TOKEN = "default_mock_token"  # noqa: S105
 """The mock adapter for :py:class:`FoundryMockContext`."""
 MOCK_ADAPTER = requests_mock.Adapter()
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class MockTokenProvider(JWTTokenProvider):

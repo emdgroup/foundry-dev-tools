@@ -8,10 +8,13 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 from __future__ import annotations
 
 import warnings
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from transforms.api._dataset import Input, Output
 from transforms.api._transform import Transform
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def lightweight(

@@ -6,7 +6,7 @@ authors = [
   { name = "Jonas Wunderlich", email = "jonas.wunderlich@merckgroup.com" },
 ]
 dependencies = []
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 
@@ -36,7 +36,7 @@ testpaths = "tests"
 asyncio_mode = "auto"
 
 [tool.black]
-target-version = ["py39"]
+target-version = ["py310"]
 line-length = 120
 skip-string-normalization = true
 

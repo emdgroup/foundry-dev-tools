@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal, TypedDict, Union
+from typing import Any, Literal, TypedDict
 
 from foundry_dev_tools.utils.misc import EnumContainsMeta
 
@@ -34,7 +34,7 @@ Ref = str
 DatasetBranch = str
 """Name of a branch in a dataset."""
 
-View = Union[DatasetBranch, TransactionRid]
+View = DatasetBranch | TransactionRid
 """A view, which is a :py:attr:`~foundry_dev_tools.utils.api_types.Ref` or a :py:attr:`~foundry_dev_tools.utils.api_types.TransactionRid`."""  # noqa: E501
 
 # TODO further typing?
@@ -132,7 +132,7 @@ ResourceDecoration = Literal[
 ]
 
 ResourceDecorationSet = set[ResourceDecoration]
-ResourceDecorationSetAll = Union[ResourceDecorationSet, Literal["all"]]
+ResourceDecorationSetAll = ResourceDecorationSet | Literal["all"]
 ALL_RESOURCE_DECORATIONS: ResourceDecorationSet = {
     "description",
     "favorite",

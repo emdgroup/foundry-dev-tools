@@ -6,7 +6,7 @@ https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api-cl
 """  # noqa: E501
 
 import warnings
-from typing import Callable
+from collections.abc import Callable
 
 
 def configure(*args, **kwargs) -> Callable:  # noqa: ARG001

@@ -456,7 +456,7 @@ class LightweightTransformOutput(TransformOutput):
         if not pl.__fake__ and isinstance(df, pl.LazyFrame):
             df = df.collect()  # noqa: PD901
 
-        if isinstance(df, (str, Path)):
+        if isinstance(df, str | Path):
             if df != self.path_for_write_table:
                 msg = f"Path '{df}' does not match expected path '{self.path_for_write_table}'"
                 raise ValueError(msg)

@@ -6,7 +6,7 @@ build-backend = "pdm.backend"
 name = "foundry-dev-tools"
 readme = "README.md"
 description = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
   { name = "Nicolas Renkamp", email = "nicolas.renkamp@merckgroup.com" },
   { name = "Jonas Wunderlich", email = "jonas.wunderlich@merckgroup.com" },
@@ -17,7 +17,6 @@ classifiers = [
   "Programming Language :: Python",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -61,7 +60,7 @@ testing = [
   "pyfakefs",
 ]
 s3 = ["aiobotocore[boto3]"]
-full = ["foundry-dev-tools-transforms","foundry-dev-tools[s3]"]
+full = ["foundry-dev-tools-transforms", "foundry-dev-tools[s3]"]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
