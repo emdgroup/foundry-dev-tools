@@ -14,7 +14,6 @@ if sys.version_info < (3, 11):
     import tomli as tomllib
 else:
     import tomllib
-import shutil
 from configparser import ConfigParser
 from pathlib import Path
 
@@ -30,7 +29,6 @@ from foundry_dev_tools.utils.config import (
     PROJECT_CFG_FILE_NAME,
     find_project_config_file,
     site_cfg_file,
-    user_cache,
     user_cfg_files,
 )
 from foundry_dev_tools.utils.repo import git_toplevel_dir
@@ -146,11 +144,6 @@ def migrate():
     if replace or click.confirm(f"Write the converted config to {f.absolute()!s}?"):
         f.write_text(v2_config_toml)
     console.print("Run `fdt config` to verify your configuration.")
-    v1_cache_dir = Path("~/.foundry-dev-tools/cache/").expanduser()
-    user_cache().mkdir(parents=True, exist_ok=True)
-    if v1_cache_dir.exists():
-        console.print(f"Copying the foundry-dev-tools cache to {user_cache()!s}")
-        shutil.copytree(v1_cache_dir, user_cache(), dirs_exist_ok=True)
 
 
 @config_cli.command("migrate-project")

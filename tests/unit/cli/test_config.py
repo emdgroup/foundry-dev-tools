@@ -43,11 +43,9 @@ foundry_url=https://example.com
                                 """,
     )
 
-    fs.makedir(v1_dir.joinpath("cache"))
     res = runner.invoke(migrate, input=b"2\ny\n")
     restdout = res.stdout.replace("\n", "")
     assert "Created new config file" in restdout
-    assert "Copying the foundry-dev-tools cache" in restdout
     assert res.exit_code == 0
     assert fs.exists(v2_conf_path)
     assert (
