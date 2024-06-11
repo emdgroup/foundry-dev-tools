@@ -595,7 +595,7 @@ files = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "1.4.1.dev41+ga8ec307.d20240611"
+version = "1.4.1.dev52+g99548fc"
 requires_python = ">=3.10"
 editable = true
 path = "./libs/foundry-dev-tools"
@@ -618,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools-transforms"
-version = "1.4.1.dev41"
+version = "1.4.1.dev52"
 requires_python = ">=3.10"
 editable = true
 path = "./libs/transforms"
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "1.4.1.dev41"
+version = "1.4.1.dev52"
 extras = ["integration", "s3", "testing"]
 requires_python = ">=3.10"
 editable = true
