@@ -1,10 +1,23 @@
 import os
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from pyfakefs.fake_filesystem import FakeFilesystem
+from pyfakefs.fake_filesystem_unittest import Patcher
 
 from foundry_dev_tools.cli.config import migrate, migrate_project
+from foundry_dev_tools.utils.config import cfg_files, site_cfg_file, user_cfg_files
+
+
+@pytest.fixture()
+def fs():
+    with Patcher() as p:
+        yield p.fs
+    # these cached values don't get teared down correctly from the patcher
+    cfg_files.cache_clear()
+    site_cfg_file.cache_clear()
+    user_cfg_files.cache_clear()
 
 
 def test_migrate(fs: FakeFilesystem):
@@ -34,8 +47,7 @@ foundry_url=https://example.com
     res = runner.invoke(migrate, input=b"2\ny\n")
     restdout = res.stdout.replace("\n", "")
     assert "Created new config file" in restdout
-    assert "Moving ~/.foundry-dev-tools to `~/.foundry-dev-tools.backup`" in restdout
-    assert "Moving the foundry-dev-tools cache" in restdout
+    assert "Copying the foundry-dev-tools cache" in restdout
     assert res.exit_code == 0
     assert fs.exists(v2_conf_path)
     assert (
@@ -63,7 +75,7 @@ jwt = "123"
     assert "Failed to parse existing v2 config at" in str(res.exc_info)
 
 
-def test_migrate_project(fs):
+def test_migrate_project(fs: FakeFilesystem):
     proj_dir = fs.create_dir("/project/")
     cli_runner = CliRunner()
     res = cli_runner.invoke(migrate_project, args=[proj_dir.path])
@@ -84,10 +96,8 @@ def test_migrate_project(fs):
     res = cli_runner.invoke(migrate_project, args=[os.fspath(proj_dir.path)], input="y\n")
     restdout = res.stdout.replace("\n", "")
     assert "Write the converted config to /project/.foundry_dev_tools.toml?" in restdout
-    assert "Moving /project/.foundry_dev_tools to /project/.foundry_dev_tools.backup" in restdout
     assert res.exit_code == 0
     assert fs.exists("/project/.foundry_dev_tools.toml")
-    assert fs.exists("/project/.foundry_dev_tools.backup")
     assert (
         Path("/project/.foundry_dev_tools.toml").read_text()
         == """[credentials.token_provider]
@@ -97,4 +107,3 @@ name = "jwt"
 jwt = "123"
 """
     )
-    assert Path("/project/.foundry_dev_tools.backup").read_text() == v1_proj_file.contents

@@ -20,13 +20,14 @@ dev = [
   "-e file:///${PROJECT_ROOT}/libs/foundry-dev-tools[s3,testing,integration]",
   "pre-commit",
   "ruff",
+  "pytest",
 ]
 
 [tool.pdm.scripts]
 unit = "pytest tests/unit"
 integration = "pytest tests/integration"
 lint = "pre-commit run --all-files {args:--show-diff-on-failure}"
-ci.composite = ["lint","unit"]
+ci.composite = ["lint", "unit"]
 
 [tool.pytest.ini_options]
 addopts = "--verbose"
@@ -41,5 +42,5 @@ skip-string-normalization = true
 
 [tool.coverage]
 report.skip_covered = true
-paths.source = ["libs/transforms/src","libs/foundry-dev-tools/src"]
+paths.source = ["libs/transforms/src", "libs/foundry-dev-tools/src"]
 report.exclude_also = ["if TYPE_CHECKING:"]

@@ -26,7 +26,13 @@ from rich.prompt import IntPrompt
 
 from foundry_dev_tools.cli.info import _config_section
 from foundry_dev_tools.utils.compat import v1_to_v2_config_dict
-from foundry_dev_tools.utils.config import find_project_config_file, site_cfg_file, user_cache, user_cfg_files
+from foundry_dev_tools.utils.config import (
+    PROJECT_CFG_FILE_NAME,
+    find_project_config_file,
+    site_cfg_file,
+    user_cache,
+    user_cfg_files,
+)
 from foundry_dev_tools.utils.repo import git_toplevel_dir
 
 
@@ -143,10 +149,8 @@ def migrate():
     v1_cache_dir = Path("~/.foundry-dev-tools/cache/").expanduser()
     user_cache().mkdir(parents=True, exist_ok=True)
     if v1_cache_dir.exists():
-        console.print(f"Moving the foundry-dev-tools cache to {user_cache()!s}")
+        console.print(f"Copying the foundry-dev-tools cache to {user_cache()!s}")
         shutil.copytree(v1_cache_dir, user_cache(), dirs_exist_ok=True)
-    console.print("Moving ~/.foundry-dev-tools to `~/.foundry-dev-tools.backup`")
-    shutil.move(p.parent, Path("~/.foundry-dev-tools.backup").expanduser())
 
 
 @config_cli.command("migrate-project")
@@ -170,14 +174,12 @@ def migrate_project(project_directory: str | None):
         console.print(f"The project {d!s} does not have a v1 project configuration.")
         sys.exit(1)
     v2_config_toml = _convert_old_conf(console, v1_proj_conf)
-    v2_conf_path = find_project_config_file(d)
+    v2_conf_path = d.joinpath(PROJECT_CFG_FILE_NAME)
     if click.confirm(f"Write the converted config to {v2_conf_path!s}?"):
         v2_conf_path.write_text(v2_config_toml)
-    console.print(f"Moving {v1_proj_conf!s} to {v1_proj_conf!s}.backup")
-    v1_proj_conf.rename(v1_proj_conf.parent.joinpath(".foundry_dev_tools.backup"))
 
 
-def _convert_old_conf(console: Console, path: Path) -> str | None:
+def _convert_old_conf(console: Console, path: Path) -> str:
     """Reads old config file and converts it to the v2 toml."""
     cp = ConfigParser()
     cp.read_string(path.read_text())
