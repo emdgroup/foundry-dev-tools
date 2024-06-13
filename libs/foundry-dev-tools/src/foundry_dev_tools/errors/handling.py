@@ -39,6 +39,7 @@ DEFAULT_ERROR_MAPPING: dict[str | None, type[FoundryAPIError]] = {
     "FoundrySqlServer:InvalidDatasetCannotAccess": BranchNotFoundError,
     "FoundrySqlServer:InvalidDatasetPathNotFound": DatasetNotFoundError,
 }
+"""This mapping maps the Error names coming from the API to the Foundry DevTools classes."""
 
 
 class ErrorHandlingConfig:
