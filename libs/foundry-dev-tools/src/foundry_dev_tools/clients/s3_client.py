@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from foundry_dev_tools.errors.handling import raise_foundry_api_error
 from foundry_dev_tools.utils.misc import parse_iso
-from foundry_dev_tools.utils.s3 import parse_s3_credentials_response
 
 if TYPE_CHECKING:
     import aiobotocore
@@ -137,6 +136,8 @@ class S3Client:
             )  # if the expiration duration is larger than the requested expiration
             or (t < 900)  # less than 15 minutes, recommended by the boto library.
         ):
+            from foundry_dev_tools.utils.s3 import parse_s3_credentials_response
+
             self._credentials = parse_s3_credentials_response(
                 self.api_assume_role_with_webidentity(expiration_duration).text,
             )
