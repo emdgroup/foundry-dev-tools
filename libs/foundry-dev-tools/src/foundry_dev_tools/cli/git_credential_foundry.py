@@ -2,6 +2,7 @@
 
 This credential helper does authenticate you to the Foundry Git server with the token from the Foundry DevTools config.
 This allows you to use e.g. OAuth and removes the need to clone repositories with the token in the URL.
+If you still include the token in the clone URL, git will prefer these over using this credential helper and will store your credentials in the `.git` directory of the repository.
 
 Run the command `git-credential-foundry` in the command line and it will output the configuration you need to add to your git config. (You'll need a valid Foundry DevTools credentials configuration.)
 
@@ -31,7 +32,7 @@ Can be used by adding the following to your git config:
        helper =
        helper = foundry
 
-(Git automagically adds git-credential- in front of the helper name, that's why we only add "foundry" here)
+(Git automatically adds git-credential- in front of the helper name, that's why we only add "foundry" here)
 
 Or executing the commands:
 
