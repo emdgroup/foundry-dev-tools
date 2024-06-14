@@ -46,7 +46,7 @@ It consists of two parts:
     # the context, that contains your credentials and configuration
     ctx = FoundryContext()
 
-    df = ctx.foundry_sql_server.query_foundry_sql("SELECT * FROM `/Global/Foundry Training and Resources/Foundry Reference Project/Ontology Project: Aviation/airlines`", branch='master')
+    df = ctx.foundry_sql_server.query_foundry_sql("SELECT * FROM `/Global/Foundry Training and Resources/Example Data/Aviation Ontology/airlines`", branch='master')
     df.shape
     # Out[2]: (17, 10)
     ```
