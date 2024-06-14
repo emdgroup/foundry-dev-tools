@@ -97,7 +97,7 @@ def test_migrate_project(fs: FakeFilesystem):
     assert f"Write the converted config to {v2_proj_file.path}?" in restdout
     assert res.exit_code == 0
     assert (
-        v2_proj_file.contents.replace(os.linesep,"\n")
+        v2_proj_file.contents.replace(os.linesep, "\n")
         == """[credentials.token_provider]
 name = "jwt"
 
