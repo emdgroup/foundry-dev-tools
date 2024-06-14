@@ -33,7 +33,7 @@ def test_migrate(fs: FakeFilesystem):
     v1_config_file = fs.create_file(v1_dir.joinpath("config"))
 
     res = runner.invoke(migrate)
-    assert "does not contain any configuration, nothing to migrate." in res.stdout.replace("\n", "")
+    assert "does not contain any configuration, nothing to migrate." in res.stdout.replace("\n", " ")
     assert res.exit_code == 1
     v1_config_file.set_contents(
         """
@@ -77,12 +77,12 @@ def test_migrate_project(fs: FakeFilesystem):
     proj_dir = fs.create_dir("/project/")
     cli_runner = CliRunner()
     res = cli_runner.invoke(migrate_project, args=[proj_dir.path])
-    assert "The given project path /project is not a git repo" in res.stdout
+    assert f"The given project path {proj_dir.path} is not a git repo" in res.stdout
     assert res.exit_code == 1
 
     fs.create_dir("/project/.git")
     res = cli_runner.invoke(migrate_project, args=[os.fspath(proj_dir.path)])
-    assert "The project /project does not have a v1 project config" in res.stdout
+    assert f"The project {proj_dir.path} does not have a v1 project config" in res.stdout
 
     v1_proj_file = fs.create_file("/project/.foundry_dev_tools")
     v1_proj_file.set_contents(
@@ -93,11 +93,11 @@ def test_migrate_project(fs: FakeFilesystem):
     )
     res = cli_runner.invoke(migrate_project, args=[os.fspath(proj_dir.path)], input="y\n")
     restdout = res.stdout.replace("\n", "")
-    assert "Write the converted config to /project/.foundry_dev_tools.toml?" in restdout
+    v2_proj_file = fs.get_object("/project/.foundry_dev_tools.toml")
+    assert f"Write the converted config to {v2_proj_file.path}?" in restdout
     assert res.exit_code == 0
-    assert fs.exists("/project/.foundry_dev_tools.toml")
     assert (
-        Path("/project/.foundry_dev_tools.toml").read_text()
+        v2_proj_file.contents.replace(os.linesep,"\n")
         == """[credentials.token_provider]
 name = "jwt"
 

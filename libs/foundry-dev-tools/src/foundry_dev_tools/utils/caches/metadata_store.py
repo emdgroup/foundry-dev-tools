@@ -37,7 +37,7 @@ class DatasetMetadataStore(MutableMapping[api_types.FoundryPath, api_types.Datas
         """
         self.ctx = ctx
         self._db_path = self._cache_dir / "metadata.json"
-        if not self._db_path.is_file():
+        if not self._db_path.exists():
             # clear cache if metadata.json does not exist
             rmtree(self._cache_dir)
             self._cache_dir.mkdir(parents=True, exist_ok=True)

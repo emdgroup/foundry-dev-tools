@@ -415,7 +415,7 @@ def test_build(
     assert sys_exit.value.code == 0
     build_out_err = capsys.readouterr()
     assert build_out_err.out
-    output = build_out_err.out.replace(os.linesep, "")
+    output = build_out_err.out.replace("\n", "")
     logs_wo_line = "".join(CHECK_LOGS)
     assert output.startswith(logs_wo_line)
     output = output[len(logs_wo_line) :]

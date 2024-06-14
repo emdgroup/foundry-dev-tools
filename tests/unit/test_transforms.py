@@ -32,10 +32,10 @@ def _transforms_context_fixture(request, tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
-def _cache_dir_fixture(tmp_path):
+def _cache_dir_fixture(tmp_path_factory):
     import transforms
 
-    transforms.TRANSFORMS_FOUNDRY_CONTEXT.config.cache_dir = tmp_path
+    transforms.TRANSFORMS_FOUNDRY_CONTEXT.config.cache_dir = tmp_path_factory.mktemp("transforms_cache")
     yield
     # if cached_foundry_client has been accessed and cached
     # create new cached_foundry_client, to update the cache path and remove the already cached items from the dict
