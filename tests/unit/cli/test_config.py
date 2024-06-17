@@ -33,7 +33,9 @@ def test_migrate(fs: FakeFilesystem):
     v1_config_file = fs.create_file(v1_dir.joinpath("config"))
 
     res = runner.invoke(migrate)
-    assert "does not contain any configuration, nothing to migrate." in res.stdout.replace("\n", " ")
+    assert "does not contain any configuration, nothing to migrate.".replace(" ", "") in res.stdout.replace(
+        "\n", ""
+    ).replace(" ", "")
     assert res.exit_code == 1
     v1_config_file.set_contents(
         """
