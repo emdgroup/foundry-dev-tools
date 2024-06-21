@@ -113,6 +113,36 @@ class CompassClient(APIClient):
             **kwargs,
         )
 
+    def api_check_name(
+        self,
+        parent_folder_rid: api_types.Rid,
+        name: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Check if parent folder contains a child resource with the given name.
+
+        Args:
+            parent_folder_rid: the resource identifier of the parent folder that is checked
+            name: the name to be checked
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                the response contains a json which is a bool,
+                indicating whether the resource name already exists or not
+        """
+        body = {}
+
+        if name is not None:
+            body["name"] = name
+
+        return self.api_request(
+            "POST",
+            f"resources/{parent_folder_rid}/checkName",
+            json=body,
+            **kwargs,
+        )
+
     def api_add_to_trash(
         self,
         rids: set[api_types.Rid],
