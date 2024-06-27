@@ -271,25 +271,6 @@ class Dataset(resource.Resource):
         kwargs.setdefault("transaction_type", api_types.FoundryTransaction.UPDATE)
         return self.upload_files({str(f.relative_to(folder_path)): f for f in folder_path.rglob("*")}, **kwargs)
 
-    def save_model(
-        self,
-        model_obj: object,
-        file_path_in_dataset: api_types.PathInDataset = "model.pickle",
-        **kwargs,
-    ) -> api_types.Transaction:
-        """Saves a python object to the dataset.
-
-        Args:
-            model_obj: the python object to pickle and upload
-            file_path_in_dataset: the path where the dataset will be saved
-            **kwargs: gets passed to :py:meth:`foundry_dev_tools.resources.dataset.Dataset.put_file`
-        """
-        return self.put_file(
-            logical_path=file_path_in_dataset,
-            file_data=io.BytesIO(pickle.dump(model_obj)),
-            **kwargs,
-        )
-
     def put_file(
         self,
         logical_path: api_types.PathInDataset,

@@ -1,5 +1,46 @@
 # Dataset
 
+## Info
+
+The dataset class is an object-oriented way to use the Foundry DevTools API clients.
+
+All methods which require a transaction to work will create one automatically and commit it automatically.
+This works via the [`transaction_context`](#foundry_dev_tools.resources.dataset.Dataset.transaction_context) context manager (click the link to see the documentation for it).
+
+Examples:
+```python
+with ds.transaction_context():
+    # will start the transaction
+    print(ds.transaction) # will print the dictionary of the transaction object
+    ds.put_file(...)
+    ds.remove_file(...)
+    # will commit the transaction unless an error happened
+
+print(ds.transaction) # will throw an error as there is currently no open transaction
+```
+
+You can also chain multiple actions together.
+Only works with methods that return the dataset, e.g. `list_files` obviously does not return the Dataset class but the list of files and so on.
+
+```python
+ds.start_transaction().put_file(...).upload_schema(...).commit_transaction()
+```
+
+And if you create a transaction manually before using the context it won't do anything.
+
+```python
+ds.start_transaction()
+with ds.transaction_context():
+    # will not start a new transaction
+    print(ds.transaction) # will print the transaction started earlier
+    # will not commit or abort the transaction
+
+print(ds.transaction) # still accessible and open
+
+# you'll need to close it manually 
+ds.commit_transaction()
+```
+
 ### Uploading a dataset to Foundry
 
 Saves a Pandas or PySpark dataframe to Foundry.
@@ -66,13 +107,15 @@ rest_client.commit_transaction(dataset_rid, transaction_rid)
 
 ````{tab} v2
 ```python
-from foundry_dev_tools import FoundryContext
-from pathlib import Path
+import pickle
 
-model_obj = """<PMML xmlns="http://www.dmg.org/PMML-4_1" version="4.1"></PMML>"""
+from foundry_dev_tools import FoundryContext
+
+model_obj = """<PMML xmlns="http://www.dmg.org/PMML-4_1" version="4.1"></PMML>"""  # can be any python object that can be pickled
 ctx = FoundryContext()
 dataset = ctx.get_dataset_by_path("/path/to/playground/model1", create_if_not_exist=True)
-dataset.save_model(model_obj,file_path_in_dataset="model.pickle")
+pickled_model = pickle.dumps(model_obj)
+dataset.put_file("model.pickle", file_data=pickled_model)
 
 ```
 ````
