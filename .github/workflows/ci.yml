@@ -44,11 +44,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with: {fetch-depth: 0}  # deep clone for git tag
-        # TODO: maybe only needed locally
-      # - uses: actions/setup-java@v4
-      #   with:
-      #     distribution: 'zulu'
-      #     java-version: '17'
       - uses: pdm-project/setup-pdm@v4
         with:
           python-version: ${{matrix.python}}
