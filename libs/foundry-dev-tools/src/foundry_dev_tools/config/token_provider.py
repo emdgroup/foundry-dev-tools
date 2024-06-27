@@ -160,7 +160,7 @@ class OAuthTokenProvider(CachedTokenProvider):
             )
             return credentials.token, credentials.expiry.timestamp()
         if self.grant_type is FoundryOAuthGrantType.client_credentials and self._client_secret is not None:
-            credentials = requests.request(
+            resp = requests.request(
                 "POST",
                 f"{self.host.url}/multipass/api/oauth2/token",
                 data={"grant_type": "client_credentials", "scope": self.scopes},
@@ -175,9 +175,10 @@ class OAuthTokenProvider(CachedTokenProvider):
                     ).decode("ascii"),
                 },
                 timeout=30,
-            ).json()
+            )
+            credentials = resp.json()
             if "error" in credentials:
-                raise FoundryAPIError(credentials)
+                raise FoundryAPIError(resp)
             return credentials["access_token"], credentials["expires_in"] + time.time()
         if self._client_secret is None:
             msg = f"For grant type {self.grant_type} you need to set a client_secret."
