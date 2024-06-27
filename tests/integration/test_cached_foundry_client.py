@@ -11,7 +11,6 @@ def append_test_dataset():
     return TEST_SINGLETON.generic_upload_dataset_if_not_exists("append_test_dataset_v1")[0]
 
 
-@pytest.mark.integration()
 def test_cached_foundry_client_append(append_test_dataset):
     cfc = CachedFoundryClient()
 

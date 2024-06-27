@@ -1,11 +1,12 @@
-from foundry_dev_tools.cli.git import _git_clone_cli, _is_repo_id, _parse_repo
-from unittest.mock import patch, MagicMock, _Call
-from rich.console import Console
-from pytest_mock.plugin import MockerFixture
 from functools import partial
-from foundry_dev_tools.utils.clients import build_api_url
 from subprocess import CalledProcessError
-import pytest
+from unittest.mock import MagicMock, _Call, patch
+
+from pytest_mock.plugin import MockerFixture
+from rich.console import Console
+
+from foundry_dev_tools.cli.git import _git_clone_cli, _is_repo_id, _parse_repo
+from foundry_dev_tools.utils.clients import build_api_url
 
 REPO_RID = "ri.stemma.main.repository.dbbd1d38-6ec8-4458-8c1b-5e70425cc4f1"
 
@@ -39,7 +40,8 @@ def test_parse_repo(test_context_mock, mocker: MockerFixture):
         == _Call(
             (
                 (
-                    f"The domain of the repo does not match the domain in your Foundry DevTools configuration ({test_context_mock.host.domain}).",
+                    "The domain of the repo does not match the domain in your Foundry DevTools configuration "
+                    f"({test_context_mock.host.domain}).",
                 ),
                 {},
             )

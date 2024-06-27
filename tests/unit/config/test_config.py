@@ -42,7 +42,7 @@ scheme = "mock"
 token_provider = {name = "oauth", config = { client_id = "get_config_dict_client_id" }}
 """,
     )
-    assert {
+    assert config.get_config_dict() == {
         "config": {
             "rich_traceback": True,
         },
@@ -54,7 +54,7 @@ token_provider = {name = "oauth", config = { client_id = "get_config_dict_client
                 "config": {"client_id": "get_config_dict_client_id", "client_secret": "get_config_dict_client_secret"},
             },
         },
-    } == config.get_config_dict()
+    }
     with pytest.raises(AttributeError, match="Profile name can't be credentials"):
         config.get_config_dict("credentials")
 

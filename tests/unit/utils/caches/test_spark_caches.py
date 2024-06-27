@@ -252,7 +252,7 @@ def test_multiline_csv(spark_session, test_context_mock):
 
     from_cache = pc[to_dict("ds_multiline", "t1", "/ds_multiline")].toPandas()
     assert from_cache.shape == (1, 4)
-    assert type(from_cache["Report_date"].to_numpy()[0]) == datetime.date
+    assert isinstance(from_cache["Report_date"].to_numpy()[0], datetime.date)
     assert isinstance(from_cache["untitled_column"].to_numpy()[0], np.int32)
     assert isinstance(from_cache["Name"].to_numpy()[0], str)
     assert isinstance(

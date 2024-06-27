@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import os
-import pickle
 import tempfile
 import time
 from contextlib import contextmanager

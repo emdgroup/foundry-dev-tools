@@ -175,7 +175,6 @@ def test_file_download(mocker, input_dataset_fixture, request):
             assert cache.dataset_has_schema(ds_identity) is True
 
 
-@pytest.mark.integration()
 def test_binary_dataset(mocker):
     from transforms import TRANSFORMS_FOUNDRY_CONTEXT
     from transforms.api import Input, Output, transform

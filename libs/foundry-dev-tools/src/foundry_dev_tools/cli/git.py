@@ -1,8 +1,9 @@
+"""Foundry DevTools git cli, clone foundry repositories with your Foundry DevTools credentials."""
+
 import os
-import json
 import re
-from urllib.parse import urlparse
 import subprocess
+from urllib.parse import urlparse
 
 import click
 from rich.console import Console
@@ -11,10 +12,8 @@ from foundry_dev_tools.config.context import FoundryContext
 
 
 @click.group("git")
-@click.pass_context
 def git_cli():
     """Foundry DevTools git cli."""
-    pass
 
 
 def _is_repo_id(maybe_repo_id: str) -> bool:
@@ -30,7 +29,8 @@ def _parse_repo(console: Console, ctx: FoundryContext, repo: str) -> str | None:
         parsed = urlparse(repo)
         if parsed.netloc != ctx.host.domain:
             console.print(
-                f"The domain of the repo does not match the domain in your Foundry DevTools configuration ({ctx.host.domain})."
+                "The domain of the repo does not match the domain in your Foundry DevTools configuration "
+                f"({ctx.host.domain})."
             )
             return None
         for part in parsed.path.split("/"):
@@ -64,9 +64,9 @@ def _git_clone_cli(ctx: FoundryContext, console: Console, repo: str, path: str |
     _path = "" if path is None else path
     console.print(f"Executing git clone {clone_url} {path}")
     if _path:
-        os.execvp("git", ["git", "clone", clone_url, _path])
+        os.execvp("git", ["git", "clone", clone_url, _path])  # noqa: S606
     else:
-        os.execvp("git", ["git", "clone", clone_url])
+        os.execvp("git", ["git", "clone", clone_url])  # noqa: S606
 
 
 @git_cli.command("clone")
@@ -88,8 +88,7 @@ def git_clone_cli(repo: str, profile: str | None, path: str | None):
 
 
     """  # noqa: E501
-
     # check if git credential foundry is setup with git config --get credential.$protocol$domain
     ctx = FoundryContext(profile=profile)
     console = Console(markup=True)
-    _git_clone_cli(ctx, console, repo, profile, path)
+    _git_clone_cli(ctx, console, repo, path)

@@ -172,9 +172,7 @@ class DiskPersistenceBackedSparkCache(MutableMapping[api_types.DatasetIdentity, 
 
         """
         path = get_dataset_path(self.get_cache_dir(), dataset_identity)
-        if path.joinpath("_schema.json").is_file():
-            return True
-        return False
+        return path.joinpath("_schema.json").is_file()
 
     def _cleanup_old_transactions(self, dataset_identity: api_types.DatasetIdentity) -> None:
         dataset_root_folder = self.get_path_to_local_dataset(dataset_identity).parent
