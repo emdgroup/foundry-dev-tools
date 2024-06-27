@@ -354,3 +354,15 @@ class DatasetIdentity(TypedDict):
     dataset_rid: DatasetRid
     last_transaction_rid: DatasetRid | None
     last_transaction: SecuredTransaction | None
+
+
+class PatchOperation(str, Enum, metaclass=EnumContainsMeta):
+    """Foundry patch operations for markings."""
+
+    ADD = "ADD"
+    """Add marking"""
+    REMOVE = "REMOVE"
+    """Remove marking"""
+
+    def __str__(self) -> str:
+        return self.value

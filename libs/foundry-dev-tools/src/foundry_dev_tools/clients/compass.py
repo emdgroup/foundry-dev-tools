@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Literal, overload
 import requests
 
 from foundry_dev_tools.clients.api_client import APIClient
-from foundry_dev_tools.errors.compass import FolderNotFoundError, ResourceNotFoundError
+from foundry_dev_tools.errors.compass import (
+    AutosaveResourceOperationForbiddenError,
+    FolderNotFoundError,
+    ForbiddenOperationOnHiddenResourceError,
+    ResourceNotFoundError,
+)
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
 from foundry_dev_tools.utils import api_types
 
@@ -140,6 +145,7 @@ class CompassClient(APIClient):
             "POST",
             f"resources/{parent_folder_rid}/checkName",
             json=body,
+            error_handling=ErrorHandlingConfig({"Compass:NotFound": FolderNotFoundError}),
             **kwargs,
         )
 
@@ -416,3 +422,221 @@ class CompassClient(APIClient):
             },
             json=list(rids),
         )
+
+    def api_process_marking(
+        self,
+        rid: api_types.Rid,
+        marking_id: api_types.MarkingId,
+        path_operation_type: api_types.PatchOperation | str,
+        user_bearer_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Process marking to add or remove from resource.
+
+        Args:
+            rid: resource identifier
+            marking_id: The id of the marking to be used
+            path_operation_type: path operation type, see :py:class:`api_types.PatchOperation`
+            user_bearer_token: bearer token, needed when dealing with service project resources
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        if isinstance(path_operation_type, str):
+            path_operation_type = api_types.PatchOperation(path_operation_type)
+
+        body = {"markingPatches": [{"markingId": marking_id, "patchOperation": str(path_operation_type)}]}
+
+        return self.api_request(
+            "POST",
+            f"markings/{rid}",
+            headers={"User-Bearer-Token": f"Bearer {user_bearer_token}"} if user_bearer_token else None,
+            json=body,
+            error_handling=ErrorHandlingConfig(
+                {
+                    "Compass:AutosaveResourceOperationForbidden": AutosaveResourceOperationForbiddenError,
+                    "Compass:ForbiddenOperationOnHiddenResource": ForbiddenOperationOnHiddenResourceError,
+                }
+            ),
+            **kwargs,
+        )
+
+    def add_marking(
+        self,
+        rid: api_types.Rid,
+        marking_id: api_types.MarkingId,
+        user_bearer_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Add marking to resource.
+
+        Args:
+            rid: resource identifier
+            marking_id: The id of the marking to be added
+            user_bearer_token: bearer token, needed when dealing with service project resources
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        return self.api_process_marking(rid, marking_id, api_types.PatchOperation.ADD, user_bearer_token, **kwargs)
+
+    def remove_marking(
+        self,
+        rid: api_types.Rid,
+        marking_id: api_types.MarkingId,
+        user_bearer_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Remove marking from resource.
+
+        Args:
+            rid: resource identifier
+            marking_id: The id of the marking to be removed
+            user_bearer_token: bearer token, needed when dealing with service project resources
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        return self.api_process_marking(rid, marking_id, api_types.PatchOperation.REMOVE, user_bearer_token, **kwargs)
+
+    def api_add_imports(
+        self,
+        project_rid: api_types.Rid,
+        rids: set[api_types.Rid],
+        user_bearer_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Add reference to a project via import.
+
+        Args:
+            project_rid: resource identifier of the project
+            rids: set of resource identifiers
+            user_bearer_token: bearer token, needed when dealing with service project resources
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        body = {"requests": [{"resourceRid": rid} for rid in rids]}
+
+        return self.api_request(
+            "POST",
+            f"projects/imports/{project_rid}/import",
+            headers={"User-Bearer-Token": f"Bearer {user_bearer_token}"} if user_bearer_token else None,
+            json=body,
+            **kwargs,
+        )
+
+    def api_remove_imports(
+        self,
+        project_rid: api_types.Rid,
+        rids: set[api_types.Rid],
+        user_bearer_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Remove imported reference from a project.
+
+        Args:
+            project_rid: resource identifier of the project
+            rids: set of resource identifiers
+            user_bearer_token: bearer token, needed when dealing with service project resources
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        body = {"resourceRid": rids}
+
+        return self.api_request(
+            "DELETE",
+            f"projects/imports/{project_rid}/import",
+            headers={"User-Bearer-Token": f"Bearer {user_bearer_token}"} if user_bearer_token else None,
+            json=body,
+            **kwargs,
+        )
+
+    def api_get_resource_roles(
+        self,
+        rids: set[api_types.Rid],
+        **kwargs,
+    ) -> requests.Response:
+        """Remove imported reference from a project.
+
+        Args:
+            rids: set of resource identifiers
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            dict:
+                example below for the branch response
+            .. code-block:: python
+
+             {
+                "resourceRolesResultMap": {
+                    "ri.foundry.main.dataset...": {
+                        "grants": [{
+                            "role": "..",
+                            "principal": ".."
+                        }],
+                        "disableInheritedPermissionsForPrincipals": [{
+                            "id": "..",
+                            "type": ".."
+                        }],
+                        "disableInheritedPermissions": False,
+                        "disableInheritedPermissionsType": ".."
+                    }
+                }
+             }
+        """
+
+    def api_set_name(
+        self,
+        rid: api_types.Rid,
+        name: str,
+        **kwargs,
+    ) -> requests.Response:
+        """Remove imported reference from a project.
+
+        Args:
+            rid: resource identifier
+            name: The resource name that should be set
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        body = {"name": name}
+
+        return self.api_request(
+            "POST",
+            f"resources/{rid}/name",
+            json=body,
+            **kwargs,
+        )
+
+    def api_resources_exist(
+        self,
+        rids: set[api_types.Rid],
+        **kwargs,
+    ) -> requests.Response:
+        """Check if resources exist.
+
+        Args:
+            rids: set of resource identifiers
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            dict:
+                with key-value pairs, where the key is the rid of the checked resource
+                and the value indicates whether the resource exists or not.
+        """
+        return self.api_request(
+            "POST",
+            "batch/resources/exist",
+            json=[*rids],
+            **kwargs,
+        )
+
+    def resource_exists(
+        self,
+        rid: api_types.Rid,
+        **kwargs,
+    ) -> bool:
+        """Check if resource exists.
+
+        Args:
+            rid: resource identifier
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            bool:
+                true if resource exists, false otherwise
+        """
+        result = self.api_resources_exist({rid}, kwargs).json()
+
+        return result.get(rid, False)

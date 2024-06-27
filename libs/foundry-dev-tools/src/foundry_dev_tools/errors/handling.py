@@ -7,6 +7,14 @@ from typing import Literal
 
 import requests
 
+from foundry_dev_tools.errors.compass import (
+    ForbiddenOperationOnServiceProjectResourceError,
+    InsufficientPermissionsError,
+    InvalidMarkingError,
+    MarkingNotFoundError,
+    NotProjectError,
+    ResourceNotFoundError,
+)
 from foundry_dev_tools.errors.dataset import (
     BranchesAlreadyExistError,
     BranchNotFoundError,
@@ -35,6 +43,12 @@ DEFAULT_ERROR_MAPPING: dict[str | None, type[FoundryAPIError]] = {
     "Catalog:BranchesNotFound": BranchNotFoundError,
     "Catalog:InvalidArgument": DatasetNotFoundError,
     "Catalog:SimultaneousOpenTransactionsNotAllowed": DatasetHasOpenTransactionError,
+    "Compass:ForbiddenOperationOnServiceProjectResourceError": ForbiddenOperationOnServiceProjectResourceError,
+    "Compass:InsufficientPermissions": InsufficientPermissionsError,
+    "Compass:InvalidMarking": InvalidMarkingError,
+    "Compass:MarkingNotFound": MarkingNotFoundError,
+    "Compass:NotFound": ResourceNotFoundError,
+    "Compass:NotProject": NotProjectError,
     "FoundrySqlServer:InvalidDatasetNoSchema": DatasetHasNoSchemaError,
     "FoundrySqlServer:InvalidDatasetCannotAccess": BranchNotFoundError,
     "FoundrySqlServer:InvalidDatasetPathNotFound": DatasetNotFoundError,
