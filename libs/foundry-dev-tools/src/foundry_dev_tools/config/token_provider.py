@@ -143,7 +143,7 @@ class OAuthTokenProvider(CachedTokenProvider):
             raise TokenProviderConfigError(msg)
         if self.grant_type is FoundryOAuthGrantType.authorization_code:
             if scopes is not None:
-                self.scopes = scopes
+                self.scopes = list({*DEFAULT_OAUTH_SCOPES, *scopes})
             else:
                 self.scopes = DEFAULT_OAUTH_SCOPES
         else:
