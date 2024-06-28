@@ -238,6 +238,10 @@ class Resource:
         self._context.compass.api_restore({self.rid})
         self.sync()
 
+    def delete_permanently(self):
+        """Deletes resource permanently."""
+        self._context.compass.api_delete_permanently({self.rid})
+
     def sync(self):
         """Fetches the attributes again."""
         resource_json = self._context.compass.api_get_resource(self.rid, decoration=self._decoration).json()
