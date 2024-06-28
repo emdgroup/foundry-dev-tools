@@ -8,7 +8,6 @@ from unittest import mock
 import pytest
 import requests_mock
 from freezegun import freeze_time
-from pytest_mock import MockerFixture
 
 from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
 from foundry_dev_tools.config.token_provider import DEFAULT_OAUTH_SCOPES, AppServiceTokenProvider, CachedTokenProvider
@@ -17,6 +16,8 @@ from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvid
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from pytest_mock import MockerFixture
 
 
 def generate_tokens_with_expiry(expiries: list[int]) -> Generator[tuple[Token, float], None, None]:
