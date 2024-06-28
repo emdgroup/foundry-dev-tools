@@ -129,9 +129,6 @@ class ErrorHandlingConfig:
         return None
 
 
-DEFAULT_ERROR_HANDLING_CONFIG = ErrorHandlingConfig()
-
-
 def raise_foundry_api_error(
     response: requests.Response,
     error_handling: ErrorHandlingConfig | Literal[False] | None = None,
@@ -140,7 +137,5 @@ def raise_foundry_api_error(
 
     Convenience function around ErrorHandlingConfig.get_exception.
     """
-    if error_handling is not False and (
-        exc := (error_handling or DEFAULT_ERROR_HANDLING_CONFIG).get_exception(response)
-    ):
+    if error_handling is not False and (exc := (error_handling or ErrorHandlingConfig()).get_exception(response)):
         raise exc

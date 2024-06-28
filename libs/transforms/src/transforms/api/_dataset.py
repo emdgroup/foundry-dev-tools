@@ -12,18 +12,21 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetHasNoSchemaError, DatasetHasNoTransactionsError
 from foundry_dev_tools.utils.api_types import SQLReturnType
 from foundry_dev_tools.utils.misc import is_dataset_a_view
 from foundry_dev_tools.utils.repo import get_branch
-from transforms import TRANSFORMS_FOUNDRY_CONTEXT
+from transforms.errors import UninitializedInputError
 
 if TYPE_CHECKING:
+    from typing import Any, Self
+
     import pyspark
     import pyspark.sql
 
+    from foundry_dev_tools.config.context import FoundryContext
     from foundry_dev_tools.utils import api_types
 
 LOGGER = logging.getLogger(__name__)
@@ -82,23 +85,30 @@ class Input:
         self._spark_df = None
         if branch is None:
             branch = get_branch(Path(caller_filename))
+        self._alias = alias
+        self.branch = branch
+        self._initialized = False
 
+    def init_input(self, context: FoundryContext) -> Self:
+        self.context = context
         if self._is_online:
             (
                 self._is_spark_df_retrievable,
                 self._dataset_identity,
                 self.branch,
-            ) = self._online(alias, branch)
+            ) = self._online(self._alias, self.branch)
         else:
             (
                 self._is_spark_df_retrievable,
                 self._dataset_identity,
                 self.branch,
-            ) = self._offline(alias, branch)
+            ) = self._offline(self._alias, self.branch)
+        self._initialized = True
+        return self
 
     @property
     def _is_online(self) -> bool:
-        return not TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_freeze_cache
+        return not self.context.config.transforms_freeze_cache
 
     def _online(
         self,
@@ -106,7 +116,7 @@ class Input:
         branch: api_types.DatasetBranch,
     ) -> tuple[bool, api_types.DatasetIdentity, api_types.DatasetBranch]:
         try:
-            dataset_identity = TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.get_dataset_identity(alias, branch)
+            dataset_identity = self.context.foundry_rest_client.get_dataset_identity(alias, branch)
         except BranchNotFoundError:
             LOGGER.debug(
                 "Dataset %s not found on branch %s, falling back to dataset from master.",
@@ -114,7 +124,7 @@ class Input:
                 branch,
             )
             branch = "master"
-            dataset_identity = TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.get_dataset_identity(alias, branch)
+            dataset_identity = self.context.foundry_rest_client.get_dataset_identity(alias, branch)
         if dataset_identity["last_transaction_rid"] is None:
             raise DatasetHasNoTransactionsError(dataset=alias)
         if self._dataset_has_schema(dataset_identity, branch):
@@ -134,10 +144,10 @@ class Input:
         return False, dataset_identity, branch
 
     def _offline(self, alias: str, branch: str) -> tuple[bool, api_types.DatasetIdentity, str]:
-        dataset_identity = TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.get_dataset_identity_not_branch_aware(
+        dataset_identity = self.context.cached_foundry_client.cache.get_dataset_identity_not_branch_aware(
             alias,
         )
-        if TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.dataset_has_schema(dataset_identity):
+        if self.context.cached_foundry_client.cache.dataset_has_schema(dataset_identity):
             return True, dataset_identity, branch
         return False, dataset_identity, branch
 
@@ -147,7 +157,7 @@ class Input:
         branch: api_types.DatasetBranch,
     ) -> bool | None:
         try:
-            TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.get_dataset_schema(
+            self.context.foundry_rest_client.get_dataset_schema(
                 dataset_identity["dataset_rid"],
                 dataset_identity["last_transaction_rid"],
                 branch,
@@ -162,7 +172,7 @@ class Input:
         dataset_identity: api_types.DatasetIdentity,
         branch: api_types.DatasetBranch,
     ) -> pyspark.sql.DataFrame:
-        if dataset_identity in list(TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.keys()):
+        if dataset_identity in list(self.context.cached_foundry_client.cache.keys()):
             return self._retrieve_from_cache(dataset_identity, branch)
         return self._retrieve_from_foundry_and_cache(dataset_identity, branch)
 
@@ -172,7 +182,7 @@ class Input:
         branch: api_types.DatasetBranch,
     ) -> pyspark.sql.DataFrame:
         LOGGER.debug("Returning data for %s on branch %s from cache", dataset_identity, branch)
-        return TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache[dataset_identity]
+        return self.context.cached_foundry_client.cache[dataset_identity]
 
     def _read_spark_df_with_sql_query(
         self,
@@ -180,11 +190,11 @@ class Input:
         branch: api_types.DatasetBranch = "master",
     ) -> pyspark.sql.DataFrame:
         query = f"SELECT * FROM `{dataset_path}`"  # noqa: S608
-        if TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_sample_select_random:
+        if self.context.config.transforms_sql_sample_select_random:
             query = query + " ORDER BY RAND()"
-        query = query + f" LIMIT {TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_sample_row_limit}"
+        query = query + f" LIMIT {self.context.config.transforms_sql_sample_row_limit}"
         LOGGER.debug("Executing Foundry/SparkSQL Query: %s \n on branch %s", query, branch)
-        return TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.query_foundry_sql(
+        return self.context.foundry_rest_client.query_foundry_sql(
             query,
             branch=branch,
             return_type=SQLReturnType.SPARK,
@@ -198,7 +208,7 @@ class Input:
         LOGGER.debug("Caching data for %s on branch %s", dataset_identity, branch)
         transaction = dataset_identity["last_transaction"]["transaction"]
         if is_dataset_a_view(transaction):
-            foundry_stats = TRANSFORMS_FOUNDRY_CONTEXT.foundry_rest_client.foundry_stats(
+            foundry_stats = self.context.foundry_rest_client.foundry_stats(
                 dataset_identity["dataset_rid"],
                 dataset_identity["last_transaction"]["rid"],
             )
@@ -208,25 +218,25 @@ class Input:
         size_in_mega_bytes = size_in_bytes / 1024 / 1024
         size_in_mega_bytes_rounded = round(size_in_mega_bytes, ndigits=2)
         LOGGER.debug("Dataset has size of %s MegaBytes.", size_in_mega_bytes_rounded)
-        if (TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_force_full_dataset_download) or (
-            size_in_mega_bytes < TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_dataset_size_threshold
+        if (self.context.config.transforms_force_full_dataset_download) or (
+            size_in_mega_bytes < self.context.config.transforms_sql_dataset_size_threshold
         ):
-            spark_df = TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.load_dataset(
+            spark_df = self.context.cached_foundry_client.load_dataset(
                 dataset_identity["dataset_rid"],
                 branch,
             )
         else:
             dataset_name = dataset_identity["dataset_path"].split("/")[-1]
             warnings.warn(
-                f"Retrieving subset ({TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_sample_row_limit} rows)"
+                f"Retrieving subset ({self.context.config.transforms_sql_sample_row_limit} rows)"
                 f" of dataset '{dataset_name}'"
                 f" with rid '{dataset_identity['dataset_rid']}' "
                 f"because dataset size {size_in_mega_bytes_rounded} megabytes >= "
-                f"{TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_sql_dataset_size_threshold} megabytes "
+                f"{self.context.config.transforms_sql_dataset_size_threshold} megabytes "
                 f"(as defined in config['transforms_sql_dataset_size_threshold']).",
             )
             spark_df = self._read_spark_df_with_sql_query(dataset_identity["dataset_path"], branch)
-            TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache[dataset_identity] = spark_df
+            self.context.cached_foundry_client.cache[dataset_identity] = spark_df
         return spark_df
 
     def dataframe(self) -> pyspark.sql.DataFrame | None:
@@ -239,11 +249,13 @@ class Input:
             :external+spark:py:class:`~pyspark.sql.DataFrame`: The cached DataFrame of this Input
 
         """
+        if not self._initialized:
+            raise UninitializedInputError
         if self._is_spark_df_retrievable and self._spark_df is None:
             if self._is_online:
                 self._spark_df = self._retrieve_spark_df(self._dataset_identity, self.branch)
             else:
-                self._spark_df = TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache[self._dataset_identity]
+                self._spark_df = self.context.cached_foundry_client.cache[self._dataset_identity]
 
         return self._spark_df
 
@@ -255,6 +267,8 @@ class Input:
                 with the keys dataset_path, dataset_rid, last_transaction_rid
 
         """
+        if not self._initialized:
+            raise UninitializedInputError
         return self._dataset_identity
 
     def get_local_path_to_dataset(self) -> str:
@@ -267,13 +281,15 @@ class Input:
                 path to the dataset's files on disk
 
         """
+        if not self._initialized:
+            raise UninitializedInputError
         return os.fspath(
-            TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client._fetch_dataset(  # noqa: SLF001
+            self.context.cached_foundry_client._fetch_dataset(  # noqa: SLF001
                 self._dataset_identity,
                 self.branch,
             )
             if self._is_online
-            else TRANSFORMS_FOUNDRY_CONTEXT.cached_foundry_client.cache.get_path_to_local_dataset(
+            else self.context.cached_foundry_client.cache.get_path_to_local_dataset(
                 self._dataset_identity,
             ),
         )

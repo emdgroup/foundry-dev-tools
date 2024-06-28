@@ -4,7 +4,11 @@ from pandas.testing import assert_frame_equal
 from pyspark.testing import assertDataFrameEqual
 
 from foundry_dev_tools.errors.compass import ResourceNotFoundError
-from foundry_dev_tools.errors.dataset import DatasetHasNoOpenTransactionError, TransactionTypeMismatchError
+from foundry_dev_tools.errors.dataset import (
+    DatasetHasNoOpenTransactionError,
+    DatasetNotFoundError,
+    TransactionTypeMismatchError,
+)
 from foundry_dev_tools.resources.dataset import Dataset
 from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
@@ -107,5 +111,5 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
     ds.add_to_trash().delete_permanently()
 
     # # check that deletion was successful
-    with pytest.raises(ResourceNotFoundError):
+    with pytest.raises(DatasetNotFoundError):
         ds.sync()

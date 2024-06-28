@@ -18,8 +18,8 @@ from typing import IO, TYPE_CHECKING, Any, Literal, NamedTuple
 import fs
 import pyspark
 
+from foundry_dev_tools.config.context import FoundryContext
 from foundry_dev_tools.utils.spark import get_spark_session
-from transforms import TRANSFORMS_FOUNDRY_CONTEXT
 from transforms.api._dataset import Input, Output
 
 DECORATOR_TYPE = Literal["spark", "pandas", "transform", "lightweight", "lightweight-pandas", "lightweight-polars"]
@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     import pyarrow as pa
+
+    from foundry_dev_tools.utils import api_types
 
 
 class Transform:
@@ -85,9 +87,9 @@ class Transform:
             setattr(exc, "__transform_compute_error", True)
             raise
 
-    def compute(self):  # noqa: ANN202
+    def compute(self, context: FoundryContext | None = None):  # noqa: ANN202
         """Execute the wrapped transform function."""
-        handlers: dict[DECORATOR_TYPE, Callable[[], Any]] = {
+        handlers: dict[DECORATOR_TYPE, Callable[[FoundryContext], Any]] = {
             "spark": self._compute_spark,
             "pandas": self._compute_pandas,
             "transform": self._compute_transform,
@@ -96,10 +98,11 @@ class Transform:
             "lightweight-polars": self._compute_lightweight_polars,
         }
 
-        return handlers[self._type]()
+        return handlers[self._type](context or FoundryContext())
 
     def _compute_spark(
         self,
+        context: FoundryContext,
     ) -> pyspark.sql.DataFrame:
         """Execute the wrapped transform function.
 
@@ -108,7 +111,7 @@ class Transform:
                 the result of the transforms function
 
         """
-        kwargs = {name: i.dataframe() for name, i in self.inputs.items()}
+        kwargs = {name: i.init_input(context).dataframe() for name, i in self.inputs.items()}
         if self._use_context:
             kwargs["ctx"] = TransformContext()
 
@@ -120,7 +123,10 @@ class Transform:
 
         return output_df
 
-    def _compute_pandas(self) -> pd.core.frame.DataFrame:
+    def _compute_pandas(
+        self,
+        context: FoundryContext,
+    ) -> pd.core.frame.DataFrame:
         """Execute the wrapped transform function.
 
         Returns:
@@ -128,7 +134,7 @@ class Transform:
                 the result of the transforms function
 
         """
-        kwargs = {name: i.dataframe().toPandas() for name, i in self.inputs.items()}
+        kwargs = {name: i.init_input(context).dataframe().toPandas() for name, i in self.inputs.items()}
         if self._use_context:
             kwargs["ctx"] = TransformContext()
 
@@ -141,10 +147,15 @@ class Transform:
 
         return output_df
 
-    def _compute_transform(self):  # noqa: ANN202
+    def _compute_transform(  # noqa: ANN202
+        self,
+        context: FoundryContext,
+    ):
         # prepare Transform
-        inputs = {argument_name: TransformInput(i) for argument_name, i in self.inputs.items()}
-        outputs = {argument_name: TransformOutput(o, argument_name) for argument_name, o in self.outputs.items()}
+        inputs = {argument_name: TransformInput(i, context) for argument_name, i in self.inputs.items()}
+        outputs = {
+            argument_name: TransformOutput(o, argument_name, context) for argument_name, o in self.outputs.items()
+        }
         kwargs = {**inputs, **outputs}
 
         if self._use_context:
@@ -154,14 +165,18 @@ class Transform:
 
         return {name: i.dataframe() for name, i in outputs.items()}
 
-    def _compute_lightweight(self):  # noqa: ANN202
+    def _compute_lightweight(  # noqa: ANN202
+        self,
+        context: FoundryContext,
+    ):
         if self._use_context:
             msg = "Lightweight transforms do not support the context argument."
             raise ValueError(msg)
 
-        inputs = {argument_name: LightweightTransformInput(i) for argument_name, i in self.inputs.items()}
+        inputs = {argument_name: LightweightTransformInput(i, context) for argument_name, i in self.inputs.items()}
         outputs = {
-            argument_name: LightweightTransformOutput(o, argument_name) for argument_name, o in self.outputs.items()
+            argument_name: LightweightTransformOutput(o, argument_name, context)
+            for argument_name, o in self.outputs.items()
         }
         kwargs = {**inputs, **outputs}
 
@@ -169,20 +184,30 @@ class Transform:
 
         return {name: i.df for name, i in outputs.items()}
 
-    def _compute_lightweight_pandas(self) -> pd.core.frame.DataFrame:
+    def _compute_lightweight_pandas(
+        self,
+        context: FoundryContext,
+    ) -> pd.core.frame.DataFrame:
         if self._use_context:
             msg = "Lightweight transforms do not support the context argument."
             raise ValueError(msg)
 
-        inputs = {argument_name: LightweightTransformInput(i).pandas() for argument_name, i in self.inputs.items()}
+        inputs = {
+            argument_name: LightweightTransformInput(i, context).pandas() for argument_name, i in self.inputs.items()
+        }
         return self(**inputs)
 
-    def _compute_lightweight_polars(self) -> pl.DataFrame:
+    def _compute_lightweight_polars(
+        self,
+        context: FoundryContext,
+    ) -> pl.DataFrame:
         if self._use_context:
             msg = "Lightweight transforms do not support the context argument."
             raise ValueError(msg)
 
-        inputs = {argument_name: LightweightTransformInput(i).polars() for argument_name, i in self.inputs.items()}
+        inputs = {
+            argument_name: LightweightTransformInput(i, context).polars() for argument_name, i in self.inputs.items()
+        }
         return self(**inputs)
 
 
@@ -220,12 +245,33 @@ class TransformContext:
 class TransformInput:
     """TransformInput class, passed when using @transform decorator."""
 
-    def __init__(self, input_arg: Input):
+    def __init__(self, input_arg: Input, context: FoundryContext):
         self._input_arg = input_arg
-        self._dataset_identity = input_arg.get_dataset_identity()
-        self.branch = input_arg.branch
-        self.rid = self._dataset_identity["dataset_rid"]
-        self.path = self._dataset_identity["dataset_path"]
+        self._context = context
+
+    @cached_property
+    def branch(self) -> str:
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._input_arg.branch
+
+    @cached_property
+    def _dataset_identity(self) -> api_types.DatasetIdentity:
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._input_arg.get_dataset_identity()
+
+    @cached_property
+    def rid(self) -> api_types.Rid:
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._dataset_identity["dataset_rid"]
+
+    @cached_property
+    def path(self) -> api_types.FoundryPath:
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._dataset_identity["dataset_path"]
 
     def dataframe(self) -> pyspark.sql.DataFrame:
         """Returns the dataframe of this input.
@@ -234,6 +280,8 @@ class TransformInput:
             :external+spark:py:class:`~pyspark.sql.DataFrame`:
                 The dataframe for the dataset.
         """
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
         return self._input_arg.dataframe()
 
     def pandas(self) -> pd.core.frame.DataFrame:
@@ -253,18 +301,35 @@ class TransformInput:
             FileSystem:
                 A `FileSystem` object for reading from `Foundry`.
         """
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
         return FileSystem(base_path=self._input_arg.get_local_path_to_dataset())
 
 
 class LightweightTransformInput(TransformInput):
     """LightweightTransformInput class, passed when using @lightweight decorator."""
 
-    def __init__(self, input_arg: Input):
-        super().__init__(input_arg)
-        self.branch = input_arg.branch
-        self.rid = input_arg.get_dataset_identity()["dataset_rid"]
-        self._local_path = input_arg.get_local_path_to_dataset()
-        del self.path  # we change the field to a property in this class
+    def __init__(self, input_arg: Input, context: FoundryContext):
+        super().__init__(input_arg, context)
+
+    @cached_property
+    def rid(self) -> api_types.Rid:
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._input_arg.get_dataset_identity()["dataset_rid"]
+
+    @cached_property
+    def _local_path(self) -> str:
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._input_arg.get_local_path_to_dataset()
+
+    @cached_property
+    def branch(self) -> str:
+        """The branch of the Input."""
+        if not self._input_arg._initialized:  # noqa: SLF001
+            self._input_arg.init_input(self._context)
+        return self._input_arg.branch
 
     @cached_property
     def _parquet_files(self) -> list[Path]:
@@ -278,6 +343,7 @@ class LightweightTransformInput(TransformInput):
         msg = "Lightweight transforms do not support the dataframe method."
         raise NotImplementedError(msg)
 
+    @property
     def path(self) -> str:
         """Download the dataset's underlying files and return a Path to them."""
         return self._local_path
@@ -341,15 +407,17 @@ class LightweightTransformInput(TransformInput):
 class TransformOutput:
     """The output object passed into Transform objects at runtime."""
 
-    def __init__(self, output: Output, argument_name: str):
+    def __init__(self, output: Output, argument_name: str, context: FoundryContext):
         """Initialize the TransformOutput.
 
         Args:
             output (Output): the output
             argument_name (str): the argument name
+            context: a FoundryContext
         """
         self._fs = None
         self._df = None
+        self._context = context
         self._argument_name = argument_name
         self.branch = "no-implemented-in-foundry-dev-tools"
         self.path = output.alias
@@ -384,8 +452,8 @@ class TransformOutput:
         self.write_dataframe(get_spark_session().createDataFrame(pandas_df))
 
     def _make_filesystem(self) -> FileSystem:
-        if TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_output_folder is not None:
-            base_path = TRANSFORMS_FOUNDRY_CONTEXT.config.transforms_output_folder.joinpath(
+        if self._context.config.transforms_output_folder is not None:
+            base_path = self._context.config.transforms_output_folder.joinpath(
                 self._argument_name,
             )
             base_path.mkdir(parents=True, exist_ok=True)
@@ -416,8 +484,8 @@ class LightweightTransformOutput(TransformOutput):
     Its aim is to mimic a subset of the API of `TransformOutput`.
     """
 
-    def __init__(self, output: Output, argument_name: str):
-        super().__init__(output, argument_name)
+    def __init__(self, output: Output, argument_name: str, context: FoundryContext):
+        super().__init__(output, argument_name, context)
         self.branch = "no-implemented-in-foundry-dev-tools"
         self.path = output.alias
         self.rid = "no-implemented-in-foundry-dev-tools"
@@ -425,12 +493,12 @@ class LightweightTransformOutput(TransformOutput):
 
     def write_pandas(
         self,
-        df: pd.DataFrame,
+        pandas_df: pd.DataFrame,
         *args,
         **kwargs,
     ) -> None:
         """Write the given :class:`pandas.DataFrame` to the dataset."""
-        self.write_table(df, *args, **kwargs)
+        self.write_table(pandas_df, *args, **kwargs)
 
     def write_table(
         self,

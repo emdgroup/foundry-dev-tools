@@ -56,11 +56,22 @@ The project config is located at `.foundry_dev_tools.toml`
 ## v1
 
 The `transforms` package was included in the `foundry-dev-tools` package, which created conflicts when used on Foundry itself
+It was possible to change the configuration for the transforms via the `Configuration` singleton.
 
 ## v2
 
 The `transforms` package is now a seperate package `foundry-dev-tools-transforms` which only includes `transforms`. And the `foundry-dev-tools` package only includes the Foundry DevTools API clients.
+To change your configuration for transforms, you can pass a FoundryContext to the `.compute` method of your transform, otherwise transforms will create its own FoundryContext for each invocation of `.compute`.
 
+For example:
+```python
+...
+
+if __name__ == "__main__":
+  ctx = FoundryContext()
+  ctx.config.transforms_freeze_cache = True
+  my_compute_function.compute(ctx)
+```
 
 # Compatibility
 
