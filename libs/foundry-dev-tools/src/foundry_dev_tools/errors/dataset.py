@@ -58,4 +58,10 @@ class DatasetNoReadAccessError(FoundryDevToolsError):
 class DatasetHasOpenTransactionError(FoundryAPIError):
     """Exception is thrown when dataset has an open transaction already."""
 
-    message = "Dataset hals alrady an open transaction."
+    message = "Dataset already has an open transaction."
+
+
+class TransactionTypeMismatchError(FoundryAPIError):
+    """Exception thrown if there is an open transaction with a different transaction type."""
+
+    message = "There is an open transaction with a different transaction type than you requested."

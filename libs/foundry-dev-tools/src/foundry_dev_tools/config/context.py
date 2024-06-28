@@ -149,6 +149,9 @@ class FoundryContext:
         /,
         *,
         branch: api_types.Ref = "master",
+        create_branch_if_not_exists: bool = True,
+        parent_ref: api_types.TransactionRid | None = None,
+        parent_branch_id: api_types.DatasetBranch | None = None,
         **kwargs,
     ) -> Dataset:
         """Returns dataset at path.
@@ -156,9 +159,22 @@ class FoundryContext:
         Args:
             rid: the rid of the dataset
             branch: the branch of the dataset
+            create_branch_if_not_exists: create branch if branch does not exist
+            parent_ref: optionally the transaction off which the branch will be based
+                (only used if branch needs to be created)
+            parent_branch_id: optionally a parent branch name, otherwise a root branch
+                (only used if branch needs to be created)
             **kwargs: passed to :py:meth:`foundry_dev_tools.resources.resource.Resource.from_rid`
         """
-        return Dataset.from_rid(self, rid, branch=branch, **kwargs)
+        return Dataset.from_rid(
+            self,
+            rid,
+            branch=branch,
+            create_branch_if_not_exists=create_branch_if_not_exists,
+            parent_ref=parent_ref,
+            parent_branch_id=parent_branch_id,
+            **kwargs,
+        )
 
     def get_dataset_by_path(
         self,
@@ -167,6 +183,9 @@ class FoundryContext:
         *,
         branch: api_types.Ref = "master",
         create_if_not_exist: bool = False,
+        create_branch_if_not_exists: bool = True,
+        parent_ref: api_types.TransactionRid | None = None,
+        parent_branch_id: api_types.DatasetBranch | None = None,
         **kwargs,
     ) -> Dataset:
         """Returns dataset at path.
@@ -175,9 +194,24 @@ class FoundryContext:
             path: the path where the dataset is located on foundry
             branch: the branch of the dataset
             create_if_not_exist: if the dataset does not exist, create it
+            create_branch_if_not_exists: create branch if branch does not exist,
+                branch always will be created if resource does not exist
+            parent_ref: optionally the transaction off which the branch will be based
+                (only used if branch needs to be created)
+            parent_branch_id: optionally a parent branch name, otherwise a root branch
+                (only used if branch needs to be created)
             **kwargs: passed to :py:meth:`foundry_dev_tools.resources.resource.Resource.from_path`
         """
-        return Dataset.from_path(self, path, branch=branch, create_if_not_exist=create_if_not_exist, **kwargs)
+        return Dataset.from_path(
+            self,
+            path,
+            branch=branch,
+            create_if_not_exist=create_if_not_exist,
+            create_branch_if_not_exists=create_branch_if_not_exists,
+            parent_ref=parent_ref,
+            parent_branch_id=parent_branch_id,
+            **kwargs,
+        )
 
     def get_resource(
         self,

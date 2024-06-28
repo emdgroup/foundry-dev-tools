@@ -15,6 +15,7 @@ import foundry_dev_tools.config
 from foundry_dev_tools.config.config import Config
 from tests.unit.mocks import FoundryMockContext, MockTokenProvider
 from tests.utils import remove_transforms_modules
+from transforms.api import Input, Output, transform
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -154,7 +155,7 @@ def _run_around_tests(spark_df_return_data_one, spark_df_return_data_two, spark_
 
 
 def test_transform_one_input(spark_df_return_data_one):
-    from transforms.api import Input, Output, transform
+    from transforms.api import Input
     from transforms.api._transform import TransformInput, TransformOutput
 
     @transform(output1=Output("/output/to/dataset"), input1=Input("/input1"))
@@ -205,7 +206,7 @@ def test_transform_one_input(spark_df_return_data_one):
 
 
 def test_transform_df_one_input(mocker, spark_df_return_data_one):
-    from transforms.api import Input, Output, transform_df
+    from transforms.api import Output, transform_df
 
     from_foundry_and_cache = mocker.spy(Input, "_retrieve_from_foundry_and_cache")
     from_cache = mocker.spy(Input, "_retrieve_from_cache")
@@ -242,7 +243,7 @@ def test_transform_df_one_input(mocker, spark_df_return_data_one):
 
 
 def test_transform_df_one_input_with_ctx(spark_df_return_data_one):
-    from transforms.api import Input, Output, TransformContext, transform_df
+    from transforms.api import Output, TransformContext, transform_df
 
     @transform_df(Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me(ctx, input1: DataFrame) -> DataFrame:
@@ -257,7 +258,7 @@ def test_transform_df_one_input_with_ctx(spark_df_return_data_one):
 
 
 def test_transform_df_two_inputs(spark_df_return_data_one, spark_df_return_data_two):
-    from transforms.api import Input, Output, TransformContext, transform_df
+    from transforms.api import Output, TransformContext, transform_df
 
     @transform_df(
         Output("/output/to/dataset"),
@@ -280,7 +281,7 @@ def test_transform_df_two_inputs(spark_df_return_data_one, spark_df_return_data_
 
 
 def test_lightweight_transform_two_inputs(spark_df_return_data_one, spark_df_return_data_two):
-    from transforms.api import Input, Output, lightweight, transform
+    from transforms.api import Output, lightweight
 
     @lightweight
     @transform(
@@ -301,7 +302,7 @@ def test_lightweight_transform_two_inputs(spark_df_return_data_one, spark_df_ret
 
 
 def test_transform_polars_transform_two_inputs(spark_df_return_data_one, spark_df_return_data_two):
-    from transforms.api import Input, Output, transform_polars
+    from transforms.api import Input, transform_polars
 
     @transform_polars(
         Output("/output/to/dataset"),
@@ -342,7 +343,7 @@ def test_transform_df_date_and_timestamp():
         )
 
     foundry_dev_tools.utils.converter.foundry_spark.foundry_schema_to_spark_schema = mock_schema
-    from transforms.api import Input, Output, transform_df
+    from transforms.api import Output, transform_df
 
     @transform_df(Output("/output/to/dataset"), input1=Input("/tsdate"))
     def transform_me(input1: DataFrame) -> DataFrame:
@@ -357,7 +358,7 @@ def test_transform_df_date_and_timestamp():
 
 
 def test_transform_pandas_one_input(mocker, spark_df_return_data_one):
-    from transforms.api import Input, Output, transform_pandas
+    from transforms.api import Output, transform_pandas
 
     from_foundry_and_cache = mocker.spy(Input, "_retrieve_from_foundry_and_cache")
     from_cache = mocker.spy(Input, "_retrieve_from_cache")
@@ -384,7 +385,7 @@ def test_transform_pandas_one_input(mocker, spark_df_return_data_one):
 
 
 def test_transform_pandas_one_input_with_ctx(spark_df_return_data_one):
-    from transforms.api import Input, Output, TransformContext, transform_pandas
+    from transforms.api import Output, TransformContext, transform_pandas
 
     @transform_pandas(Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me(ctx, input1: pd.DataFrame) -> pd.DataFrame:
@@ -400,7 +401,7 @@ def test_transform_pandas_one_input_with_ctx(spark_df_return_data_one):
 
 
 def test_transform_pandas_two_inputs(spark_df_return_data_one, spark_df_return_data_two):
-    from transforms.api import Input, Output, TransformContext, transform_pandas
+    from transforms.api import Output, TransformContext, transform_pandas
 
     @transform_pandas(
         Output("/output/to/dataset"),
@@ -445,7 +446,7 @@ def test_transform_pandas_date_and_timestamp():
 
     foundry_dev_tools.utils.converter.foundry_spark.foundry_schema_to_spark_schema = mock_schema
 
-    from transforms.api import Input, Output, transform_pandas
+    from transforms.api import Output, transform_pandas
 
     @transform_pandas(Output("/output/to/dataset"), input1=Input("/tsdate"))
     def transform_me(input1: pd.DataFrame) -> pd.DataFrame:
@@ -462,7 +463,7 @@ def test_transform_pandas_date_and_timestamp():
 
 def test_transform_freeze_cache(mocker, spark_df_return_data_one):
     from transforms import TRANSFORMS_FOUNDRY_CONTEXT
-    from transforms.api import Input, Output, transform
+    from transforms.api import Output
     from transforms.api._transform import TransformInput, TransformOutput
 
     online = mocker.spy(Input, "_online")
@@ -498,7 +499,7 @@ def test_transform_freeze_cache(mocker, spark_df_return_data_one):
 
 
 def test_transforms_with_configure():
-    from transforms.api import Input, Output, configure, transform
+    from transforms.api import Output, configure
 
     with pytest.warns(UserWarning):
 
@@ -512,7 +513,7 @@ def test_transforms_with_configure():
 
 
 def test_lightweight_transforms_with_resources():
-    from transforms.api import Input, Output, lightweight, transform
+    from transforms.api import Output, lightweight
 
     with pytest.warns(UserWarning) as record:
 
@@ -530,7 +531,7 @@ def test_lightweight_transforms_with_resources():
 
 
 def test_transforms_with_incremental():
-    from transforms.api import Input, Output, incremental, transform
+    from transforms.api import Input, incremental
 
     with pytest.warns(UserWarning):
 
@@ -545,7 +546,6 @@ def test_transforms_with_incremental():
 
 def test_transform_output_write_to_folder(tmp_path_factory):
     from transforms import TRANSFORMS_FOUNDRY_CONTEXT
-    from transforms.api import Output, transform
     from transforms.api._transform import TransformOutput
 
     transforms_output_folder = pathlib.Path(tmp_path_factory.mktemp("transforms_output_folder"))
@@ -582,7 +582,7 @@ def test_transform_output_write_to_folder(tmp_path_factory):
 
 
 def test_transform_works_in_no_git_repository(mocker, tmp_path):
-    from transforms.api import Input, Output, transform
+    from transforms.api import Output
 
     cwd = Path.cwd()
     os.chdir(tmp_path)
@@ -600,7 +600,7 @@ def test_transform_works_in_no_git_repository(mocker, tmp_path):
 
 
 def test_transform_markings():
-    from transforms.api import Input, Markings, OrgMarkings, Output, transform_df
+    from transforms.api import Markings, OrgMarkings, Output, transform_df
 
     @transform_df(
         Output("output1"),
@@ -614,64 +614,3 @@ def test_transform_markings():
         return input1
 
     transform_me.compute()
-
-
-# TODO
-# def test_binary_dataset_with_empty_folders(tmpdir):
-#     input_dataset = "/namespace/dataset1"
-
-#     root = os.fspath(tmpdir)
-#     filesystem = fs.open_fs(root)
-
-#     branch = "master"
-
-#     ds = client.create_dataset("/namespace/dataset1")
-#     client.create_branch(ds["rid"], branch)
-
-#     transaction_rid = client.open_transaction(ds["rid"], "SNAPSHOT", branch)
-
-#     client.upload_dataset_file(
-#         dataset_rid=ds["rid"],
-#         transaction_rid=transaction_rid,
-#         path_or_buf=io.BytesIO(),
-#         path_in_foundry_dataset="models",
-#     )
-#     client.upload_dataset_file(
-#         dataset_rid=ds["rid"],
-#         transaction_rid=transaction_rid,
-#         path_or_buf=io.BytesIO(),
-#         path_in_foundry_dataset="models/lda",
-#     )
-#     client.upload_dataset_file(
-#         dataset_rid=ds["rid"],
-#         transaction_rid=transaction_rid,
-#         path_or_buf=io.BytesIO(b"aa"),
-#         path_in_foundry_dataset="models/lda/model.joblib",
-#     )
-#     client.upload_dataset_file(
-#         dataset_rid=ds["rid"],
-#         transaction_rid=transaction_rid,
-#         path_or_buf=io.BytesIO(b"aa"),
-#         path_in_foundry_dataset="poseidon/features",
-#     )
-#     client.commit_transaction(dataset_rid=ds["rid"], transaction_id=transaction_rid)
-
-#     with mock.patch("foundry_dev_tools.cached_foundry_client.CachedFoundryClient.api", client):
-
-#         @transform(
-#             output=Output("/path/to/output1"),
-#             input1=Input(input_dataset, branch="master"),
-#         )
-#         def transform_me(output, input1):
-#             assert input1.filesystem() is not None
-#             assert "models/lda/model.joblib" in [file.path for file in input1.filesystem().ls()]
-#             assert "poseidon/features" in [file.path for file in input1.filesystem().ls()]
-#             assert input1.dataframe() is None
-
-#         result = transform_me.compute()
-#         assert "output" in result
-
-#         # Check that _offline functions of cache work
-#         cache = DiskPersistenceBackedSparkCache(**foundry_dev_tools.config.Configuration)
-#         ds_identity = cache.get_dataset_identity_not_branch_aware(input_dataset)
-#         assert cache.dataset_has_schema(ds_identity) is False

@@ -245,7 +245,7 @@ def build_cli(transform: str):
     _build_cli(transform, ctx)
 
 
-def _build_cli(transform: str, ctx: FoundryContext):  # noqa: C901,PLR0915,TODO
+def _build_cli(transform: str, ctx: FoundryContext):  # noqa: C901,PLR0915
     """Extra method for testing."""
     repo, ref_name, commit_hash, git_dir = get_repo()
     if transform:

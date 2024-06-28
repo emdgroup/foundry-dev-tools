@@ -37,7 +37,6 @@ DatasetBranch = str
 View = DatasetBranch | TransactionRid
 """A view, which is a :py:attr:`~foundry_dev_tools.utils.api_types.Ref` or a :py:attr:`~foundry_dev_tools.utils.api_types.TransactionRid`."""  # noqa: E501
 
-# TODO further typing?
 FoundrySchema = dict[str, Any]
 
 
@@ -171,13 +170,23 @@ class Attribution(TypedDict):
     user_id: str
 
 
-class Branch(TypedDict):
+class CompassBranch(TypedDict):
     """Resource branches."""
 
     name: str
     rid: Rid
     urlVariables: dict[str, Any]
     classificationRids: set[Rid] | None
+
+
+class Branch(TypedDict):
+    """Dataset branches."""
+
+    id: str
+    rid: Rid
+    ancestorBranchIds: list[str]
+    creationTime: str
+    transactionRid: TransactionRid | None
 
 
 class ClassificationBanner(TypedDict):

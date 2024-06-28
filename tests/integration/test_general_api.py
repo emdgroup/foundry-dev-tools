@@ -28,7 +28,7 @@ from tests.integration.conftest import TEST_SINGLETON
 from tests.integration.utils import INTEGRATION_TEST_COMPASS_ROOT_PATH, INTEGRATION_TEST_COMPASS_ROOT_RID, TEST_FOLDER
 
 
-def test_monster_integration_test():  # noqa: PLR0915, TODO
+def test_monster_integration_test():  # noqa: PLR0915
     branch = "master/with/slash"
     rnd = "".join(choice(ascii_uppercase) for i in range(5))
     dataset_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/test_api_{rnd}"
@@ -219,13 +219,13 @@ def test_schema_inference():
 def test_get_dataset_last_transaction():
     transaction_rid = TEST_SINGLETON.v1_client.get_dataset_last_transaction(
         TEST_SINGLETON.iris_new.rid,
-        branch=TEST_SINGLETON.iris_new.branch,
+        branch=TEST_SINGLETON.iris_new.branch["id"],
     )["rid"]
     assert transaction_rid == TEST_SINGLETON.iris_new_transaction["rid"]
     assert (
         TEST_SINGLETON.v1_client.get_dataset_last_transaction_rid(
             TEST_SINGLETON.iris_new.rid,
-            branch=TEST_SINGLETON.iris_new.branch,
+            branch=TEST_SINGLETON.iris_new.branch["id"],
         )
         == TEST_SINGLETON.iris_new_transaction["rid"]
     )
@@ -234,7 +234,7 @@ def test_get_dataset_last_transaction():
 def test_get_dataset_stats():
     stats_by_branch = TEST_SINGLETON.v1_client.get_dataset_stats(
         TEST_SINGLETON.iris_new.rid,
-        view=TEST_SINGLETON.iris_new.branch,
+        view=TEST_SINGLETON.iris_new.branch["id"],
     )
     expected_iris_size = TEST_FOLDER.joinpath("test_data", "iris", "iris.csv").stat().st_size
     assert stats_by_branch == {
@@ -359,7 +359,7 @@ def test_get_dataset_schema():
     schema = TEST_SINGLETON.v1_client.get_dataset_schema(
         TEST_SINGLETON.iris_new.rid,
         TEST_SINGLETON.iris_new_transaction["rid"],
-        branch=TEST_SINGLETON.iris_new.branch,
+        branch=TEST_SINGLETON.iris_new.branch["id"],
     )
     assert schema == expected_response["schema"]
 
@@ -406,7 +406,7 @@ def test_query_legacy_sql():
     with pytest.raises(DatasetHasNoSchemaError):
         TEST_SINGLETON.v1_client.query_foundry_sql_legacy(
             f"SELECT * FROM `{TEST_SINGLETON.iris_no_schema.rid}` LIMIT 100",
-            branch=TEST_SINGLETON.iris_no_schema.branch,
+            branch=TEST_SINGLETON.iris_no_schema.branch["id"],
         )
 
 
@@ -507,7 +507,7 @@ def test_download_dataset_files_temporary():
     ) as spy:
         with TEST_SINGLETON.v1_client.download_dataset_files_temporary(
             dataset_rid=TEST_SINGLETON.complex_dataset.rid,
-            view=TEST_SINGLETON.complex_dataset.branch,
+            view=TEST_SINGLETON.complex_dataset.branch["id"],
         ) as temp_dir:
             p = Path(temp_dir)
             assert p.exists()
@@ -518,7 +518,7 @@ def test_download_dataset_files_temporary():
 
         with TEST_SINGLETON.v1_client.download_dataset_files_temporary(
             dataset_rid=TEST_SINGLETON.iris_new.rid,
-            view=TEST_SINGLETON.iris_new.branch,
+            view=TEST_SINGLETON.iris_new.branch["id"],
         ) as temp_dir:
             p2 = Path(temp_dir)
             assert p2.exists()
@@ -529,7 +529,7 @@ def test_download_dataset_files_temporary():
         with TEST_SINGLETON.v1_client.download_dataset_files_temporary(
             dataset_rid=TEST_SINGLETON.iris_new.rid,
             files=["iris.csv"],
-            view=TEST_SINGLETON.iris_new.branch,
+            view=TEST_SINGLETON.iris_new.branch["id"],
         ) as temp_dir:
             p3 = Path(temp_dir)
             assert p3.exists()
@@ -543,7 +543,7 @@ def test_remove_file_in_open_transaction():
     transaction_rid = TEST_SINGLETON.v1_client.open_transaction(
         TEST_SINGLETON.empty_dataset.rid,
         "UPDATE",
-        TEST_SINGLETON.empty_dataset.branch,
+        TEST_SINGLETON.empty_dataset.branch["id"],
     )
 
     TEST_SINGLETON.v1_client.upload_dataset_file(
@@ -555,7 +555,7 @@ def test_remove_file_in_open_transaction():
 
     files = TEST_SINGLETON.v1_client.list_dataset_files(
         TEST_SINGLETON.empty_dataset.rid,
-        view=TEST_SINGLETON.empty_dataset.branch,
+        view=TEST_SINGLETON.empty_dataset.branch["id"],
         include_open_exclusive_transaction=True,
     )
     assert "test.csv" in files
@@ -568,7 +568,7 @@ def test_remove_file_in_open_transaction():
     )
     files = TEST_SINGLETON.v1_client.list_dataset_files(
         TEST_SINGLETON.empty_dataset.rid,
-        view=TEST_SINGLETON.empty_dataset.branch,
+        view=TEST_SINGLETON.empty_dataset.branch["id"],
         include_open_exclusive_transaction=True,
     )
     assert "test.csv" not in files
@@ -579,7 +579,9 @@ def test_remove_file_in_open_transaction():
 def test_remove_file_from_previous_transaction():
     rid = TEST_SINGLETON.empty_dataset.rid
 
-    transaction_rid = TEST_SINGLETON.v1_client.open_transaction(rid, "SNAPSHOT", TEST_SINGLETON.empty_dataset.branch)
+    transaction_rid = TEST_SINGLETON.v1_client.open_transaction(
+        rid, "SNAPSHOT", TEST_SINGLETON.empty_dataset.branch["id"]
+    )
 
     TEST_SINGLETON.v1_client.upload_dataset_file(rid, transaction_rid, io.StringIO("col1,col2\n1,2"), "test.csv")
 
@@ -587,7 +589,7 @@ def test_remove_file_from_previous_transaction():
 
     files = TEST_SINGLETON.v1_client.list_dataset_files(
         rid,
-        view=TEST_SINGLETON.empty_dataset.branch,
+        view=TEST_SINGLETON.empty_dataset.branch["id"],
         include_open_exclusive_transaction=False,
     )
     assert "test.csv" in files
@@ -598,7 +600,7 @@ def test_remove_file_from_previous_transaction():
 
     files = TEST_SINGLETON.v1_client.list_dataset_files(
         rid,
-        view=TEST_SINGLETON.empty_dataset.branch,
+        view=TEST_SINGLETON.empty_dataset.branch["id"],
         include_open_exclusive_transaction=False,
     )
     assert "test.csv" not in files

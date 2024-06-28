@@ -196,7 +196,7 @@ def _parse_complex_type(field: dict) -> dict:
     return new_field
 
 
-def foundry_sql_data_to_spark_dataframe(  # noqa: C901, TODO
+def foundry_sql_data_to_spark_dataframe(  # noqa: C901
     data: list[list],
     spark_schema: pyspark.sql.types.StructType,
 ) -> pyspark.sql.DataFrame:

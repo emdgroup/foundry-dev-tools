@@ -142,7 +142,7 @@ def _sysinfo_section() -> Tree:
     return sysinfo_node
 
 
-def _dependency_section() -> Tree:  # noqa: C901,PLR0912,TODO
+def _dependency_section() -> Tree:  # noqa: C901,PLR0912
     dependency_node = Tree("[bold] Dependencies")
     fdt_package = importlib.metadata.distribution("foundry_dev_tools")
     if fdt_package is None:

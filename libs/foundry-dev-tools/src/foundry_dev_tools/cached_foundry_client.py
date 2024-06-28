@@ -302,7 +302,6 @@ class CachedFoundryClient:
         try:
             self.api.upload_dataset_files(dataset_rid, transaction_id, path_file_dict)
         except Exception as e:
-            # TODO raise only on foundry api errors
             self.api.abort_transaction(dataset_rid, transaction_id)
             msg = (
                 "There was an issue while uploading the dataset files."

@@ -39,8 +39,8 @@ class Resource:
     path: api_types.FoundryPath  # not optional for this class
     description: str | None = None
     favorite: bool | None = None
-    branches: set[api_types.Branch] | None = None
-    default_branch: api_types.Branch | None = None
+    branches: set[api_types.CompassBranch] | None = None
+    default_branch: api_types.CompassBranch | None = None
     default_branch_with_markings: api_types.BranchWithMarkings | None = None
     branches_count: int | None = None
     has_branches: bool | None = None
@@ -89,8 +89,8 @@ class Resource:
         urlVariables: dict[str, str],  # noqa: N803
         description: str | None = None,
         favorite: bool | None = None,
-        branches: set[api_types.Branch] | None = None,
-        defaultBranch: api_types.Branch | None = None,  # noqa: N803
+        branches: set[api_types.CompassBranch] | None = None,
+        defaultBranch: api_types.CompassBranch | None = None,  # noqa: N803
         defaultBranchWithMarkings: api_types.BranchWithMarkings | None = None,  # noqa: N803
         branchesCount: int | None = None,  # noqa: N803
         hasBranches: bool | None = None,  # noqa: N803
@@ -228,24 +228,26 @@ class Resource:
         ).json()
         return cls._create_class(context, resource_json=resource_json, decoration=_decoration)
 
-    def add_to_trash(self):
+    def add_to_trash(self) -> Self:
         """Adds resource to trash."""
         self._context.compass.api_add_to_trash({self.rid})
-        self.sync()
+        return self.sync()
 
-    def restore(self):
+    def restore(self) -> Self:
         """Restores resource from trash."""
         self._context.compass.api_restore({self.rid})
-        self.sync()
+        return self.sync()
 
-    def delete_permanently(self):
+    def delete_permanently(self) -> Self:
         """Deletes resource permanently."""
         self._context.compass.api_delete_permanently({self.rid})
+        return self
 
-    def sync(self):
+    def sync(self) -> Self:
         """Fetches the attributes again."""
         resource_json = self._context.compass.api_get_resource(self.rid, decoration=self._decoration).json()
         self._from_json(**resource_json)
+        return self
 
 
 RID_CLASS_REGISTRY: dict[str, type[Resource]] = {}

@@ -12,13 +12,22 @@ from typing import TYPE_CHECKING, ClassVar, overload
 
 from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.dataset import (
+    BranchNotFoundError,
     DatasetHasNoOpenTransactionError,
+    TransactionTypeMismatchError,
 )
 from foundry_dev_tools.resources import resource
 from foundry_dev_tools.utils import api_types
 
 if TYPE_CHECKING:
-    from typing import IO, AnyStr, Literal
+    import sys
+    from collections.abc import Iterator
+    from typing import IO, AnyStr, Literal, Self
+
+    if sys.version_info < (3, 11):
+        from typing_extensions import Self
+    else:
+        from typing import Self
 
     import pandas as pd
     import pandas.core.frame
@@ -31,7 +40,7 @@ if TYPE_CHECKING:
 class Dataset(resource.Resource):
     """Helper class for datasets."""
 
-    branch: str
+    branch: api_types.Branch
     _transaction: api_types.Transaction | None = None
     __created__: bool | None = None
     rid_start: ClassVar[str] = "ri.foundry.main.dataset"
@@ -52,7 +61,10 @@ class Dataset(resource.Resource):
         rid: api_types.Rid,
         /,
         *,
-        branch: api_types.Ref = "master",
+        branch: api_types.Ref | api_types.Branch = "master",
+        create_branch_if_not_exists: bool = True,
+        parent_ref: api_types.TransactionRid | None = None,
+        parent_branch_id: api_types.DatasetBranch | None = None,
         **kwargs,
     ) -> Dataset:
         """Returns dataset at path.
@@ -61,10 +73,27 @@ class Dataset(resource.Resource):
             context: the foundry context for the dataset
             rid: the rid of the dataset
             branch: the branch of the dataset
+            create_branch_if_not_exists: create branch if branch does not exist
+            parent_ref: optionally the transaction off which the branch will be based
+                (only used if branch needs to be created)
+            parent_branch_id: optionally a parent branch name, otherwise a root branch
+                (only used if branch needs to be created)
             **kwargs: passed to :py:meth:`foundry_dev_tools.resources.resource.Resource.from_rid`
         """
         inst = super().from_rid(context, rid, **kwargs)
-        inst.branch = branch
+        if isinstance(branch, dict):
+            inst.branch = branch
+        else:
+            try:
+                inst.branch = context.catalog.api_get_branch(rid, branch).json()
+            except BranchNotFoundError:
+                if create_branch_if_not_exists:
+                    inst.branch = context.catalog.api_create_branch(
+                        dataset_rid=rid,
+                        branch_id=branch,
+                        parent_ref=parent_ref,
+                        parent_branch_id=parent_branch_id,
+                    ).json()
         return inst
 
     @classmethod
@@ -76,6 +105,9 @@ class Dataset(resource.Resource):
         *,
         branch: api_types.Ref = "master",
         create_if_not_exist: bool = False,
+        create_branch_if_not_exists: bool = True,
+        parent_ref: api_types.TransactionRid | None = None,
+        parent_branch_id: api_types.DatasetBranch | None = None,
         **kwargs,
     ) -> Dataset:
         """Returns dataset at path.
@@ -84,16 +116,31 @@ class Dataset(resource.Resource):
             context: the foundry context for the dataset
             path: the path where the dataset is located on foundry
             branch: the branch of the dataset
-            create_if_not_exist: if the dataset does not exist, create it
+            create_if_not_exist: if the dataset does not exist, create it and the branch
+            create_branch_if_not_exists: create branch if branch does not exist,
+                branch always will be created if resource does not exist
+            parent_ref: optionally the transaction off which the branch will be based
+                (only used if branch needs to be created)
+            parent_branch_id: optionally a parent branch name, otherwise a root branch
+                (only used if branch needs to be created)
             **kwargs: passed to :py:meth:`foundry_dev_tools.resources.resource.Resource.from_path`
         """
         try:
             inst = super().from_path(context, path, **kwargs)
-            inst.branch = branch
+            try:
+                inst.branch = context.catalog.api_get_branch(inst.rid, branch).json()
+            except BranchNotFoundError:
+                if create_branch_if_not_exists:
+                    inst.branch = context.catalog.api_create_branch(
+                        dataset_rid=inst.rid,
+                        branch_id=branch,
+                        parent_ref=parent_ref,
+                        parent_branch_id=parent_branch_id,
+                    ).json()
             inst.__created__ = False
         except ResourceNotFoundError:
             if create_if_not_exist:
-                return cls.create(context, path, branch)
+                return cls.create(context, path, branch, parent_ref=parent_ref, parent_branch_id=parent_branch_id)
             raise
         else:
             return inst
@@ -112,16 +159,58 @@ class Dataset(resource.Resource):
         See :py:meth:`~foundry_dev_tools.clients.catalog.CatalogClient.api_create_dataset`.
         """
         rid = context.catalog.api_create_dataset(path).json()["rid"]
-        context.catalog.api_create_branch(
+        branch = context.catalog.api_create_branch(
             rid,
             branch,
             parent_ref=parent_ref,
             parent_branch_id=parent_branch_id,
-        )
+        ).json()
 
         inst = cls.from_rid(context, rid, branch=branch)
         inst.__created__ = True
         return inst
+
+    def create_branch(
+        self,
+        branch: api_types.DatasetBranch,
+        parent_ref: api_types.TransactionRid | None = None,
+        parent_branch_id: api_types.DatasetBranch | None = None,
+    ) -> Self:
+        """Creates a branch on a dataset.
+
+        Args:
+            branch: the branch to create
+            parent_ref: optionally the transaction off which the branch will be based
+            parent_branch_id: optionally a parent branch name, otherwise a root branch
+        """
+        self.branch = self._context.catalog.api_create_branch(
+            dataset_rid=self.rid,
+            branch_id=branch,
+            parent_ref=parent_ref,
+            parent_branch_id=parent_branch_id,
+        ).json()
+        return self
+
+    def switch_branch(
+        self,
+        branch: api_types.DatasetBranch,
+    ) -> Self:
+        """Switch to another branch.
+
+        Branch needs to exist.
+
+        Args:
+            branch: the name of the branch to switch to
+        """
+        self.branch = self.get_branch(branch)
+        return self
+
+    def get_branch(self, branch: api_types.DatasetBranch) -> api_types.Branch:
+        """Returns the branch resource."""
+        return self._context.catalog.api_get_branch(
+            self.rid,
+            branch,
+        ).json()
 
     def get_transactions(
         self,
@@ -144,7 +233,7 @@ class Dataset(resource.Resource):
             v["transaction"]
             for v in self._context.catalog.api_get_reverse_transactions2(
                 self.rid,
-                self.branch,
+                self.branch["id"],
                 page_size=page_size,
                 end_transaction_rid=end_transaction_rid,
                 include_open_exclusive_transaction=include_open_exclusive_transaction,
@@ -170,11 +259,11 @@ class Dataset(resource.Resource):
             return last
         return None
 
-    def start_transaction(self, start_transaction_type: api_types.FoundryTransaction | None = None):
+    def start_transaction(self, start_transaction_type: api_types.FoundryTransaction | None = None) -> Self:
         """Start a transaction on the dataset."""
         self._transaction = self._context.catalog.api_start_transaction(
             self.rid,
-            self.branch,
+            self.branch["id"],
             record={},
             start_transaction_type=start_transaction_type,
         ).json()
@@ -184,6 +273,7 @@ class Dataset(resource.Resource):
                 self.transaction["rid"],
                 start_transaction_type,
             )
+        return self
 
     @property
     def transaction(self) -> api_types.Transaction:
@@ -195,24 +285,26 @@ class Dataset(resource.Resource):
             return self._transaction
         raise DatasetHasNoOpenTransactionError(f"{self.path=} {self.rid=}")  # noqa: EM102,TRY003
 
-    def commit_transaction(self):
+    def commit_transaction(self) -> Self:
         """Commit the transaction on the dataset."""
         if self.transaction is not None:
             self._context.catalog.api_commit_transaction(self.rid, self.transaction["rid"])
             self._transaction = None
+        return self
 
-    def abort_transaction(self):
+    def abort_transaction(self) -> Self:
         """Commit the transaction on the dataset."""
         if self.transaction is not None:
             self._context.catalog.api_abort_transaction(self.rid, self.transaction["rid"])
             self._transaction = None
+        return self
 
     def upload_files(
         self,
         path_file_dict: dict[api_types.PathInDataset, Path],
         max_workers: int | None = None,
         **kwargs,
-    ) -> api_types.Transaction:
+    ) -> Self:
         """Uploads multiple local files to a foundry dataset.
 
         Args:
@@ -227,14 +319,14 @@ class Dataset(resource.Resource):
                 path_file_dict=path_file_dict,
                 max_workers=max_workers,
             )
-            return self.transaction
+        return self
 
     def upload_file(
         self,
         file_path: Path,
         path_in_foundry_dataset: api_types.PathInDataset,
         **kwargs,
-    ) -> api_types.Transaction:
+    ) -> Self:
         """Upload a file to the dataset.
 
         Args:
@@ -242,8 +334,6 @@ class Dataset(resource.Resource):
             path_in_foundry_dataset: file path inside the foundry dataset
             transaction_type: if this dataset does not have an open transaction,
                 opens a transaction with the specified type.
-            start_transaction: if true, a transaction will be created if no transaction is currently open
-            finish_transaction: if true, the transaction will be closed (committed or aborted) after the upload.
             **kwargs: get passed to :py:meth:`foundry_dev_tools.resources.dataset.Dataset.transaction_context`
         """
         with self.transaction_context(**kwargs):
@@ -253,22 +343,74 @@ class Dataset(resource.Resource):
                 path=file_path,
                 path_in_foundry_dataset=path_in_foundry_dataset,
             )
-            return self.transaction
+        return self
 
-    def upload_folder(self, folder_path: Path, **kwargs) -> api_types.Transaction:
+    def upload_folder(
+        self,
+        folder_path: Path,
+        max_workers: int | None = None,
+        **kwargs,
+    ) -> Self:
         """Uploads all files contained in the folder to the dataset.
 
         The default transaction type is UPDATE.
 
         Args:
             folder_path: the folder to upload
-            **kwargs: passed to :py:meth:`foundry_dev_tools.resources.dataset.Dataset.upload_files`
-
-        Returns:
-            the transaction used for uploading the files
+            max_workers: Set number of threads for upload
+            **kwargs: get passed to :py:meth:`foundry_dev_tools.resources.dataset.Dataset.transaction_context`
         """
         kwargs.setdefault("transaction_type", api_types.FoundryTransaction.UPDATE)
-        return self.upload_files({str(f.relative_to(folder_path)): f for f in folder_path.rglob("*")}, **kwargs)
+        self.upload_files(
+            {str(f.relative_to(folder_path)): f for f in folder_path.rglob("*") if f.is_file()}, max_workers=max_workers
+        )
+        return self
+
+    def delete_files(self, logical_paths: list[api_types.PathInDataset], **kwargs) -> Self:
+        """Adds files in an open DELETE transaction.
+
+        Files added to DELETE transactions affect
+        the dataset view by removing files from the view.
+
+        Args:
+            logical_paths: files in the dataset to delete
+            **kwargs: get passed to :py:meth:`foundry_dev_tools.resources.dataset.Dataset.transaction_context`
+                       (transaction_type is forced to DELETE)
+
+        """
+        with self.transaction_context(transaction_type=api_types.FoundryTransaction.DELETE, **kwargs):
+            self._context.catalog.api_add_files_to_delete_transaction(
+                self.rid, self.transaction["rid"], logical_paths=logical_paths
+            )
+        return self
+
+    def remove_file(
+        self,
+        logical_path: api_types.FoundryPath,
+        recursive: bool = False,
+    ) -> Self:
+        """Removes the given file from an open transaction.
+
+        If the logical path matches a file exactly then only that file
+        will be removed, regardless of the value of recursive.
+        If the logical path represents a directory, then all
+        files prefixed with the logical path followed by '/'
+        will be removed when recursive is true and no files will be
+        removed when recursive is false.
+        If the given logical path does not match a file or directory then this call
+        is ignored and does not throw an exception.
+
+        Args:
+            logical_path: logical path in the backing filesystem
+            recursive: recurse into subdirectories
+        """
+        self._context.catalog.api_remove_dataset_file(
+            self.rid,
+            self.transaction["rid"],
+            logical_path=logical_path,
+            recursive=recursive,
+        )
+        return self
 
     def put_file(
         self,
@@ -276,7 +418,7 @@ class Dataset(resource.Resource):
         file_data: str | bytes | IO[AnyStr],
         overwrite: bool | None = None,
         **kwargs,
-    ) -> api_types.Transaction:
+    ) -> Self:
         """Opens, writes, and closes a file under the specified dataset and transaction.
 
         Args:
@@ -295,7 +437,7 @@ class Dataset(resource.Resource):
                 file_data=file_data,
                 overwrite=overwrite,
             )
-            return self.transaction
+        return self
 
     def download_files(
         self,
@@ -313,7 +455,7 @@ class Dataset(resource.Resource):
         return self._context.data_proxy.download_dataset_files(
             dataset_rid=self.rid,
             output_directory=output_directory,
-            view=self.branch,
+            view=self.branch["id"],
             files=paths_in_dataset,
             max_workers=max_workers,
         )
@@ -334,7 +476,7 @@ class Dataset(resource.Resource):
         """
         return self._context.data_proxy.api_get_file_in_view(
             dataset_rid=self.rid,
-            end_ref=self.branch,
+            end_ref=self.branch["id"],
             logical_path=path_in_dataset,
             start_transaction_rid=start_transaction_rid,
             range_header=range_header,
@@ -351,7 +493,7 @@ class Dataset(resource.Resource):
             dataset_rid=self.rid,
             output_directory=output_directory,
             foundry_file_path=path_in_dataset,
-            view=self.branch,
+            view=self.branch["id"],
         )
 
     @contextmanager
@@ -359,7 +501,7 @@ class Dataset(resource.Resource):
         self,
         paths_in_dataset: list[api_types.PathInDataset] | None = None,
         max_workers: int | None = None,
-    ) -> iter[Path]:
+    ) -> Iterator[Path]:
         """Downloads dataset files to temporary directory and cleans it up afterwards.
 
         A wrapper around :py:meth:`foundry_dev_tools.resources.dataset.Dataset.download_files`
@@ -379,7 +521,7 @@ class Dataset(resource.Resource):
         df: pandas.core.frame.DataFrame | pyspark.sql.DataFrame,
         transaction_type: api_types.FoundryTransaction = api_types.FoundryTransaction.SNAPSHOT,
         foundry_schema: api_types.FoundrySchema | None = None,
-    ) -> api_types.Transaction:
+    ) -> Self:
         """Saves a dataframe to Foundry. If the dataset in Foundry does not exist it is created.
 
         If the branch does not exist, it is created. If the dataset exists, an exception is thrown.
@@ -415,8 +557,6 @@ class Dataset(resource.Resource):
                 self.put_file(
                     folder + "/dataset.parquet",
                     buf,
-                    start_transaction=False,
-                    finish_transaction=False,
                 )
             else:
                 with tempfile.TemporaryDirectory() as path:
@@ -440,13 +580,13 @@ class Dataset(resource.Resource):
         if foundry_schema is None:
             foundry_schema = self.infer_schema()
         self.upload_schema(transaction["rid"], foundry_schema)
-        return transaction
+        return self
 
     def infer_schema(self) -> dict:
         """Returns the infered dataset schema."""
-        return self._context.schema_inference.infer_dataset_schema(self.rid, self.branch)
+        return self._context.schema_inference.infer_dataset_schema(self.rid, self.branch["id"])
 
-    def upload_schema(self, transaction_rid: api_types.TransactionRid, schema: api_types.FoundrySchema):
+    def upload_schema(self, transaction_rid: api_types.TransactionRid, schema: api_types.FoundrySchema) -> Self:
         """Uploads the foundry dataset schema for a dataset, transaction, branch combination.
 
         Args:
@@ -457,7 +597,58 @@ class Dataset(resource.Resource):
             dataset_rid=self.rid,
             transaction_rid=transaction_rid,
             schema=schema,
-            branch=self.branch,
+            branch=self.branch["id"],
+        )
+        return self
+
+    def list_files(
+        self,
+        end_ref: api_types.View | None = None,
+        page_size: int = 1000,
+        logical_path: api_types.PathInDataset | None = None,
+        page_start_logical_path: api_types.PathInDataset | None = None,
+        include_open_exclusive_transaction: bool = False,
+        exclude_hidden_files: bool = False,
+        temporary_credentials_auth_token: str | None = None,
+    ) -> list:
+        """Wraps :py:meth:`foundry_dev_tools.clients.CatalogClient.list_dataset_files`.
+
+        Args:
+            end_ref: branch or transaction rid of the dataset, defaults to the current branch
+            page_size: the maximum page size returned
+            logical_path: If logical_path is absent, returns all files in the view.
+                If logical_path matches a file exactly, returns just that file.
+                Otherwise, returns all files in the "directory" of logical_path:
+                (a slash is added to the end of logicalPath if necessary and a prefix-match is performed)
+            page_start_logical_path: if specified page starts at the given path,
+                otherwise at the beginning of the file list
+            include_open_exclusive_transaction: if files added in open transaction should be returned
+                as well in the response
+            exclude_hidden_files: if hidden files should be excluded (e.g. _log files)
+            temporary_credentials_auth_token: to generate temporary credentials for presigned URLs
+
+        Returns:
+            list[FileResourcesPage]:
+                .. code-block:: python
+
+                    [
+                        {
+                            "logicalPath": "..",
+                            "pageStartLogicalPath": "..",
+                            "includeOpenExclusiveTransaction": "..",
+                            "excludeHiddenFiles": "..",
+                        },
+                    ]
+        """
+        return self._context.catalog.list_dataset_files(
+            self.rid,
+            end_ref=end_ref or self.branch["id"],
+            page_size=page_size,
+            logical_path=logical_path,
+            page_start_logical_path=page_start_logical_path,
+            include_open_exclusive_transaction=include_open_exclusive_transaction,
+            exclude_hidden_files=exclude_hidden_files,
+            temporary_credentials_auth_token=temporary_credentials_auth_token,
         )
 
     @overload
@@ -523,7 +714,7 @@ class Dataset(resource.Resource):
         return self._context.foundry_sql_server.query_foundry_sql(
             f"FROM `{self.rid}` {query}",
             return_type=return_type,
-            branch=self.branch,
+            branch=self.branch["id"],
             sql_dialect=sql_dialect,
             timeout=timeout,
         )
@@ -552,44 +743,53 @@ class Dataset(resource.Resource):
     @contextmanager
     def transaction_context(
         self,
-        start_transaction: bool = True,
-        finish_transaction: bool = True,
         transaction_type: api_types.FoundryTransaction | None = None,
+        abort_on_error: bool = True,
     ):
         """Handles transactions for dataset functions.
 
-        This function deduplicates code for multiple functions used in this class.
-        The sole purpose is to have a unified context manager
-        that handles transactions in the way specified.
-
-        If start_transaction is True it will start a transaction and throw an error if there is already an transaction.
-        If start_transaction is False it will get the current open transaction and throw an error if there is none open.
-        If finish_transaction is True it will abort the transaction if an exception occurs, otherwise it will commit it.
-        If finish_transaction is False it will leave the transaction open for further use.
-
+        If there is no open transaction it will start one.
+        If there is already an open transaction it will check if the transaction_type is correct.
+        If this context manager started the transaction it will also commit or abort it (if abort_on_error is True).
 
         Args:
-            start_transaction: start transaction if true, otherwise get open transaction
-            finish_transaction: abort/commit the transaction if true, otherwise leave the transaction open
-            transaction_type: if start_transaction is True, it will use this transaction_type
+            abort_on_error: if an error happens while in transaction_context and this is set to true
+                it will abort the transaction instead of committing it. Only takes effect if this
+                context manager also started the transaction.
+            transaction_type: if there is no open transaction it will open a transaction with this type,
+                if there is already an open transaction and it does not match this transaction_type it will
+                raise an Error
 
         """
-        if start_transaction:
+        created = False
+
+        # first check if there is already an open transaction
+        if self._transaction is None:
+            self._transaction = self.get_open_transaction()
+
+        if self._transaction is None:
             self.start_transaction(transaction_type)
-        elif self.transaction is not None:
-            # there is an open transaction
-            # otherwise this call above will throw an error
-            pass
+            created = True
+        elif transaction_type is not None and self.transaction["type"] != transaction_type.value:
+            raise TransactionTypeMismatchError(
+                requested_transaction_type=transaction_type, open_transaction_type=self.transaction["type"]
+            )
 
         try:
             yield
         except:
-            if finish_transaction:
+            if abort_on_error and created:
                 self.abort_transaction()
             raise
         else:
-            if finish_transaction:
+            if created:
                 self.commit_transaction()
+
+    def sync(self) -> Self:
+        """Fetches the attributes again + the dataset branch information."""
+        # update branch information
+        self.switch_branch(self.branch["id"])
+        return super().sync()
 
 
 resource.RID_CLASS_REGISTRY[Dataset.rid_start] = Dataset

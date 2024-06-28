@@ -23,6 +23,7 @@ You can also chain multiple actions together.
 Only works with methods that return the dataset, e.g. `list_files` obviously does not return the Dataset class but the list of files and so on.
 
 ```python
+ds = ctx.get_dataset(...)
 ds.start_transaction().put_file(...).upload_schema(...).commit_transaction()
 ```
 
@@ -39,6 +40,12 @@ print(ds.transaction) # still accessible and open
 
 # you'll need to close it manually 
 ds.commit_transaction()
+```
+
+The state/attributes of resources like the [`Dataset`](#foundry_dev_tools.resources.dataset.Dataset) class may get out of "sync" if you have multiple instances for the same dataset, or modify the dataset in other ways than through the Dataset object.
+
+```python
+ds.sync()
 ```
 
 ### Uploading a dataset to Foundry

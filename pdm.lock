@@ -4,8 +4,8 @@
 [metadata]
 groups = ["default", "dev"]
 strategy = ["cross_platform", "inherit_metadata"]
-lock_version = "4.4.2"
-content_hash = "sha256:3553b9355645abb894d40a937a282325ef2ed605b47f42fc7b17c9e15cc38174"
+lock_version = "4.4.1"
+content_hash = "sha256:48454d3015a97691973f413c5059954d4565ce82890e129ea9281a25f5968770"
 
 [[package]]
 name = "aiobotocore"
@@ -536,7 +536,7 @@ files = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "1.4.1.dev75+ge1d964f.d20240628"
+version = "1.4.1.dev76+g5b02a36.d20240628"
 requires_python = ">=3.10"
 editable = true
 path = "./libs/foundry-dev-tools"
@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools-transforms"
-version = "1.4.1.dev75"
+version = "1.4.1.dev76"
 requires_python = ">=3.10"
 editable = true
 path = "./libs/transforms"
@@ -575,7 +575,7 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "1.4.1.dev75"
+version = "1.4.1.dev76"
 extras = ["integration", "s3", "testing"]
 requires_python = ">=3.10"
 editable = true

@@ -393,8 +393,6 @@ class CatalogClient(APIClient):
     ) -> requests.Response:
         """Creates a branch on a dataset.
 
-        If datasetstr is 'new', only parameter dataset_rid and branch are required.
-
         Args:
             dataset_rid: the dataset
             branch_id: the branch to create

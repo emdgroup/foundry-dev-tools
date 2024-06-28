@@ -12,6 +12,7 @@ import shutil
 from collections.abc import MutableMapping
 from typing import TYPE_CHECKING
 
+from foundry_dev_tools.errors.meta import FoundryDevToolsError
 from foundry_dev_tools.utils import api_types
 from foundry_dev_tools.utils.caches.metadata_store import DatasetMetadataStore
 from foundry_dev_tools.utils.converter.foundry_spark import (
@@ -180,12 +181,11 @@ class DiskPersistenceBackedSparkCache(MutableMapping[api_types.DatasetIdentity, 
         # transaction rid's are sortable by time
         all_transactions_sorted = sorted(all_transactions, reverse=True)
         if all_transactions_sorted[0].rsplit(".", 1)[0] != dataset_identity["last_transaction_rid"]:
-            # TODO exception
             msg = (
                 f"Cache dir not in sync with db.\nPlease delete the cache dir ({self.get_cache_dir()})"
                 " and restart the transform."
             )
-            raise RuntimeError(
+            raise FoundryDevToolsError(
                 msg,
             )
 
@@ -206,12 +206,11 @@ def _filter_unknown_files(paths: list[str]) -> list[str]:
 
 def _validate_cache_key(key: api_types.DatasetIdentity) -> None:
     if "dataset_rid" not in key or "last_transaction_rid" not in key or "dataset_path" not in key:
-        # TODO exception
         msg = (
             f"cache key: {key} is invalid. Mandatory dict keys are 'dataset_rid',"
             " 'last_transaction_rid' and 'dataset_path'"
         )
-        raise ValueError(
+        raise FoundryDevToolsError(
             msg,
         )
 
@@ -275,7 +274,7 @@ def _read_parquet(path: Path) -> pyspark.sql.DataFrame:
 
 def _read_csv(
     path: Path,
-    schema: api_types.FoundrySchema | None = None,  # TODO, type?
+    schema: api_types.FoundrySchema | None = None,  # TODO, type correct?
     read_options: ReadOptions | None = None,
 ) -> pyspark.sql.DataFrame:
     if not schema:

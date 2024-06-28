@@ -85,7 +85,7 @@ class Transform:
             setattr(exc, "__transform_compute_error", True)
             raise
 
-    def compute(self):  # noqa: ANN202, TODO not possible?
+    def compute(self):  # noqa: ANN202
         """Execute the wrapped transform function."""
         handlers: dict[DECORATOR_TYPE, Callable[[], Any]] = {
             "spark": self._compute_spark,
@@ -141,7 +141,7 @@ class Transform:
 
         return output_df
 
-    def _compute_transform(self):  # noqa: ANN202, TODO not possible?
+    def _compute_transform(self):  # noqa: ANN202
         # prepare Transform
         inputs = {argument_name: TransformInput(i) for argument_name, i in self.inputs.items()}
         outputs = {argument_name: TransformOutput(o, argument_name) for argument_name, o in self.outputs.items()}
@@ -154,7 +154,7 @@ class Transform:
 
         return {name: i.dataframe() for name, i in outputs.items()}
 
-    def _compute_lightweight(self):  # noqa: ANN202, TODO not possible?
+    def _compute_lightweight(self):  # noqa: ANN202
         if self._use_context:
             msg = "Lightweight transforms do not support the context argument."
             raise ValueError(msg)
