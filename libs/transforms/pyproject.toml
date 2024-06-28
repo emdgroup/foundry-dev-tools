@@ -29,6 +29,8 @@ dependencies = [
   "foundry-dev-tools",
   "typing_extensions; python_version < \"3.11\"",
   "pyspark>=3.0.0",
+  # pyspark is not fully compatible with numpy 2.0 https://github.com/apache/spark/pull/47083
+  "numpy<2",
   "fs",
 ]
 dynamic = ["version"]
