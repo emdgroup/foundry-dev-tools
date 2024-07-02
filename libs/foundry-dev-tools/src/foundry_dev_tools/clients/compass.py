@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import requests
 
 from foundry_dev_tools.clients.api_client import APIClient
 from foundry_dev_tools.errors.compass import (
-    AutosaveResourceOperationForbiddenError,
     FolderNotFoundError,
-    ForbiddenOperationOnHiddenResourceError,
     ResourceNotFoundError,
 )
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
@@ -20,6 +18,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 GET_PATHS_BATCH_SIZE = 100
+GET_PROJECTS_BATCH_SIZE = 1
+
+DEFAULT_PROJECTS_PAGE_SIZE = 100
+MINIMUM_PROJECTS_PAGE_SIZE = 1
+MAXIMUM_PROJECTS_PAGE_SIZE = 500
 
 
 @overload
@@ -427,7 +430,7 @@ class CompassClient(APIClient):
         self,
         rid: api_types.Rid,
         marking_id: api_types.MarkingId,
-        path_operation_type: api_types.PatchOperation | str,
+        path_operation_type: api_types.PatchOperationType,
         user_bearer_token: str | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -436,13 +439,10 @@ class CompassClient(APIClient):
         Args:
             rid: resource identifier
             marking_id: The id of the marking to be used
-            path_operation_type: path operation type, see :py:class:`api_types.PatchOperation`
+            path_operation_type: path operation type, see :py:class:`api_types.PatchOperationType`
             user_bearer_token: bearer token, needed when dealing with service project resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        if isinstance(path_operation_type, str):
-            path_operation_type = api_types.PatchOperation(path_operation_type)
-
         body = {"markingPatches": [{"markingId": marking_id, "patchOperation": str(path_operation_type)}]}
 
         return self.api_request(
@@ -450,12 +450,6 @@ class CompassClient(APIClient):
             f"markings/{rid}",
             headers={"User-Bearer-Token": f"Bearer {user_bearer_token}"} if user_bearer_token else None,
             json=body,
-            error_handling=ErrorHandlingConfig(
-                {
-                    "Compass:AutosaveResourceOperationForbidden": AutosaveResourceOperationForbiddenError,
-                    "Compass:ForbiddenOperationOnHiddenResource": ForbiddenOperationOnHiddenResourceError,
-                }
-            ),
             **kwargs,
         )
 
@@ -464,7 +458,6 @@ class CompassClient(APIClient):
         rid: api_types.Rid,
         marking_id: api_types.MarkingId,
         user_bearer_token: str | None = None,
-        **kwargs,
     ) -> requests.Response:
         """Add marking to resource.
 
@@ -472,16 +465,14 @@ class CompassClient(APIClient):
             rid: resource identifier
             marking_id: The id of the marking to be added
             user_bearer_token: bearer token, needed when dealing with service project resources
-            **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        return self.api_process_marking(rid, marking_id, api_types.PatchOperation.ADD, user_bearer_token, **kwargs)
+        return self.api_process_marking(rid, marking_id, api_types.PatchOperationType.ADD, user_bearer_token)
 
     def remove_marking(
         self,
         rid: api_types.Rid,
         marking_id: api_types.MarkingId,
         user_bearer_token: str | None = None,
-        **kwargs,
     ) -> requests.Response:
         """Remove marking from resource.
 
@@ -489,9 +480,8 @@ class CompassClient(APIClient):
             rid: resource identifier
             marking_id: The id of the marking to be removed
             user_bearer_token: bearer token, needed when dealing with service project resources
-            **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        return self.api_process_marking(rid, marking_id, api_types.PatchOperation.REMOVE, user_bearer_token, **kwargs)
+        return self.api_process_marking(rid, marking_id, api_types.PatchOperationType.REMOVE, user_bearer_token)
 
     def api_add_imports(
         self,
@@ -543,40 +533,6 @@ class CompassClient(APIClient):
             **kwargs,
         )
 
-    def api_get_resource_roles(
-        self,
-        rids: set[api_types.Rid],
-        **kwargs,
-    ) -> requests.Response:
-        """Remove imported reference from a project.
-
-        Args:
-            rids: set of resource identifiers
-            **kwargs: gets passed to :py:meth:`APIClient.api_request`
-
-        Returns:
-            dict:
-                example below for the branch response
-            .. code-block:: python
-
-             {
-                "resourceRolesResultMap": {
-                    "ri.foundry.main.dataset...": {
-                        "grants": [{
-                            "role": "..",
-                            "principal": ".."
-                        }],
-                        "disableInheritedPermissionsForPrincipals": [{
-                            "id": "..",
-                            "type": ".."
-                        }],
-                        "disableInheritedPermissions": False,
-                        "disableInheritedPermissionsType": ".."
-                    }
-                }
-             }
-        """
-
     def api_set_name(
         self,
         rid: api_types.Rid,
@@ -618,25 +574,285 @@ class CompassClient(APIClient):
         return self.api_request(
             "POST",
             "batch/resources/exist",
-            json=[*rids],
+            json=list(rids),
             **kwargs,
         )
+
+    def resources_exist(self, rids: set[api_types.Rid]) -> dict[api_types.Rid, bool]:
+        """Check if resources exist.
+
+        Args:
+            rids: set of resource identifiers
+
+        Returns:
+            dict:
+                mapping between rid and bool as indicator for resource existence
+        """
+        return self.api_resources_exist(rids).json()
 
     def resource_exists(
         self,
         rid: api_types.Rid,
-        **kwargs,
     ) -> bool:
         """Check if resource exists.
 
         Args:
             rid: resource identifier
-            **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
             bool:
                 true if resource exists, false otherwise
         """
-        result = self.api_resources_exist({rid}, kwargs).json()
+        result = self.resources_exist({rid})
 
         return result.get(rid, False)
+
+    def api_get_projects_by_rids(self, rids: list[api_types.Rid], **kwargs) -> requests.Response:
+        """Fetch projects by their resource identifiers.
+
+        Args:
+            rids: list of resource identifiers
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                which contains a json dict:
+                    with project information about every project
+        """
+        return self.api_request(
+            "PUT",
+            "hierarchy/v2/batch/projects",
+            json=rids,
+            **kwargs,
+        )
+
+    def get_projects_by_rids(
+        self,
+        rids: list[api_types.FolderRid],
+    ) -> dict[api_types.FolderRid, dict[str, Any]]:
+        """Returns a dict which maps rids to projects.
+
+        Args:
+            rids: list of resource identifiers
+
+        Returns:
+            dict:
+                mapping between rid and project
+        """
+        list_len = len(rids)
+        if list_len < GET_PATHS_BATCH_SIZE:
+            batches = [rids]
+        else:
+            batches = [rids[i : i + GET_PATHS_BATCH_SIZE] for i in range(0, list_len, GET_PROJECTS_BATCH_SIZE)]
+
+        result: dict[api_types.FolderRid, dict[str, Any]] = {}
+        for batch in batches:
+            result = {**result, **self.api_get_projects_by_rids(batch).json()}
+
+        return result
+
+    def get_project_by_rid(
+        self,
+        rid: api_types.FolderRid,
+    ) -> dict[str, Any] | None:
+        """Returns a single project.
+
+        Args:
+            rid: resource identifier
+
+        Returns:
+            dict:
+                mapping of project attribute keys and their respective values
+        """
+        result = self.get_projects_by_rids([rid])
+
+        return result.get(rid)
+
+    def api_resolve_path(self, path: api_types.FoundryPath, **kwargs) -> requests.Response:
+        """Fetch all resources that are part of the path string.
+
+        Args:
+            path: path: the path of the resource
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                the response contains a json which is a list of resources representing the path components
+        """
+        return self.api_request(
+            "GET",
+            "paths",
+            params={"path": path},
+            **kwargs,
+        )
+
+    def api_search_projects(
+        self,
+        query: str | None = None,
+        decorations: api_types.ResourceDecorationSetAll | None = None,
+        organizations: set[api_types.Rid] | None = None,
+        tags: set[api_types.Rid] | None = None,
+        roles: set[api_types.RoleId] | None = None,
+        include_home_projects: bool | None = None,
+        direct_role_grant_principal_ids: dict[str, set[api_types.RoleId]] | None = None,
+        sort: api_types.SortSpec | None = None,
+        page_size: int = DEFAULT_PROJECTS_PAGE_SIZE,
+        page_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Returns a list of projects satisfying the search criteria.
+
+        Args:
+            query: search term for the project
+            decorations: extra information for the decorated resource
+            organizations: queries only for organizations with these marking identifiers
+            tags: only includes projects with these tags
+            roles: filters for projects where the user has one of the roles
+            include_home_projects: whether to consider home projects of the user
+            direct_role_grant_principal_ids:  only return projects for which the role identifiers
+                for given principal identifiers have been granted
+            sort: see :py:meth:`foundry_dev_tools.utils.api_types.Sort`
+            page_size: the maximum number of projects to return. Must be in the range 0 < N <= 500
+            page_token: start position for request
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                the response contains a json which is a dict with a list of projects
+                and an optional nextPageToken in case all the projects could not be fetched all at once
+        """
+        if decorations is not None:
+            decorations = get_decoration(decorations)
+        if page_size not in range(MINIMUM_PROJECTS_PAGE_SIZE, MAXIMUM_PROJECTS_PAGE_SIZE + 1):
+            page_size = DEFAULT_PROJECTS_PAGE_SIZE
+
+        body = {
+            "query": query,
+            "decorations": decorations,
+            "organizations": organizations,
+            "tags": tags,
+            "roles": roles,
+            "includeHomeProjects": include_home_projects,
+            "directRoleGrantPrincipalIds": direct_role_grant_principal_ids,
+            "sort": sort,
+            "pageSize": page_size,
+            "pageToken": page_token,
+        }
+
+        return self.api_request(
+            "POST",
+            "search/projects",
+            json=body,
+            **kwargs,
+        )
+
+    def search_projects(
+        self,
+        query: str | None = None,
+        decorations: api_types.ResourceDecorationSetAll | None = None,
+        organizations: set[api_types.Rid] | None = None,
+        tags: set[api_types.Rid] | None = None,
+        roles: set[api_types.RoleId] | None = None,
+        include_home_projects: bool | None = None,
+        direct_role_grant_principal_ids: dict[str, set[api_types.RoleId]] | None = None,
+        sort: api_types.SortSpec | None = None,
+        page_size: int = DEFAULT_PROJECTS_PAGE_SIZE,
+    ) -> Iterator[dict]:
+        """Returns a list of projects satisfying the search criteria (automatic pagination).
+
+        Args:
+            query: search term for the project
+            decorations: extra information for the decorated resource
+            organizations: queries only for organizations with these marking identifiers
+            tags: only includes projects with these tags
+            roles: filters for projects where the user has one of the roles
+            include_home_projects: whether to consider home projects of the user
+            direct_role_grant_principal_ids:  only return projects for which the role identifiers
+                for given principal identifiers have been granted
+            sort: see :py:meth:`foundry_dev_tools.utils.api_types.Sort`
+            page_size: the maximum number of projects to return. Must be in the range 0 < N <= 500
+
+        Returns:
+            Iterator[dict]:
+                which contains the project data as a dict
+        """
+        page_token = None
+        while True:
+            response_as_json = self.api_search_projects(
+                query=query,
+                decorations=decorations,
+                organizations=organizations,
+                tags=tags,
+                roles=roles,
+                include_home_projects=include_home_projects,
+                direct_role_grant_principal_ids=direct_role_grant_principal_ids,
+                sort=sort,
+                page_size=page_size,
+                page_token=page_token,
+            ).json()
+            yield from response_as_json["values"]
+            if (page_token := response_as_json["nextPageToken"]) is None:
+                break
+
+    def api_get_resource_roles(
+        self,
+        rids: set[api_types.Rid],
+        **kwargs,
+    ) -> requests.Response:
+        """Retrieve the role grants for a set of resources.
+
+        Args:
+            rids: set of resource identifiers
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                which consists of a json returning a mapping between resource identifier and the associated grants
+        """
+        body = {"rids": list(rids)}
+
+        return self.api_request("POST", "roles", json=body, **kwargs)
+
+    def get_resource_roles(
+        self,
+        rids: set[api_types.Rid],
+    ) -> dict[api_types.Rid, api_types.ResourceGrantsResult]:
+        """Returns a mapping between resource identifier and resource grants result.
+
+        Args:
+            rids: set of resource identifiers
+        """
+        return self.api_get_resource_roles(rids).json()
+
+    def api_update_resource_roles(
+        self,
+        rid: api_types.Rid,
+        grant_patches: set[api_types.RoleGrantPatch] | None = None,
+        disable_inherited_permissions_for_principals: set[api_types.UserGroupPrincipalPatch] | None = None,
+        disable_inherited_permissions: bool | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Updates the role grants for a resource.
+
+        Args:
+            rid: resource identifier
+            grant_patches: the role grants that should be patched
+            disable_inherited_permissions_for_principals: patch role grants for the provided inherited permissions
+            disable_inherited_permissions: disable inherited permissions
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        body = {}
+
+        if grant_patches is not None:
+            body["grantPatches"] = grant_patches
+        if disable_inherited_permissions_for_principals is not None:
+            body["disableInheritedPermissionsForPrincipals"] = disable_inherited_permissions_for_principals
+        if disable_inherited_permissions is not None:
+            body["disableInheritedPermissions"] = disable_inherited_permissions
+
+        return self.api_request(
+            "POST",
+            f"roles/v2/{rid}",
+            json=body,
+            **kwargs,
+        )

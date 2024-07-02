@@ -41,6 +41,12 @@ class WrongResourceTypeError(FoundryDevToolsError):
         )
 
 
+class TooManyResourcesRequestedError(FoundryAPIError):
+    """Exception is thrown when too many resource rids have been requested in one batch."""
+
+    message = "Too many resource rids have been requested in one batch."
+
+
 class NotProjectError(FoundryAPIError):
     """Exception is thrown when project rid is not a project."""
 
@@ -81,3 +87,100 @@ class InvalidMarkingError(FoundryAPIError):
         "Marking is a multipass organization marking "
         "which can only be applied to projects, tag categories and collections."
     )
+
+
+class PathNotFoundError(FoundryAPIError):
+    """Exception is thrown when a component of the path does not exist."""
+
+    message = "Some component of the path does not exist and hence could not be found."
+
+
+class UsersNamespaceOperationForbiddenError(FoundryAPIError):
+    """Exception is thrown when trying to update a resource within the Users namespace."""
+
+    message = "It is not possible to update resources within the own Users namespace."
+
+
+class GatekeeperInsufficientPermissionsError(FoundryAPIError):
+    """Exception is thrown when the user does not have permissions to create the project."""
+
+    message = "The user does not have the permissions to create the project."
+
+
+class DuplicateNameError(FoundryAPIError):
+    """Exception is thrown when there exists already a project with the same name."""
+
+    message = "A project already exists holding the same name."
+
+
+class IllegalNameError(FoundryAPIError):
+    """Exception is thrown when the project name does not conform to the naming conventions."""
+
+    message = "The project name is illegal. Ensure that it does not contain any illegal characters."
+
+
+class UnrecognizedAccessLevelError(FoundryAPIError):
+    """Exception is thrown when the access level is unrecognized."""
+
+    message = "Permissions on project are invalid regarding the access level."
+
+
+class UnrecognizedPatchOperationError(FoundryAPIError):
+    """Exception is thrown when the patch operation is unrecognized."""
+
+    message = "Permissions on project are invalid regarding the patch operation."
+
+
+class UnrecognizedPrincipalError(FoundryAPIError):
+    """Exception is thrown when the principal is unrecognized."""
+
+    message = "Permissions on project are invalid regarding the principal."
+
+
+class OrganizationNotFoundError(FoundryAPIError):
+    """Exception is thrown when the requested organization marking does not exist."""
+
+    message = "The requested organization marking does not exist."
+
+
+class InvalidOrganizationMarkingHierarchyError(FoundryAPIError):
+    """Exception is thrown when the requested marking would cause an invalid hierarchy state.
+
+    Potential reasons can be that the requested organization marking(s) does not exist on the parent
+    or would result in an unmarked project under a marked Compass namespace.
+    """
+
+    message = "The requested marking would cause an invalid hierarchy state."
+
+
+class MissingOrganizationMarkingError(FoundryAPIError):
+    """Exception is thrown when the requested organization marking(s) is missing on the parent."""
+
+    message = "Exception is thrown when the requested organization marking(s) is missing on the parent."
+
+
+class InvalidMavenProductIdError(FoundryAPIError):
+    """Exception is thrown when the provided maven product id is invalid."""
+
+    message = "The provided maven product id is invalid."
+
+
+class MavenProductIdAlreadySetError(FoundryAPIError):
+    """Exception is thrown when the maven product id is either empty or already set."""
+
+    message = (
+        "The provided maven product id is either empty or "
+        "already set and does not correspond with the provided value."
+    )
+
+
+class MavenProductIdConflictError(FoundryAPIError):
+    """Exception is thrown when there is already another project associated with this maven group."""
+
+    message = "Another project is already associated with this maven group."
+
+
+class InvalidMavenGroupPrefixError(FoundryAPIError):
+    """Exception is thrown when the portfolio's maven group is not the maven group of the product id."""
+
+    message = "Portfolio's maven group is not the maven group of the product id."

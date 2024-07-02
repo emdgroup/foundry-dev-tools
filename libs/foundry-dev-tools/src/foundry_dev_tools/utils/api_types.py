@@ -37,6 +37,13 @@ DatasetBranch = str
 View = DatasetBranch | TransactionRid
 """A view, which is a :py:attr:`~foundry_dev_tools.utils.api_types.Ref` or a :py:attr:`~foundry_dev_tools.utils.api_types.TransactionRid`."""  # noqa: E501
 
+RoleId = str
+"""A role in foundry (Owner, Editor, Viewer, Discoverer,...)"""
+
+FolderRid = str
+"""A compass folder resource identifier."""
+
+# TODO further typing?
 FoundrySchema = dict[str, Any]
 
 
@@ -365,7 +372,11 @@ class DatasetIdentity(TypedDict):
     last_transaction: SecuredTransaction | None
 
 
-class PatchOperation(str, Enum, metaclass=EnumContainsMeta):
+PatchOperation = Literal["ADD", "REMOVE"]
+"""Foundry PatchOperation enum."""
+
+
+class PatchOperationType(str, Enum, metaclass=EnumContainsMeta):
     """Foundry patch operations for markings."""
 
     ADD = "ADD"
@@ -375,3 +386,119 @@ class PatchOperation(str, Enum, metaclass=EnumContainsMeta):
 
     def __str__(self) -> str:
         return self.value
+
+
+FieldType = Literal["NAME", "LAST_MODIFIED"]
+"""Foundry FieldType enum."""
+
+SortDirection = Literal["ASC", "DESC"]
+"""Foundry SortDirection enum."""
+
+
+class SortSpec(TypedDict):
+    """Foundry SortSpec API object."""
+
+    field: FieldType
+    direction: SortDirection
+
+
+PrincipalType = Literal["EVERYONE", "GROUP", "USER"]
+"""Foundry PrincipalType enum."""
+
+
+class Principal(TypedDict):
+    """Foundry Principal API object."""
+
+    id: PrincipalId
+    type: PrincipalType
+
+
+class RoleGrant(TypedDict):
+    """Foundry RoleGrant API object."""
+
+    role: RoleId
+    principal: Principal
+
+
+class RoleGrantPatch(TypedDict):
+    """Foundry RoleGrantPatch API object."""
+
+    roleGrant: RoleGrant
+    patchOperation: PatchOperation
+
+
+UserGroupPrincipalType = Literal["GROUP", "USER"]
+"""Foundry UserGroupPrincipalType enum."""
+
+
+class UserGroupPrincipal(TypedDict):
+    """Foundry UserGroupPrincipal API object."""
+
+    id: str
+    type: UserGroupPrincipalType
+
+
+class UserGroupPrincipalPatch(TypedDict):
+    """Foundry UserGroupPrincipalPatch API object."""
+
+    principal: UserGroupPrincipal
+    patchOperation: PatchOperation
+
+
+class ResourceGrantsResult(TypedDict):
+    """Foundry ResourceGrantsResult API object."""
+
+    grants: set[RoleGrant]
+    disableInheritedPermissionsForPrincipals: set[UserGroupPrincipal]
+    disableInheritedPermissions: bool
+    disableInheritedPermissionsType: DisableInheritedPermissionsType
+
+
+RoleContext = Literal["MARKETPLACE_INSTALLATION", "ONTOLOGY", "PROJECT", "TABLES", "TELEMETRY", "USE_CASE"]
+"""Foundry RoleContext."""
+
+RoleSetId = str
+"""Foundry RoleSet identifier."""
+
+
+class RoleSetUpdate(TypedDict):
+    """Foundry RoleSetUpdate API object."""
+
+    currentRoleSet: RoleSetId
+    targetRoleSet: RoleSetId
+    rolesMap: dict[RoleId, set[RoleId]]
+
+
+class MarkingPatch(TypedDict):
+    """Foundry MarkingPatch API object."""
+
+    markingId: MarkingId
+    patchOperation: PatchOperation
+
+
+class CbacMarkingConstraint(TypedDict):
+    """Foundry CbacMarkingConstraint API object."""
+
+    markingIds: set[MarkingId]
+
+
+MandatoryMarkingConstraintPatchType = Literal["ALLOWED", "DENIED", "NONE"]
+"""Foundry MandatoryMarkingConstraintPatchType."""
+
+
+class MandatoryMarkingConstraintPatches(TypedDict):
+    """Foundry MandatoryMarkingConstraintPatches API object."""
+
+    markingPatches: list[MarkingPatch]
+    type: MandatoryMarkingConstraintPatchType
+
+
+class ProjectFolderDisplaySettingsUpdate(TypedDict):
+    """Foundry ProjectFolderDisplaySettingsUpdate API object."""
+
+    showLinkedOntologyEntitiesTab: bool | None
+    showReleaseAndPublishTab: bool | None
+
+
+MavenProductId = str
+"""Foundry MavenProduct identifier."""
