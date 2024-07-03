@@ -1,12 +1,12 @@
 # Transforms
 
-### Git clone the Foundry repository
+## Git clone the Foundry repository
 
 Open your Code Repository in Foundry and use the Clone Button in the top right corner to retrieve the git link.
 Now you can use your local git installation to clone the repository. Please create a feature branch before starting your
 work.
 
-### Run the transformations locally
+## Run the transformations locally
 
 The disadvantage is that the rendering of the result dataframe is not of comparable
 visual quality as in the Foundry environment. But if you use your IDE for running the transforms code,
@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
 After adding this, you just need to run the file.
 
-#### Using Foundry DevTools inside a Jupyter Notebook
+### Using Foundry DevTools inside a Jupyter Notebook
 
 You can run your transform code from jupyter with very minimal, non-breaking changes to your repository.
 

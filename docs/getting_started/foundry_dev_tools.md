@@ -89,7 +89,7 @@ children = list(ctx.compass.get_child_objects_of_folder("ri.compass.main.folder.
 
 When accessing an API client through the context it automatically creates a new client, and then caches it, so the next time you'll use `ctx.compass` it will be the same instance.
 
-```{literalinclude} ../../src/foundry_dev_tools/config/context.py
+```{literalinclude} ../../libs/foundry-dev-tools/src/foundry_dev_tools/config/context.py
 :pyobject: FoundryContext.compass
 ```
 

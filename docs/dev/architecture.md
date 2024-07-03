@@ -8,7 +8,7 @@ The following pages contain information how Foundry DevTools is structured, and 
 architecture/*
 ```
 
-### Known limitations (Contributions Welcome 🤗)
+## Known limitations (Contributions Welcome 🤗)
 
 - CSV format settings are not taken over from the Foundry Schema. Advised to use datasets in parquet format.
 - transforms Output not written back to foundry

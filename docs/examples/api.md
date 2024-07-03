@@ -6,7 +6,7 @@ The following samples will include the way the new clients and classes can be us
 
 # API clients
 
-### Pandas DataFrame from spark SQL dialect
+## Pandas DataFrame from spark SQL dialect
 
 Queries the Foundry SQL server with spark SQL dialect.
 
@@ -35,10 +35,10 @@ df.to_string()
 ````
 
 :::{seealso}
-With the `Dataset` class [](/docs/examples/dataset.md#polars-dataframe-from-spark-sql-dialect)
+[With the `Dataset` class](./dataset.md#polars-dataframe-from-spark-sql-dialect)
 :::
 
-### Download a dataset to local cache
+## Download a dataset to local cache
 
 If dataset isn't already in the cache, download it to the cache and returns a PySpark DataFrame. Useful when reusing datasets.
 

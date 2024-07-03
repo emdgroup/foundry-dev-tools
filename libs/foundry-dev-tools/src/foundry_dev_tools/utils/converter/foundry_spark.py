@@ -22,7 +22,7 @@ def foundry_schema_to_spark_schema(
         See the table below for supported field types:
 
     .. csv-table::
-        :header: "Type","FieldType","Python type","Aliases"
+        :header: "Type";"FieldType";"Python type";"Aliases"
         :delim: ;
         :class: longtable
 

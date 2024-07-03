@@ -27,13 +27,9 @@ if TYPE_CHECKING:
 
 
 class APIClient:
-    """Base class for API clients.
+    """Base class for API clients."""
 
-    Attributes:
-        api_name: the name of the API, it is used to build the api url,
-            the api_name is the part after '/api/' `https://foundry/api/<api_name>/...`
-    """
-
+    """The name of the API, it is used to build the api url, the api_name is the part after '/api/' `https://foundry/api/<api_name>/...`."""
     api_name: ClassVar[str]
 
     def __init__(self, context: FoundryContext) -> None:

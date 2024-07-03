@@ -5,7 +5,7 @@ And a token provider always has a [`requests_auth_handler`](#requests-auth-handl
 
 The simplest implementation of a token provider is the [`JWTTokenProvider`]:
 
-:::{literalinclude} ../../../src/foundry_dev_tools/config/token_provider.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/config/token_provider.py
 :pyobject: JWTTokenProvider
 :::
 
@@ -32,7 +32,7 @@ This method will be set as the `auth` attribute by default in the [ContextHTTPCl
 There is also a [`CachedTokenProvider`] implementation, which does not work on its own but is a building block for other token providers.
 The builtin [`OAuthTokenProvider`] is based on it.
 
-:::{literalinclude} ../../../src/foundry_dev_tools/config/token_provider.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/config/token_provider.py
 :pyobject: CachedTokenProvider
 :::
 
@@ -61,7 +61,7 @@ See [Credentials Configuration](/configuration.md#credentials-config).
 
 These steps happen when the [credentials configuration](configuration.md#credentials-config) gets parsed by the [`parse_credentials_config`](#foundry_dev_tools.config.config.parse_credentials_config) method:
 
-:::{literalinclude} ../../../src/foundry_dev_tools/config/config.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/config/config.py
 :pyobject: parse_credentials_config
 :::
 

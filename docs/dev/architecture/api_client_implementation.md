@@ -10,7 +10,7 @@ Every [`APIClient`] implementation needs to set the class attribute [`api_name`]
 
 The [`api_request`] method is a special request function, that can be used to easily make API requests to Foundry.
 
-:::{literalinclude} ../../../src/foundry_dev_tools/clients/api_client.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/clients/api_client.py
 :pyobject: APIClient.api_request
 
 :::
@@ -18,7 +18,7 @@ The [`api_request`] method is a special request function, that can be used to ea
 The `method` parameter gets passed to the [`ContextHTTPClient`] of the [`FoundryContext`] associated with the [`APIClient`].
 The `api_path` parameter builds the correct URL for that API with the [`build_api_url`](#foundry_dev_tools.utils.clients.build_api_url) method.
 
-:::{literalinclude} ../../../src/foundry_dev_tools/utils/clients.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/utils/clients.py
 :pyobject: build_api_url
 :::
 
@@ -43,7 +43,7 @@ If it is just a wrapper around an API and does nothing else than calling the [`a
 
 For example the [`DataProxyClient.api_get_file`](#foundry_dev_tools.clients.data_proxy.DataProxyClient.api_get_file) method:
 
-:::{literalinclude} ../../../src/foundry_dev_tools/clients/data_proxy.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/clients/data_proxy.py
 :pyobject: DataProxyClient.api_get_file
 :::
 
@@ -55,7 +55,7 @@ These methods always return the [`requests.Response`](#requests.Response) of the
 
 Methods which do more than just calling the API like [`CatalogClient.list_dataset_files`](#foundry_dev_tools.clients.catalog.CatalogClient.list_dataset_files):
 
-:::{literalinclude} ../../../src/foundry_dev_tools/clients/catalog.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/clients/catalog.py
 :pyobject: CatalogClient.list_dataset_files
 :::
 

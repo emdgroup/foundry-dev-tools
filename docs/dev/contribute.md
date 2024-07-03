@@ -2,7 +2,6 @@
 
 Code contributions or forks of our project are welcome
 and to keep our codebase consistent we use the workflow described below.
-As our base we did use [pyscaffold].
 We use [PDM] as our build system instead of setuptools.
 
 To install and manage your dependencies you should use `pdm`.
@@ -119,7 +118,6 @@ pdm run build
 ```
 
 
-[pyscaffold]: https://pyscaffold.org/en/stable/
 [PDM]: https://pdm-project.org/
 [pre-commit]: https://pre-commit.com/
 [black]: https://github.com/psf/black

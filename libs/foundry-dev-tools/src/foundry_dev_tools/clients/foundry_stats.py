@@ -38,24 +38,17 @@ class FoundryStatsClient(APIClient):
                 which has a json dict:
                     With the following structure:
                     {
-                    datasetRid:str,
-                    branch:str,
-                    endTransactionRid:str,
-                    schemaId:str,
-                    computedDatasetStats:{
-                        rowCount:str|None,
-                        sizeInBytes:str,
-                        columnStats:{
-                            "...":{
-                                nullCount:str|None,
-                                uniqueCount:str|None,
-                                avgLength:str|None,
-                                maxLength:str|None
-                                }
-                            }
-                        }
+                    datasetRid: str,
+                    branch: str,
+                    endTransactionRid: str,
+                    schemaId: str,
+                    computedDatasetStats: {
+                    rowCount: str | None,
+                    sizeInBytes: str,
+                    columnStats: { "...": {nullCount: str | None, uniqueCount: str | None, avgLength: str | None, maxLength: str | None,} },
+                    },
                     }
-        """
+        """  # noqa: E501
         return self.api_request(
             "POST",
             "computed-stats-v2/get-v2",

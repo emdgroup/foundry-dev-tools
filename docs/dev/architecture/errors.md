@@ -20,7 +20,7 @@ this means, in most of the cases a developer of an API client does not need to c
 The method only takes two arguments, the [response](#requests.Response) and the error_handling argument takes either an [ErrorHandlingConfig], None or False (True is not valid!).
 If error_handling is False, then no error handling will be done, if it is None it will use the default [ErrorHandlingConfig], otherwise it will use the specified [ErrorHandlingConfig].
 
-:::{literalinclude} ../../../src/foundry_dev_tools/errors/handling.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/errors/handling.py
 :pyobject: raise_foundry_api_error
 :::
 
@@ -61,7 +61,7 @@ graph LR
 ```
 
 
-:::{literalinclude} ../../../src/foundry_dev_tools/errors/handling.py
+:::{literalinclude} ../../../libs/foundry-dev-tools/src/foundry_dev_tools/errors/handling.py
 :pyobject: ErrorHandlingConfig.get_exception_class
 :::
 

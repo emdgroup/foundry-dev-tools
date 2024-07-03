@@ -745,24 +745,17 @@ class FoundryRestClient:
             dict:
                 With the following structure:
                 {
-                datasetRid:str,
-                branch:str,
-                endTransactionRid:str,
-                schemaId:str,
-                computedDatasetStats:{
-                    rowCount:str|None,
-                    sizeInBytes:str,
-                    columnStats:{
-                        "...":{
-                            nullCount:str|None,
-                            uniqueCount:str|None,
-                            avgLength:str|None,
-                            maxLength:str|None
-                            }
-                        }
-                    }
+                datasetRid: str,
+                branch: str,
+                endTransactionRid: str,
+                schemaId: str,
+                computedDatasetStats: {
+                rowCount: str | None,
+                sizeInBytes: str,
+                columnStats: { "...": {nullCount: str | None, uniqueCount: str | None, avgLength: str | None, maxLength: str | None,} },
+                },
                 }
-        """
+        """  # noqa: E501
         return self.ctx.foundry_stats.api_foundry_stats(dataset_rid, end_transaction_rid, branch).json()
 
     def download_dataset_file(
