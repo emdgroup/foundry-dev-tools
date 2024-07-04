@@ -43,6 +43,9 @@ RoleId = str
 FolderRid = str
 """A compass folder resource identifier."""
 
+ProjectRid = str
+"""A compass project root folder resource identifier."""
+
 # TODO further typing?
 FoundrySchema = dict[str, Any]
 

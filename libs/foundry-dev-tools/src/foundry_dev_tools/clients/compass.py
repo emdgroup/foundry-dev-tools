@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 import requests
@@ -23,6 +24,8 @@ GET_PROJECTS_BATCH_SIZE = 1
 DEFAULT_PROJECTS_PAGE_SIZE = 100
 MINIMUM_PROJECTS_PAGE_SIZE = 1
 MAXIMUM_PROJECTS_PAGE_SIZE = 500
+MINIMUM_PROJECTS_SEARCH_OFFSET = 0
+MAXIMUM_PROJECTS_SEARCH_OFFSET = 500
 
 
 @overload
@@ -437,12 +440,17 @@ class CompassClient(APIClient):
         """Process marking to add or remove from resource.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier of the resource for which a marking is adjusted
             marking_id: The id of the marking to be used
             path_operation_type: path operation type, see :py:class:`api_types.PatchOperationType`
             user_bearer_token: bearer token, needed when dealing with service project resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
+        # method accepts either the Enum or a string, if it is not a string, the input should already be correct
+        if isinstance(path_operation_type, str):
+            # we cast it to the Enum, which would throw an error if the string is not valid for this enum
+            path_operation_type = api_types.PatchOperationType(path_operation_type)
+
         body = {"markingPatches": [{"markingId": marking_id, "patchOperation": str(path_operation_type)}]}
 
         return self.api_request(
@@ -462,7 +470,7 @@ class CompassClient(APIClient):
         """Add marking to resource.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier of the resource for which a marking will be added
             marking_id: The id of the marking to be added
             user_bearer_token: bearer token, needed when dealing with service project resources
         """
@@ -477,7 +485,7 @@ class CompassClient(APIClient):
         """Remove marking from resource.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier of the resource for which a marking will be removed
             marking_id: The id of the marking to be removed
             user_bearer_token: bearer token, needed when dealing with service project resources
         """
@@ -485,7 +493,7 @@ class CompassClient(APIClient):
 
     def api_add_imports(
         self,
-        project_rid: api_types.Rid,
+        project_rid: api_types.ProjectRid,
         rids: set[api_types.Rid],
         user_bearer_token: str | None = None,
         **kwargs,
@@ -494,7 +502,7 @@ class CompassClient(APIClient):
 
         Args:
             project_rid: resource identifier of the project
-            rids: set of resource identifiers
+            rids: set of resource identifiers of the resources being imported
             user_bearer_token: bearer token, needed when dealing with service project resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
@@ -510,7 +518,7 @@ class CompassClient(APIClient):
 
     def api_remove_imports(
         self,
-        project_rid: api_types.Rid,
+        project_rid: api_types.ProjectRid,
         rids: set[api_types.Rid],
         user_bearer_token: str | None = None,
         **kwargs,
@@ -519,7 +527,7 @@ class CompassClient(APIClient):
 
         Args:
             project_rid: resource identifier of the project
-            rids: set of resource identifiers
+            rids: set of resource identifiers of the resources that will be removed from import
             user_bearer_token: bearer token, needed when dealing with service project resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
@@ -542,7 +550,7 @@ class CompassClient(APIClient):
         """Remove imported reference from a project.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier of the resource whose name will be changed
             name: The resource name that should be set
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
@@ -563,7 +571,7 @@ class CompassClient(APIClient):
         """Check if resources exist.
 
         Args:
-            rids: set of resource identifiers
+            rids: set of resource identifiers to check whether they exist
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
@@ -582,7 +590,7 @@ class CompassClient(APIClient):
         """Check if resources exist.
 
         Args:
-            rids: set of resource identifiers
+            rids: set of resource identifiers to check whether they exist
 
         Returns:
             dict:
@@ -597,7 +605,7 @@ class CompassClient(APIClient):
         """Check if resource exists.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier of resource to check whether it exists
 
         Returns:
             bool:
@@ -607,11 +615,11 @@ class CompassClient(APIClient):
 
         return result.get(rid, False)
 
-    def api_get_projects_by_rids(self, rids: list[api_types.Rid], **kwargs) -> requests.Response:
+    def api_get_projects_by_rids(self, rids: list[api_types.ProjectRid], **kwargs) -> requests.Response:
         """Fetch projects by their resource identifiers.
 
         Args:
-            rids: list of resource identifiers
+            rids: list of project resource identifiers that shall be fetched
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
@@ -628,12 +636,12 @@ class CompassClient(APIClient):
 
     def get_projects_by_rids(
         self,
-        rids: list[api_types.FolderRid],
-    ) -> dict[api_types.FolderRid, dict[str, Any]]:
+        rids: list[api_types.ProjectRid],
+    ) -> dict[api_types.ProjectRid, dict[str, Any]]:
         """Returns a dict which maps rids to projects.
 
         Args:
-            rids: list of resource identifiers
+            rids: list of project resource identifiers that shall be fetched
 
         Returns:
             dict:
@@ -647,24 +655,24 @@ class CompassClient(APIClient):
 
         result: dict[api_types.FolderRid, dict[str, Any]] = {}
         for batch in batches:
-            result = {**result, **self.api_get_projects_by_rids(batch).json()}
+            result.update(self.api_get_projects_by_rids(batch).json())
 
         return result
 
     def get_project_by_rid(
         self,
-        rid: api_types.FolderRid,
+        rid: api_types.ProjectRid,
     ) -> dict[str, Any] | None:
         """Returns a single project.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier of a project to be fetched
 
         Returns:
             dict:
                 mapping of project attribute keys and their respective values
         """
-        result = self.get_projects_by_rids([rid])
+        result = self.api_get_projects_by_rids([rid]).json()
 
         return result.get(rid)
 
@@ -713,7 +721,7 @@ class CompassClient(APIClient):
                 for given principal identifiers have been granted
             sort: see :py:meth:`foundry_dev_tools.utils.api_types.Sort`
             page_size: the maximum number of projects to return. Must be in the range 0 < N <= 500
-            page_token: start position for request
+            page_token: start position for request. Must be in the range 0 <= N <= 500
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
@@ -723,8 +731,24 @@ class CompassClient(APIClient):
         """
         if decorations is not None:
             decorations = get_decoration(decorations)
-        if page_size not in range(MINIMUM_PROJECTS_PAGE_SIZE, MAXIMUM_PROJECTS_PAGE_SIZE + 1):
-            page_size = DEFAULT_PROJECTS_PAGE_SIZE
+        if not MINIMUM_PROJECTS_PAGE_SIZE <= page_size <= MAXIMUM_PROJECTS_PAGE_SIZE:
+            page_size = (
+                MINIMUM_PROJECTS_PAGE_SIZE if page_size < MINIMUM_PROJECTS_PAGE_SIZE else MAXIMUM_PROJECTS_PAGE_SIZE
+            )
+            warnings.warn(f"Parameter `page_size` not within boundaries (1 <= N <= 500). Defaulting to {page_size}.")
+
+        valid_page_token = (
+            page_token is not None
+            and page_token.isdecimal()
+            and MINIMUM_PROJECTS_SEARCH_OFFSET <= int(page_token) <= MAXIMUM_PROJECTS_SEARCH_OFFSET
+        )
+
+        if not valid_page_token:
+            page_token = None
+            warnings.warn(
+                "Parameter `page_token` is invalid and will not be reset to default value. "
+                "For valid pattern see parameter description of this function."
+            )
 
         body = {
             "query": query,
@@ -791,7 +815,9 @@ class CompassClient(APIClient):
                 page_token=page_token,
             ).json()
             yield from response_as_json["values"]
-            if (page_token := response_as_json["nextPageToken"]) is None:
+
+            page_token = response_as_json["nextPageToken"]
+            if page_token is None or (int(page_token) > MAXIMUM_PROJECTS_PAGE_SIZE):
                 break
 
     def api_get_resource_roles(
@@ -802,7 +828,7 @@ class CompassClient(APIClient):
         """Retrieve the role grants for a set of resources.
 
         Args:
-            rids: set of resource identifiers
+            rids: set of resource identifiers, for the resources for which the role grants should be returned
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
@@ -820,7 +846,7 @@ class CompassClient(APIClient):
         """Returns a mapping between resource identifier and resource grants result.
 
         Args:
-            rids: set of resource identifiers
+            rids: set of resource identifiers, for the resources for which the role grants should be returned
         """
         return self.api_get_resource_roles(rids).json()
 
@@ -835,7 +861,7 @@ class CompassClient(APIClient):
         """Updates the role grants for a resource.
 
         Args:
-            rid: resource identifier
+            rid: resource identifier, for the resource for which roles will be updated
             grant_patches: the role grants that should be patched
             disable_inherited_permissions_for_principals: patch role grants for the provided inherited permissions
             disable_inherited_permissions: disable inherited permissions
