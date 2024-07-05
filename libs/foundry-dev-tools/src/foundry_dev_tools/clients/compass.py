@@ -731,24 +731,44 @@ class CompassClient(APIClient):
         """
         if decorations is not None:
             decorations = get_decoration(decorations)
-        if not MINIMUM_PROJECTS_PAGE_SIZE <= page_size <= MAXIMUM_PROJECTS_PAGE_SIZE:
-            page_size = (
-                MINIMUM_PROJECTS_PAGE_SIZE if page_size < MINIMUM_PROJECTS_PAGE_SIZE else MAXIMUM_PROJECTS_PAGE_SIZE
-            )
-            warnings.warn(f"Parameter `page_size` not within boundaries (1 <= N <= 500). Defaulting to {page_size}.")
 
-        valid_page_token = (
-            page_token is not None
-            and page_token.isdecimal()
-            and MINIMUM_PROJECTS_SEARCH_OFFSET <= int(page_token) <= MAXIMUM_PROJECTS_SEARCH_OFFSET
-        )
-
-        if not valid_page_token:
-            page_token = None
+        if page_size < MINIMUM_PROJECTS_PAGE_SIZE:
             warnings.warn(
-                "Parameter `page_token` is invalid and will not be reset to default value. "
-                "For valid pattern see parameter description of this function."
+                f"Parameter `page_size` ({page_size}) is less than "
+                f"the minimum page size ({MINIMUM_PROJECTS_PAGE_SIZE}). "
+                f"Defaulting to {MINIMUM_PROJECTS_PAGE_SIZE}."
             )
+            page_size = MINIMUM_PROJECTS_PAGE_SIZE
+        elif page_size > MAXIMUM_PROJECTS_PAGE_SIZE:
+            warnings.warn(
+                f"Parameter `page_size` ({page_size}) is greater than "
+                f"the maximum page size ({MAXIMUM_PROJECTS_PAGE_SIZE}). "
+                f"Defaulting to {MAXIMUM_PROJECTS_SEARCH_OFFSET}."
+            )
+
+        if page_token is not None:
+            if page_token.isdecimal() is False:
+                msg = (
+                    f"Parameter `page_token` ({page_token}) is expected to contain a number "
+                    f"as the starting offset for the request. "
+                    f"The search offset must be within the range from "
+                    f"{MINIMUM_PROJECTS_SEARCH_OFFSET} to {MAXIMUM_PROJECTS_SEARCH_OFFSET}."
+                )
+                raise ValueError(msg)
+
+            page_token_int = int(page_token)
+            if page_token_int < MINIMUM_PROJECTS_SEARCH_OFFSET:
+                msg = (
+                    f"Parameter `page_token` ({page_token_int}) is less than "
+                    f"the minimum search offset ({MINIMUM_PROJECTS_SEARCH_OFFSET})"
+                )
+                raise ValueError(msg)
+            if page_token_int > MAXIMUM_PROJECTS_SEARCH_OFFSET:
+                msg = (
+                    f"Parameter `page_token` ({page_token_int}) is greater than "
+                    f"the maximum search offset ({MAXIMUM_PROJECTS_SEARCH_OFFSET})"
+                )
+                raise ValueError(msg)
 
         body = {
             "query": query,
