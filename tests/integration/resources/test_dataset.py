@@ -10,7 +10,6 @@ from foundry_dev_tools.errors.dataset import (
     TransactionTypeMismatchError,
 )
 from foundry_dev_tools.resources.dataset import Dataset
-from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
 from tests.integration.utils import INTEGRATION_TEST_COMPASS_ROOT_PATH
 
@@ -50,7 +49,7 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
 
     assert len(ds.list_files()) == 1
 
-    ds.put_file("test.bin", b"1", transaction_type=api_types.FoundryTransaction.UPDATE)
+    ds.put_file("test.bin", b"1", transaction_type="UPDATE")
     with pytest.raises(DatasetHasNoOpenTransactionError):
         _ = ds.transaction
 
@@ -58,7 +57,7 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
 
     assert test_bin == b"1"
 
-    with ds.transaction_context(transaction_type=api_types.FoundryTransaction.DELETE):
+    with ds.transaction_context(transaction_type="DELETE"):
         remove_transaction = ds.transaction
         ds.delete_files(["test.bin"])
 
@@ -89,10 +88,10 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
     ds_spark_branch.save_dataframe(spark_df)
     assertDataFrameEqual(ds_spark_branch.to_spark(), spark_df)
 
-    ds.start_transaction(start_transaction_type=api_types.FoundryTransaction.DELETE)
+    ds.start_transaction(start_transaction_type="DELETE")
 
     with pytest.raises(TransactionTypeMismatchError):  # noqa: SIM117
-        with ds.transaction_context(transaction_type=api_types.FoundryTransaction.APPEND):
+        with ds.transaction_context(transaction_type="APPEND"):
             pass
 
     to_up = tmp_path.joinpath("to_upload")

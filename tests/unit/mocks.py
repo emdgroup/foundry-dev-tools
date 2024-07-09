@@ -38,7 +38,7 @@ class MockOAuthTokenProvider(OAuthTokenProvider):
         self,
         client_id: str,
         client_secret: str | None = None,
-        grant_type: FoundryOAuthGrantType | str | None = None,
+        grant_type: FoundryOAuthGrantType | None = None,
         scopes: list[str] | None = None,
         mock_request_token: Callable[[], tuple[str, float]] | None = None,
     ):

@@ -9,7 +9,6 @@ import pytest
 import requests_mock
 from freezegun import freeze_time
 
-from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
 from foundry_dev_tools.config.token_provider import DEFAULT_OAUTH_SCOPES, AppServiceTokenProvider, CachedTokenProvider
 from foundry_dev_tools.errors.config import FoundryConfigError, TokenProviderConfigError
 from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvider
@@ -18,6 +17,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
     from pytest_mock import MockerFixture
+
+    from foundry_dev_tools.config.config_types import Token
 
 
 def generate_tokens_with_expiry(expiries: list[int]) -> Generator[tuple[Token, float], None, None]:
@@ -47,22 +48,18 @@ def test_oauth_token_provider(mocker: MockerFixture):
         tp = MockOAuthTokenProvider("client_id", grant_type="client_credentials")
     assert e.value.args[0] == "You need to provide a client secret for the client credentials grant type."
 
-    tp = MockOAuthTokenProvider("client_id", grant_type=FoundryOAuthGrantType.authorization_code)
+    tp = MockOAuthTokenProvider("client_id", grant_type="authorization_code")
     assert tp.scopes == DEFAULT_OAUTH_SCOPES
-    tp_ac = MockOAuthTokenProvider(
-        "client_id", grant_type=FoundryOAuthGrantType.authorization_code, scopes=["extra scope"]
-    )
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes=["extra scope"])
     assert sorted(tp_ac.scopes) == sorted(
         [
             "extra scope",
             *DEFAULT_OAUTH_SCOPES,
         ]
     )
-    tp = MockOAuthTokenProvider("client_id", "client_secret", grant_type=FoundryOAuthGrantType.client_credentials)
+    tp = MockOAuthTokenProvider("client_id", "client_secret", grant_type="client_credentials")
     assert tp.scopes == []
-    tp_cc = MockOAuthTokenProvider(
-        "client_id", "client_secret", grant_type=FoundryOAuthGrantType.client_credentials, scopes=["scope"]
-    )
+    tp_cc = MockOAuthTokenProvider("client_id", "client_secret", grant_type="client_credentials", scopes=["scope"])
     assert tp_cc.scopes == ["scope"]
 
     guc_mock = mocker.patch("foundry_dev_tools.config.token_provider.palantir_oauth_client.get_user_credentials")
@@ -86,7 +83,7 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
         token_provider=MockOAuthTokenProvider(
             client_id=foundry_client_id,
             client_secret=foundry_client_secret,
-            grant_type=FoundryOAuthGrantType.client_credentials,
+            grant_type="client_credentials",
         ),
     )
     with requests_mock.Mocker() as m:

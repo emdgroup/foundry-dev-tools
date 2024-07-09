@@ -34,6 +34,7 @@ from foundry_dev_tools.errors.dataset import (
 )
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig
 from foundry_dev_tools.utils import api_types
+from foundry_dev_tools.utils.api_types import assert_in_literal
 from foundry_dev_tools.utils.compat import v1_to_v2_config
 
 if TYPE_CHECKING:
@@ -231,11 +232,11 @@ class FoundryRestClient:
             DatasetNotFoundError: if dataset does not exist
             DatasetHasOpenTransactionError: if dataset has an open transaction
         """
-        transaction_type = api_types.FoundryTransaction(mode)
+        assert_in_literal(mode, api_types.FoundryTransaction, "mode")
+
+        transaction_type = mode
         transaction_id = self.ctx.catalog.api_start_transaction(
-            dataset_rid,
-            branch,
-            start_transaction_type=api_types.FoundryTransaction(mode),
+            dataset_rid, branch, start_transaction_type=transaction_type
         ).json()["rid"]
 
         # update type of transaction, default is APPEND
@@ -897,7 +898,7 @@ class FoundryRestClient:
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.PANDAS],
+        return_type: Literal["pandas"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -907,7 +908,7 @@ class FoundryRestClient:
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.SPARK],
+        return_type: Literal["spark"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -917,7 +918,7 @@ class FoundryRestClient:
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.ARROW],
+        return_type: Literal["arrow"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -927,7 +928,7 @@ class FoundryRestClient:
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.RAW],
+        return_type: Literal["raw"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -946,9 +947,9 @@ class FoundryRestClient:
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: api_types.SQLReturnType = api_types.SQLReturnType.RAW,
+        return_type: api_types.SQLReturnType = "raw",
         branch: api_types.Ref = "master",
-        sql_dialect: api_types.SqlDialect = api_types.SqlDialect.SPARK,
+        sql_dialect: api_types.SqlDialect = "SPARK",
         timeout: int = 600,
     ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the dataproxy query API with spark SQL.
@@ -995,7 +996,7 @@ class FoundryRestClient:
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.PANDAS],
+        return_type: Literal["pandas"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -1005,7 +1006,7 @@ class FoundryRestClient:
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.SPARK],
+        return_type: Literal["spark"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -1015,7 +1016,7 @@ class FoundryRestClient:
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.ARROW],
+        return_type: Literal["arrow"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -1025,7 +1026,7 @@ class FoundryRestClient:
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.RAW],
+        return_type: Literal["raw"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -1044,9 +1045,9 @@ class FoundryRestClient:
     def query_foundry_sql(
         self,
         query: str,
-        return_type: api_types.SQLReturnType = api_types.SQLReturnType.PANDAS,
+        return_type: api_types.SQLReturnType = "pandas",
         branch: api_types.Ref = "master",
-        sql_dialect: api_types.SqlDialect = api_types.SqlDialect.SPARK,
+        sql_dialect: api_types.SqlDialect = "SPARK",
         timeout: int = 600,
     ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server with spark SQL dialect.
@@ -1143,10 +1144,10 @@ class FoundryRestClient:
 
     def create_third_party_application(
         self,
-        client_type: api_types.MultipassClientType | str,
+        client_type: api_types.MultipassClientType,
         display_name: str,
         description: str | None,
-        grant_types: list[api_types.MultipassGrantType | str],
+        grant_types: list[api_types.MultipassGrantType],
         redirect_uris: list | None,
         logo_uri: str | None,
         organization_rid: str,
@@ -1202,7 +1203,7 @@ class FoundryRestClient:
 
         """
         return self.ctx.multipass.api_create_third_party_application(
-            api_types.MultipassClientType(client_type),
+            client_type=client_type,
             display_name=display_name,
             description=description,
             grant_types=grant_types,
@@ -1229,10 +1230,10 @@ class FoundryRestClient:
     def update_third_party_application(
         self,
         client_id: str,
-        client_type: api_types.MultipassClientType | str,
+        client_type: api_types.MultipassClientType,
         display_name: str,
         description: str | None,
-        grant_types: list[api_types.MultipassGrantType | str],
+        grant_types: list[api_types.MultipassGrantType],
         redirect_uris: list | None,
         logo_uri: str | None,
         organization_rid: str,
@@ -1286,7 +1287,7 @@ class FoundryRestClient:
         """
         return self.ctx.multipass.api_update_third_party_application(
             client_id=client_id,
-            client_type=api_types.MultipassClientType(client_type),
+            client_type=client_type,
             display_name=display_name,
             description=description,
             grant_types=grant_types,
@@ -1338,7 +1339,7 @@ class FoundryRestClient:
         operations: list | None = None,
         resources: list | None = None,
         marking_ids: list[str] | None = None,
-        grant_types: list[api_types.MultipassGrantType | str] | None = None,
+        grant_types: list[api_types.MultipassGrantType] | None = None,
         require_consent: bool = True,
         **kwargs,
     ) -> dict:

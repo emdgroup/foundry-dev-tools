@@ -8,11 +8,11 @@ from urllib.parse import quote_plus
 from foundry_dev_tools.clients.api_client import APIClient
 from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetNotFoundError
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig
+from foundry_dev_tools.utils import api_types
+from foundry_dev_tools.utils.api_types import assert_in_literal
 
 if TYPE_CHECKING:
     import requests
-
-    from foundry_dev_tools.utils import api_types
 
 
 class CatalogClient(APIClient):
@@ -230,10 +230,12 @@ class CatalogClient(APIClient):
             transaction_type: foundry transaction type, see :py:class:`api_types.FoundryTransaction`
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
+        assert_in_literal(transaction_type, api_types.FoundryTransaction, "transaction_type")
+
         return self.api_request(
             "POST",
             f"catalog/datasets/{dataset_rid}/transactions/{transaction_rid}",
-            data=f'"{transaction_type!s}"',
+            data=f'"{transaction_type}"',
             **kwargs,
         )
 
@@ -255,8 +257,7 @@ class CatalogClient(APIClient):
             record: record
             provenance: provenance for transaction
             user_id: start transaction as another user, needs `foundry:set-user-id` permissions
-            start_transaction_type: transaction type, default is
-                :py:attr:`foundry_dev_tools.utils.api_types.FoundryTransaction.APPEND`
+            start_transaction_type: transaction type, default is `APPEND`
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
         post_json = {"branchId": branch_id, "record": record or {}}
@@ -265,7 +266,8 @@ class CatalogClient(APIClient):
         if user_id is not None:
             post_json["userId"] = user_id
         if start_transaction_type is not None:
-            post_json["startTransactionType"] = str(start_transaction_type)
+            assert_in_literal(start_transaction_type, api_types.FoundryTransaction, "start_transaction_type")
+            post_json["startTransactionType"] = start_transaction_type
 
         return self.api_request(
             "POST",

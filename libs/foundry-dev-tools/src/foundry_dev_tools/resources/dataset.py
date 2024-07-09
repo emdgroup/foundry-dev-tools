@@ -17,7 +17,6 @@ from foundry_dev_tools.errors.dataset import (
     TransactionTypeMismatchError,
 )
 from foundry_dev_tools.resources import resource
-from foundry_dev_tools.utils import api_types
 
 if TYPE_CHECKING:
     import sys
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
     import pyspark.sql
 
     from foundry_dev_tools.config.context import FoundryContext
+    from foundry_dev_tools.utils import api_types
 
 
 class Dataset(resource.Resource):
@@ -267,7 +267,7 @@ class Dataset(resource.Resource):
             record={},
             start_transaction_type=start_transaction_type,
         ).json()
-        if start_transaction_type is not None and start_transaction_type is not api_types.FoundryTransaction.APPEND:
+        if start_transaction_type is not None and start_transaction_type != "APPEND":
             self._context.catalog.api_set_transaction_type(
                 self.rid,
                 self.transaction["rid"],
@@ -360,7 +360,7 @@ class Dataset(resource.Resource):
             max_workers: Set number of threads for upload
             **kwargs: get passed to :py:meth:`foundry_dev_tools.resources.dataset.Dataset.transaction_context`
         """
-        kwargs.setdefault("transaction_type", api_types.FoundryTransaction.UPDATE)
+        kwargs.setdefault("transaction_type", "UPDATE")
         self.upload_files(
             {str(f.relative_to(folder_path)): f for f in folder_path.rglob("*") if f.is_file()}, max_workers=max_workers
         )
@@ -378,7 +378,7 @@ class Dataset(resource.Resource):
                        (transaction_type is forced to DELETE)
 
         """
-        with self.transaction_context(transaction_type=api_types.FoundryTransaction.DELETE, **kwargs):
+        with self.transaction_context(transaction_type="DELETE", **kwargs):
             self._context.catalog.api_add_files_to_delete_transaction(
                 self.rid, self.transaction["rid"], logical_paths=logical_paths
             )
@@ -519,7 +519,7 @@ class Dataset(resource.Resource):
     def save_dataframe(
         self,
         df: pandas.core.frame.DataFrame | pyspark.sql.DataFrame,
-        transaction_type: api_types.FoundryTransaction = api_types.FoundryTransaction.SNAPSHOT,
+        transaction_type: api_types.FoundryTransaction = "SNAPSHOT",
         foundry_schema: api_types.FoundrySchema | None = None,
     ) -> Self:
         """Saves a dataframe to Foundry. If the dataset in Foundry does not exist it is created.
@@ -655,7 +655,7 @@ class Dataset(resource.Resource):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.PANDAS],
+        return_type: Literal["pandas"],
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
     ) -> pd.core.frame.DataFrame: ...
@@ -664,7 +664,7 @@ class Dataset(resource.Resource):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.SPARK],
+        return_type: Literal["spark"],
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
     ) -> pyspark.sql.DataFrame: ...
@@ -673,7 +673,7 @@ class Dataset(resource.Resource):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.ARROW],
+        return_type: Literal["arrow"],
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
     ) -> pa.Table: ...
@@ -682,7 +682,7 @@ class Dataset(resource.Resource):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[api_types.SQLReturnType.RAW],
+        return_type: Literal["raw"],
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
     ) -> tuple[dict, list[list]]: ...
@@ -699,8 +699,8 @@ class Dataset(resource.Resource):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: api_types.SQLReturnType = api_types.SQLReturnType.PANDAS,
-        sql_dialect: api_types.SqlDialect = api_types.SqlDialect.SPARK,
+        return_type: api_types.SQLReturnType = "pandas",
+        sql_dialect: api_types.SqlDialect = "SPARK",
         timeout: int = 600,
     ) -> tuple[dict, list[list]] | pd.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Wrapper around :py:meth:`foundry_dev_tools.clients.foundry_sql_server.FoundrySqlServerClient.query_foundry_sql`.
@@ -724,21 +724,21 @@ class Dataset(resource.Resource):
 
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
-        return self.query_foundry_sql("SELECT *", return_type=api_types.SQLReturnType.SPARK)
+        return self.query_foundry_sql("SELECT *", return_type="spark")
 
     def to_arrow(self) -> pa.Table:
         """Get dataset as a :py:class:`pyarrow.Table`.
 
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
-        return self.query_foundry_sql("SELECT *", return_type=api_types.SQLReturnType.ARROW)
+        return self.query_foundry_sql("SELECT *", return_type="arrow")
 
     def to_pandas(self) -> pandas.core.frame.DataFrame:
         """Get dataset as a :py:class:`pandas.DataFrame`.
 
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
-        return self.query_foundry_sql("SELECT *", return_type=api_types.SQLReturnType.PANDAS)
+        return self.query_foundry_sql("SELECT *", return_type="pandas")
 
     @contextmanager
     def transaction_context(
@@ -770,7 +770,7 @@ class Dataset(resource.Resource):
         if self._transaction is None:
             self.start_transaction(transaction_type)
             created = True
-        elif transaction_type is not None and self.transaction["type"] != transaction_type.value:
+        elif transaction_type is not None and self.transaction["type"] != transaction_type:
             raise TransactionTypeMismatchError(
                 requested_transaction_type=transaction_type, open_transaction_type=self.transaction["type"]
             )

@@ -6,19 +6,10 @@ from typing import TYPE_CHECKING
 
 from foundry_dev_tools.clients.api_client import APIClient
 from foundry_dev_tools.utils import api_types
+from foundry_dev_tools.utils.api_types import assert_in_literal
 
 if TYPE_CHECKING:
     import requests
-
-
-def _convert_grant_types(grant_types: list[api_types.MultipassGrantType | str] | None) -> list[str]:
-    _grant_types = []
-    for grant in grant_types or []:
-        if isinstance(grant, api_types.MultipassGrantType):
-            _grant_types.append(str(grant.value))
-        else:
-            _grant_types.append(api_types.MultipassGrantType(grant).value)
-    return _grant_types
 
 
 # PLACEHOLDER
@@ -107,10 +98,10 @@ class MultipassClient(APIClient):
 
     def api_create_third_party_application(
         self,
-        client_type: api_types.MultipassClientType | str,
+        client_type: api_types.MultipassClientType,
         display_name: str,
         description: str | None,
-        grant_types: list[api_types.MultipassGrantType | str],
+        grant_types: list[api_types.MultipassGrantType],
         redirect_uris: list | None,
         logo_uri: str | None,
         organization_rid: str,
@@ -165,18 +156,21 @@ class MultipassClient(APIClient):
             }
 
         """
-        if isinstance(client_type, str):
-            client_type = api_types.MultipassClientType(client_type)
+        assert_in_literal(client_type, api_types.MultipassClientType, "client_type")
+
+        for grant_type in grant_types:
+            assert_in_literal(grant_type, api_types.MultipassGrantType, "grant_types")
+
         return self.api_request(
             "POST",
             "clients",
             json={
                 "organizationRid": organization_rid,
-                "clientType": str(client_type.value),
+                "clientType": client_type,
                 "displayName": display_name,
                 "description": description,
                 "logoUri": logo_uri,
-                "grantTypes": _convert_grant_types(grant_types),
+                "grantTypes": grant_types,
                 "redirectUris": redirect_uris,
                 "allowedOrganizationRids": allowed_organization_rids,
                 "resources": resources,
@@ -204,10 +198,10 @@ class MultipassClient(APIClient):
     def api_update_third_party_application(
         self,
         client_id: str,
-        client_type: api_types.MultipassClientType | str,
+        client_type: api_types.MultipassClientType,
         display_name: str,
         description: str | None,
-        grant_types: list[api_types.MultipassGrantType | str],
+        grant_types: list[api_types.MultipassGrantType],
         redirect_uris: list | None,
         logo_uri: str | None,
         organization_rid: str,
@@ -259,18 +253,21 @@ class MultipassClient(APIClient):
             }
 
         """
-        if isinstance(client_type, str):
-            client_type = api_types.MultipassClientType(client_type)
+        assert_in_literal(client_type, api_types.MultipassClientType, "client_type")
+
+        for grant_type in grant_types:
+            assert_in_literal(grant_type, api_types.MultipassGrantType, "grant_types")
+
         return self.api_request(
             "PUT",
             f"clients/{client_id}",
             json={
                 "organizationRid": organization_rid,
-                "clientType": str(client_type.value),
+                "clientType": client_type,
                 "displayName": display_name,
                 "description": description,
                 "logoUri": logo_uri,
-                "grantTypes": _convert_grant_types(grant_types),
+                "grantTypes": grant_types,
                 "redirectUris": redirect_uris,
                 "allowedOrganizationRids": allowed_organization_rids,
                 "resources": resources,
@@ -322,7 +319,7 @@ class MultipassClient(APIClient):
         operations: list | None = None,
         resources: list | None = None,
         marking_ids: list[str] | None = None,
-        grant_types: list[api_types.MultipassGrantType | str] | None = None,
+        grant_types: list[api_types.MultipassGrantType] | None = None,
         require_consent: bool = True,
         **kwargs,
     ) -> requests.Response:
@@ -359,6 +356,10 @@ class MultipassClient(APIClient):
             }
 
         """
+        if grant_types is not None:
+            for grant_type in grant_types:
+                assert_in_literal(grant_type, api_types.MultipassGrantType, "grant_types")
+
         return self.api_request(
             "PUT",
             f"client-installations/{client_id}",
@@ -366,7 +367,7 @@ class MultipassClient(APIClient):
                 "operations": operations,
                 "resources": resources,
                 "markingIds": marking_ids,
-                "grantTypes": _convert_grant_types(grant_types),
+                "grantTypes": grant_types,
                 "require_consent": require_consent,
             },
             **kwargs,

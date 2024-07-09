@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetHasNoSchemaError, DatasetHasNoTransactionsError
-from foundry_dev_tools.utils.api_types import SQLReturnType
 from foundry_dev_tools.utils.misc import is_dataset_a_view
 from foundry_dev_tools.utils.repo import get_branch
 from transforms.errors import UninitializedInputError
@@ -197,7 +196,7 @@ class Input:
         return self.context.foundry_rest_client.query_foundry_sql(
             query,
             branch=branch,
-            return_type=SQLReturnType.SPARK,
+            return_type="spark",
         )
 
     def _retrieve_from_foundry_and_cache(

@@ -17,7 +17,6 @@ from foundry_dev_tools.errors.dataset import (
     DatasetNotFoundError,
 )
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
-from foundry_dev_tools.utils import api_types
 from foundry_dev_tools.utils.caches.spark_caches import DiskPersistenceBackedSparkCache
 from foundry_dev_tools.utils.converter.foundry_spark import (
     infer_dataset_format_from_foundry_schema,
@@ -29,6 +28,8 @@ LOGGER = logging.getLogger(__name__)
 if TYPE_CHECKING:
     import pandas as pd
     import pyspark.sql
+
+    from foundry_dev_tools.utils import api_types
 
 
 class CachedFoundryClient:
@@ -113,7 +114,7 @@ class CachedFoundryClient:
             self.cache[dataset_identity] = self.api.query_foundry_sql(
                 f'SELECT * FROM `{dataset_identity["dataset_rid"]}`',  # noqa: S608
                 branch=branch,
-                return_type=api_types.SQLReturnType.SPARK,
+                return_type="spark",
             )
             return self._return_local_path_of_cached_dataset(dataset_identity, branch)
         return self._download_dataset_and_return_local_path(dataset_identity, branch, foundry_schema)

@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, get_args
 
-from foundry_dev_tools.utils.misc import EnumContainsMeta
+
+def assert_in_literal(option, literal, variable_name) -> None:  # noqa: ANN001
+    """Raise a TypeError when the passed option is not contained in the literal.
+
+    Args:
+        option: An option from the list of options from `literal`
+        literal: The literal variable defining all the valid options
+        variable_name: The name of the literal variable
+    """
+    options = get_args(literal)
+
+    if option not in options:
+        msg = f"'{option}' is not a valid option for {variable_name}, valid options are {options}"
+        raise TypeError(msg)
+
 
 Rid = str
 """A resource identifier."""
@@ -49,66 +62,26 @@ ProjectRid = str
 # TODO further typing?
 FoundrySchema = dict[str, Any]
 
+FoundryTransaction = Literal["SNAPSHOT", "UPDATE", "APPEND", "DELETE"]
+"""Foundry transaction types."""
 
-class FoundryTransaction(str, Enum, metaclass=EnumContainsMeta):
-    """Foundry transaction types."""
+SqlDialect = Literal["ANSI", "SPARK"]
+"""The SQL Dialect for Foundry SQL queries."""
 
-    SNAPSHOT = "SNAPSHOT"
-    """only new files are present after transaction"""
-    UPDATE = "UPDATE"
-    """replace files with same filename, keep present files"""
-    APPEND = "APPEND"
-    """add files that are not present yet"""
+SQLReturnType = Literal["pandas", "spark", "arrow", "raw"]
+"""The return_types for sql queries.
 
-    DELETE = "DELETE"
-    """Every file in the transaction will be removed."""
+pandas: :external+pandas:py:class:`pandas.DataFrame`
+arrow: :external+pyarrow:py:class:`pyarrow.Table`
+spark: :external+spark:py:class:`~pyspark.sql.DataFrame`
+raw: Tuple of (foundry_schema, data) (can only be used in legacy)
+"""
 
-    def __str__(self) -> str:
-        return self.value
+MultipassClientType = Literal["CONFIDENTIAL", "PUBLIC"]
+"""Multipass client types."""
 
-
-class SqlDialect(str, Enum, metaclass=EnumContainsMeta):
-    """The SQL Dialect for Foundry SQL queries."""
-
-    ANSI = "ANSI"
-    SPARK = "SPARK"
-
-    def __str__(self) -> str:
-        return self.value
-
-
-class SQLReturnType(str, Enum, metaclass=EnumContainsMeta):
-    """The return_types for sql queries.
-
-    PANDAS, PD: :external+pandas:py:class:`pandas.DataFrame` (pandas)
-    ARROW, PYARROW, PA: :external+pyarrow:py:class:`pyarrow.Table` (arrow)
-    SPARK, PYSPARK: :external+spark:py:class:`~pyspark.sql.DataFrame` (spark)
-    RAW: Tuple of (foundry_schema, data) (raw) (can only be used in legacy)
-    """
-
-    PANDAS = "pandas"
-    SPARK = "spark"
-    ARROW = "arrow"
-    RAW = "raw"
-
-    def __str__(self) -> str:
-        return self.value
-
-
-class MultipassClientType(str, Enum, metaclass=EnumContainsMeta):
-    """Multipass client types."""
-
-    CONFIDENTIAL = "CONFIDENTIAL"
-    PUBLIC = "PUBLIC"
-
-
-class MultipassGrantType(str, Enum, metaclass=EnumContainsMeta):
-    """Multipass grant types."""
-
-    AUTHORIZATION_CODE = "AUTHORIZATION_CODE"
-    CLIENT_CREDENTIALS = "CLIENT_CREDENTIALS"
-    REFRESH_TOKEN = "REFRESH_TOKEN"  # noqa: S105
-
+MultipassGrantType = Literal["AUTHORIZATION_CODE", "CLIENT_CREDENTIALS", "REFRESH_TOKEN"]
+"""Multipass grant types."""
 
 ResourceDecoration = Literal[
     "description",
@@ -377,19 +350,6 @@ class DatasetIdentity(TypedDict):
 
 PatchOperation = Literal["ADD", "REMOVE"]
 """Foundry PatchOperation enum."""
-
-
-class PatchOperationType(str, Enum, metaclass=EnumContainsMeta):
-    """Foundry patch operations for markings."""
-
-    ADD = "ADD"
-    """Add marking"""
-    REMOVE = "REMOVE"
-    """Remove marking"""
-
-    def __str__(self) -> str:
-        return self.value
-
 
 FieldType = Literal["NAME", "LAST_MODIFIED"]
 """Foundry FieldType enum."""

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from foundry_dev_tools.config.config_types import FoundryOAuthGrantType
 from foundry_dev_tools.config.token_provider import JWTTokenProvider, OAuthTokenProvider
 from foundry_dev_tools.utils.compat import get_v1_environment_variables, v1_to_v2_config
 
@@ -42,7 +41,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     assert tp._client_id == "cid2"
     assert tp._client_secret == "csec2"  # noqa: S105
     assert tp.host.url == "https://test2"
-    assert tp.grant_type == FoundryOAuthGrantType.authorization_code
+    assert tp.grant_type == "authorization_code"
     get_config_dict.return_value = {
         "credentials": {
             "domain": "test",
@@ -55,7 +54,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     assert tp._client_id == "cid3"
     assert tp._client_secret == "csec3"  # noqa: S105
     assert tp.host.url == "https://test2"
-    assert tp.grant_type == FoundryOAuthGrantType.client_credentials
+    assert tp.grant_type == "client_credentials"
     get_config_dict.return_value = {
         "credentials": {
             "domain": "test",
@@ -73,7 +72,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     assert tp._client_id == "cid5"
     assert tp._client_secret == "csec5"  # noqa: S105
     assert tp.host.url == "https://test"
-    assert tp.grant_type == FoundryOAuthGrantType.authorization_code
+    assert tp.grant_type == "authorization_code"
 
 
 def test_get_v1_environment_variables(mocker: MockerFixture):

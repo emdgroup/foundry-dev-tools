@@ -5,16 +5,18 @@ from __future__ import annotations
 import base64
 import time
 from functools import cached_property
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import palantir_oauth_client
 import requests
 from requests.structures import CaseInsensitiveDict
 
-from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
 from foundry_dev_tools.errors.config import TokenProviderConfigError
 from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
+
+if TYPE_CHECKING:
+    from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
 
 
 class TokenProvider:
@@ -113,7 +115,7 @@ class OAuthTokenProvider(CachedTokenProvider):
         host: Host,
         client_id: str,
         client_secret: str | None = None,
-        grant_type: FoundryOAuthGrantType | str | None = None,
+        grant_type: FoundryOAuthGrantType | None = None,
         scopes: list[str] | None = None,
     ) -> None:
         """Provides tokens via the OAuth authentication.
@@ -121,27 +123,23 @@ class OAuthTokenProvider(CachedTokenProvider):
         Args:
             host: the foundry host
             client_id: the client ID
-            client_secret: the client secret, optional if the `grant_type` is
-                :py:attr:`~foundry_dev_tools.config.config_types.FoundryOAuthGrantType.authorization_code`,
-                and mandatory if the `grant_type` is
-                :py:attr:`~foundry_dev_tools.config.config_types.FoundryOAuthGrantType.client_credentials`
+            client_secret: the client secret, optional if the `grant_type` is `authorization_code`,
+                and mandatory if the `grant_type` is `client_credentials`
             grant_type: the OAuth grant type,
                 see :py:class:`~foundry_dev_tools.config.config_types.FoundryOAuthGrantType`
-            scopes: if the `grant_type` is
-                :py:attr:`foundry_dev_tools.config.config_types.FoundryOAuthGrantType.authorization_code`
+            scopes: if the `grant_type` is `authorization_code`
                 these will be appended to the :py:attr:`~foundry_dev_tools.config.token_provider.DEFAULT_OAUTH_SCOPES`,
-                if the `grant_type` is
-                :py:attr:`~foundry_dev_tools.config.config_types.FoundryOAuthGrantType.client_credentials`
+                if the `grant_type` is `client_credentials`
                 the scopes provided will be used, per default these are empty
         """
         super().__init__(host)
-        self.grant_type = FoundryOAuthGrantType(grant_type or "authorization_code")
+        self.grant_type = grant_type or "authorization_code"
         self._client_id = client_id
         self._client_secret = client_secret
-        if self.grant_type is FoundryOAuthGrantType.client_credentials and self._client_secret is None:
+        if self.grant_type == "client_credentials" and self._client_secret is None:
             msg = "You need to provide a client secret for the client credentials grant type."
             raise TokenProviderConfigError(msg)
-        if self.grant_type is FoundryOAuthGrantType.authorization_code:
+        if self.grant_type == "authorization_code":
             if scopes is not None:
                 self.scopes = list({*DEFAULT_OAUTH_SCOPES, *scopes})
             else:
@@ -150,7 +148,7 @@ class OAuthTokenProvider(CachedTokenProvider):
             self.scopes = scopes or []
 
     def _request_token(self) -> tuple[Token, float]:
-        if self.grant_type is FoundryOAuthGrantType.authorization_code:
+        if self.grant_type == "authorization_code":
             credentials = palantir_oauth_client.get_user_credentials(
                 scopes=self.scopes,
                 hostname=self.host.domain,
@@ -159,7 +157,7 @@ class OAuthTokenProvider(CachedTokenProvider):
                 use_local_webserver=False,
             )
             return credentials.token, credentials.expiry.timestamp()
-        if self.grant_type is FoundryOAuthGrantType.client_credentials and self._client_secret is not None:
+        if self.grant_type == "client_credentials" and self._client_secret is not None:
             resp = requests.request(
                 "POST",
                 f"{self.host.url}/multipass/api/oauth2/token",

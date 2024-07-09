@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
-
-from foundry_dev_tools.utils.misc import EnumContainsMeta
+from typing import Literal
 
 """Token is not a different class, it is exactly the same as a str, this is only for code clarity."""
 Token = str
@@ -29,8 +27,5 @@ class Host:
         return object.__eq__(self, o)
 
 
-class FoundryOAuthGrantType(str, Enum, metaclass=EnumContainsMeta):
-    """The available grant types for the Foundry OAuth API."""
-
-    client_credentials = "client_credentials"
-    authorization_code = "authorization_code"
+FoundryOAuthGrantType = Literal["client_credentials", "authorization_code"]
+"""The available grant types for the Foundry OAuth API."""

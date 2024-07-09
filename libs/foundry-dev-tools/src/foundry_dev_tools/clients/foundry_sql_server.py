@@ -13,15 +13,13 @@ from foundry_dev_tools.errors.sql import (
     FoundrySqlQueryFailedError,
     FoundrySqlSerializationFormatNotImplementedError,
 )
-from foundry_dev_tools.utils.api_types import SqlDialect, SQLReturnType
+from foundry_dev_tools.utils.api_types import Ref, SqlDialect, SQLReturnType, assert_in_literal
 
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
     import pyspark
     import requests
-
-    from foundry_dev_tools.utils.api_types import Ref
 
 
 class FoundrySqlServerClient(APIClient):
@@ -33,7 +31,7 @@ class FoundrySqlServerClient(APIClient):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.PANDAS],
+        return_type: Literal["pandas"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -43,7 +41,7 @@ class FoundrySqlServerClient(APIClient):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.SPARK],
+        return_type: Literal["spark"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -53,7 +51,7 @@ class FoundrySqlServerClient(APIClient):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.ARROW],
+        return_type: Literal["arrow"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -63,7 +61,7 @@ class FoundrySqlServerClient(APIClient):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.RAW],
+        return_type: Literal["raw"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -82,9 +80,9 @@ class FoundrySqlServerClient(APIClient):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: SQLReturnType = SQLReturnType.PANDAS,
+        return_type: SQLReturnType = "pandas",
         branch: Ref = "master",
-        sql_dialect: SqlDialect = SqlDialect.SPARK,
+        sql_dialect: SqlDialect = "SPARK",
         timeout: int = 600,
     ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server with spark SQL dialect.
@@ -115,7 +113,7 @@ class FoundrySqlServerClient(APIClient):
             ValueError: Only direct read eligible queries can be returned as arrow Table.
 
         """  # noqa: E501
-        if return_type != SQLReturnType.RAW:
+        if return_type != "raw":
             try:
                 response_json = self.api_queries_execute(
                     query,
@@ -139,10 +137,10 @@ class FoundrySqlServerClient(APIClient):
                         time.sleep(0.2)
 
                 arrow_stream_reader = self.read_fsql_query_results_arrow(query_id=query_id)
-                if return_type == SQLReturnType.PANDAS:
+                if return_type == "pandas":
                     return arrow_stream_reader.read_pandas()
 
-                if return_type == SQLReturnType.SPARK:
+                if return_type == "spark":
                     from foundry_dev_tools.utils.converter.foundry_spark import (
                         arrow_stream_to_spark_dataframe,
                     )
@@ -159,7 +157,7 @@ class FoundrySqlServerClient(APIClient):
                 FoundrySqlSerializationFormatNotImplementedError,
                 ImportError,
             ) as exc:
-                if return_type == SQLReturnType.ARROW:
+                if return_type == "arrow":
                     msg = (
                         "Only direct read eligible queries can be returned as arrow Table. Consider using setting"
                         " return_type to 'pandas'."
@@ -213,7 +211,7 @@ class FoundrySqlServerClient(APIClient):
         self,
         query: str,
         branch: Ref,
-        dialect: SqlDialect = SqlDialect.SPARK,
+        dialect: SqlDialect = "SPARK",
         timeout: int = 600,
         **kwargs,
     ) -> requests.Response:
@@ -226,6 +224,8 @@ class FoundrySqlServerClient(APIClient):
             timeout: the query timeout
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
+        assert_in_literal(dialect, SqlDialect, "dialect")
+
         return self.api_request(
             "POST",
             "queries/execute",

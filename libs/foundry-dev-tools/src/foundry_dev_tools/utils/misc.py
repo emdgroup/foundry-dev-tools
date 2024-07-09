@@ -8,7 +8,6 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
-from enum import EnumMeta
 from typing import TYPE_CHECKING, Any
 
 LOGGER = logging.getLogger(__name__)
@@ -96,21 +95,6 @@ def is_dataset_a_view(dataset_transaction: dict) -> bool:
         and "view" in dataset_transaction["record"]
         and dataset_transaction["record"]["view"] is True
     )
-
-
-class EnumContainsMeta(EnumMeta):
-    """Metaclass for the SQLReturnType.
-
-    It implements a proper __contains__ like 3.12 does.
-    """
-
-    def __contains__(self, value: object) -> bool:
-        """Backported a __contains__ from 3.12."""
-        if sys.version_info >= (3, 12):
-            return EnumMeta.__contains__(self, value)
-        if isinstance(value, self) and value._name_ in self._member_map_:
-            return True
-        return value in self._value2member_map_
 
 
 def parse_iso(iso_str: str) -> datetime:

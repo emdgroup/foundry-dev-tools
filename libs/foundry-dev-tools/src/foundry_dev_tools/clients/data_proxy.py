@@ -20,6 +20,7 @@ from foundry_dev_tools.utils.api_types import (
     SQLReturnType,
     TransactionRid,
     View,
+    assert_in_literal,
 )
 
 if TYPE_CHECKING:
@@ -106,7 +107,7 @@ class DataProxyClient(APIClient):
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.PANDAS],
+        return_type: Literal["pandas"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -116,7 +117,7 @@ class DataProxyClient(APIClient):
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.SPARK],
+        return_type: Literal["spark"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -126,7 +127,7 @@ class DataProxyClient(APIClient):
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.ARROW],
+        return_type: Literal["arrow"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -136,7 +137,7 @@ class DataProxyClient(APIClient):
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal[SQLReturnType.RAW],
+        return_type: Literal["raw"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
@@ -155,9 +156,9 @@ class DataProxyClient(APIClient):
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: SQLReturnType = SQLReturnType.RAW,
+        return_type: SQLReturnType = "raw",
         branch: Ref = "master",
-        sql_dialect: SqlDialect = SqlDialect.SPARK,
+        sql_dialect: SqlDialect = "SPARK",
         timeout: int = 600,
     ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the dataproxy query API with spark SQL.
@@ -192,13 +193,8 @@ class DataProxyClient(APIClient):
             DatasetHasNoSchemaError: if dataset has no schema
             BranchNotFoundError: if branch was not found
         """
-        if return_type not in SQLReturnType:
-            msg = (
-                f"return_type ({return_type}) should be a member of foundry_dev_tools.foundry_api_client.SQLReturnType"
-            )
-            raise ValueError(
-                msg,
-            )
+        assert_in_literal(return_type, SQLReturnType, "return_type")
+
         response = self.api_query_with_fallbacks2(
             query,
             [branch],
@@ -208,23 +204,23 @@ class DataProxyClient(APIClient):
         )
 
         response_json = response.json()
-        if return_type == SQLReturnType.RAW:
+        if return_type == "raw":
             return response_json["foundrySchema"], response_json["rows"]
-        if return_type == SQLReturnType.PANDAS:
+        if return_type == "pandas":
             from foundry_dev_tools._optional.pandas import pd
 
             return pd.DataFrame(
                 data=response_json["rows"],
                 columns=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
-        if return_type == SQLReturnType.ARROW:
+        if return_type == "arrow":
             from foundry_dev_tools._optional.pyarrow import pa
 
             return pa.table(
                 data=response_json["rows"],
                 names=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
-        if return_type == SQLReturnType.SPARK:
+        if return_type == "spark":
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
                 foundry_sql_data_to_spark_dataframe,
@@ -516,7 +512,7 @@ class DataProxyClient(APIClient):
         self,
         query: str,
         fallback_branch_ids: list[str],
-        dialect: SqlDialect = SqlDialect.SPARK,
+        dialect: SqlDialect = "SPARK",
         **kwargs,
     ) -> requests.Response:
         """Queries for data from 1 or more tables and returns the results as JSON.
@@ -524,13 +520,15 @@ class DataProxyClient(APIClient):
         Args:
             query: the SQL query
             fallback_branch_ids: fallback branch ids
-            dialect: the SqlDialect of the query, either :any:`SqlDialect.SPARK` or :any:`SqlDialect.ANSI`
+            dialect: the SqlDialect of the query, see :py:meth:`foundry_dev_tools.utils.api_types.SqlDialect`
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
+        assert_in_literal(dialect, SqlDialect, "dialect")
+
         return self.api_request(
             "POST",
             "dataproxy/queryWithFallbacks2",
             params={"fallbackBranchIds": fallback_branch_ids},
-            json={"query": query, "dialect": dialect.value},
+            json={"query": query, "dialect": dialect},
             **kwargs,
         )

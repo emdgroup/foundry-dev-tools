@@ -14,6 +14,7 @@ from foundry_dev_tools.errors.compass import (
 )
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
 from foundry_dev_tools.utils import api_types
+from foundry_dev_tools.utils.api_types import assert_in_literal
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -433,7 +434,7 @@ class CompassClient(APIClient):
         self,
         rid: api_types.Rid,
         marking_id: api_types.MarkingId,
-        path_operation_type: api_types.PatchOperationType,
+        path_operation_type: api_types.PatchOperation,
         user_bearer_token: str | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -442,16 +443,13 @@ class CompassClient(APIClient):
         Args:
             rid: resource identifier of the resource for which a marking is adjusted
             marking_id: The id of the marking to be used
-            path_operation_type: path operation type, see :py:class:`api_types.PatchOperationType`
+            path_operation_type: path operation type, see :py:class:`api_types.PatchOperation`
             user_bearer_token: bearer token, needed when dealing with service project resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        # method accepts either the Enum or a string, if it is not a string, the input should already be correct
-        if isinstance(path_operation_type, str):
-            # we cast it to the Enum, which would throw an error if the string is not valid for this enum
-            path_operation_type = api_types.PatchOperationType(path_operation_type)
+        assert_in_literal(path_operation_type, api_types.PatchOperation, "path_operation_type")
 
-        body = {"markingPatches": [{"markingId": marking_id, "patchOperation": str(path_operation_type)}]}
+        body = {"markingPatches": [{"markingId": marking_id, "patchOperation": path_operation_type}]}
 
         return self.api_request(
             "POST",
@@ -474,7 +472,7 @@ class CompassClient(APIClient):
             marking_id: The id of the marking to be added
             user_bearer_token: bearer token, needed when dealing with service project resources
         """
-        return self.api_process_marking(rid, marking_id, api_types.PatchOperationType.ADD, user_bearer_token)
+        return self.api_process_marking(rid, marking_id, "ADD", user_bearer_token)
 
     def remove_marking(
         self,
@@ -489,7 +487,7 @@ class CompassClient(APIClient):
             marking_id: The id of the marking to be removed
             user_bearer_token: bearer token, needed when dealing with service project resources
         """
-        return self.api_process_marking(rid, marking_id, api_types.PatchOperationType.REMOVE, user_bearer_token)
+        return self.api_process_marking(rid, marking_id, "REMOVE", user_bearer_token)
 
     def api_add_imports(
         self,
