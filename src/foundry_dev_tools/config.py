@@ -9,6 +9,7 @@ Usage:
     Configuration.get('transforms_sql_sample_row_limit')
 
 """
+
 import inspect
 import logging
 import os
@@ -135,6 +136,9 @@ def initial_config(
     if not project_dir:
         caller_filename = inspect.stack()[-1].filename
         project_config_file = find_project_config_file(Path(caller_filename).parent)
+        # check also the cwd, useful for Jupyter Notebooks
+        if not project_config_file:
+            project_config_file = find_project_config_file(Path.cwd())
     else:
         project_config_file = find_project_config_file(project_dir)
     if project_config_file:
