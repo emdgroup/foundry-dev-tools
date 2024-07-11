@@ -27,7 +27,13 @@ def _is_repo_id(maybe_repo_id: str) -> bool:
 def _parse_repo(console: Console, ctx: FoundryContext, repo: str) -> str | None:
     if repo.startswith(("https://", "http://", "git://", "git+https://", "git+http://")):
         parsed = urlparse(repo)
-        if parsed.netloc != ctx.host.domain:
+        netloc = parsed.netloc
+        # python uses the obsolete 'netloc' instead of authority defined in rfc3986 and does not split it up
+        # remove user information
+        netloc = netloc.split("@", maxsplit=1)[-1]
+        # remove port
+        netloc = netloc.split(":", maxsplit=1)[0]
+        if netloc != ctx.host.domain:
             console.print(
                 "The domain of the repo does not match the domain in your Foundry DevTools configuration "
                 f"({ctx.host.domain})."
