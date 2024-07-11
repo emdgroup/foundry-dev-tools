@@ -68,7 +68,7 @@ def _get_host(git_config: dict[str, str]) -> Host:
 
 def _helper():
     """Git credential helper."""
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] != "-h" and sys.argv[1] != "--help":
         # get the tokenprovider
         conf = get_config_dict()
         cred = parse_credentials_config(conf)
@@ -124,4 +124,4 @@ git config --global --add credential."{cred.host.url}".helper "{sys.argv[0]}"
               """
             )
         )
-        sys.exit(1)
+        sys.exit(0)
