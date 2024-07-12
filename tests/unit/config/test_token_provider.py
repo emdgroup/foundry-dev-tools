@@ -9,7 +9,12 @@ import pytest
 import requests_mock
 from freezegun import freeze_time
 
-from foundry_dev_tools.config.token_provider import DEFAULT_OAUTH_SCOPES, AppServiceTokenProvider, CachedTokenProvider
+from foundry_dev_tools.config.token_provider import (
+    DEFAULT_OAUTH_SCOPES,
+    AppServiceTokenProvider,
+    CachedTokenProvider,
+    JWTTokenProvider,
+)
 from foundry_dev_tools.errors.config import FoundryConfigError, TokenProviderConfigError
 from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvider
 
@@ -135,3 +140,9 @@ def test_app_service_token_provider():
 
     with freeze_time("1h"), pytest.raises(FoundryConfigError, match="Token is expired. Please refresh the web page."):
         str(tp.token)
+
+
+def test_token_provider_pass_host_as_string():
+    tp = JWTTokenProvider(host="example.com", jwt="eyJ...")
+    assert tp.host.domain == "example.com"
+    assert tp.host.scheme == "https"

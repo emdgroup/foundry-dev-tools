@@ -11,12 +11,13 @@ import palantir_oauth_client
 import requests
 from requests.structures import CaseInsensitiveDict
 
+from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.errors.config import TokenProviderConfigError
 from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
 
 if TYPE_CHECKING:
-    from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Host, Token
+    from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
 
 
 class TokenProvider:
@@ -27,12 +28,14 @@ class TokenProvider:
         token: the token from the token provider, needs to be implemented
     """
 
-    def __init__(self, host: Host):
+    def __init__(self, host: Host | str):
         """The TokenProvider base class.
 
         Args:
             host: the foundry host
         """
+        if isinstance(host, str):
+            host = Host(host)
         self.host = host
 
     @property
@@ -53,7 +56,7 @@ class TokenProvider:
 class JWTTokenProvider(TokenProvider):
     """Provides Host and Token."""
 
-    def __init__(self, host: Host, jwt: Token) -> None:
+    def __init__(self, host: Host | str, jwt: Token) -> None:
         """Initialize the JWTTokenProvider.
 
         Args:
@@ -112,7 +115,7 @@ class OAuthTokenProvider(CachedTokenProvider):
 
     def __init__(
         self,
-        host: Host,
+        host: Host | str,
         client_id: str,
         client_secret: str | None = None,
         grant_type: FoundryOAuthGrantType | None = None,
@@ -191,7 +194,7 @@ class AppServiceTokenProvider(CachedTokenProvider):
 
     header: ClassVar[str] = "X-Foundry-AccessToken"
 
-    def __init__(self, host: Host):
+    def __init__(self, host: Host | str):
         super().__init__(host)
         try:
             from streamlit.web.server.websocket_headers import _get_websocket_headers
