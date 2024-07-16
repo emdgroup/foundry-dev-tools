@@ -65,6 +65,32 @@ class S3Client:
             "aws_virtual_hosted_style_request": "false",
         }
 
+    def get_duckdb_create_secret_string(self) -> str:
+        """Returns a CREATE SECRET SQL String with Foundry Configuration.
+
+        https://duckdb.org/docs/extensions/httpfs/s3api.html#config-provider
+
+        Example:
+            >>> ctx = FoundryContext()
+            >>> con.execute(ctx.s3.get_duckdb_create_secret_string())
+            >>> df = con.execute(
+            ...     "SELECT * FROM read_parquet('s3://ri.foundry.main.dataset.<uuid>/**/*.parquet') LIMIT 1;"
+            ... ).df()
+        """
+        credentials = self.get_credentials()
+        endpoint = self.context.host.domain + "/io/s3"
+        return """
+                CREATE OR REPLACE SECRET foundryConnection (
+                    TYPE S3,
+                    KEY_ID '{access_key}',
+                    SECRET '{secret_key}',
+                    SESSION_TOKEN '{token}',
+                    ENDPOINT '{endpoint}',
+                    URL_STYLE 'path',
+                    REGION 'foundry'
+                );
+                """.format(**credentials, endpoint=endpoint)
+
     def _get_boto3_session(self) -> boto3.Session:
         """Returns the boto3 session with foundry s3 credentials applied.
 
