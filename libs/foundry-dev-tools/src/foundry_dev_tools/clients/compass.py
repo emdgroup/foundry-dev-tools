@@ -310,6 +310,25 @@ class CompassClient(APIClient):
             result = {**result, **self.api_get_paths(batch).json()}
         return result
 
+    def get_path(
+        self,
+        resource_id: api_types.Rid,
+    ) -> api_types.FoundryPath | None:
+        """Returns the Path of the resource or `None` if the resource does not exist.
+
+        Args:
+            resource_id: The identifier of the resource for which to retrieve the path
+
+        Returns:
+            path of the resource
+        """
+        response = self.api_get_path(resource_id)
+
+        if response.status_code == 200:
+            return response.json()
+
+        return None
+
     def api_get_children(
         self,
         rid: api_types.Rid,
@@ -492,7 +511,7 @@ class CompassClient(APIClient):
     def api_add_imports(
         self,
         project_rid: api_types.ProjectRid,
-        rids: set[api_types.Rid],
+        rids: list[api_types.Rid],
         user_bearer_token: str | None = None,
         **kwargs,
     ) -> requests.Response:
@@ -529,7 +548,7 @@ class CompassClient(APIClient):
             user_bearer_token: bearer token, needed when dealing with service project resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        body = {"resourceRid": rids}
+        body = {"resourceRids": list(rids)}
 
         return self.api_request(
             "DELETE",
@@ -903,5 +922,35 @@ class CompassClient(APIClient):
             "POST",
             f"roles/v2/{rid}",
             json=body,
+            **kwargs,
+        )
+
+    def api_get_home_folder(
+        self,
+        decoration: api_types.ResourceDecorationSetAll | None = None,
+        additional_operations: set[str] | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Returns the resource representing the user's home project or if it does not exist tries to create the folder.
+
+        Args:
+            decoration: extra decoration entries in the response
+            additional_operations: include extra operations in result if user has the operation
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                the response contains a json which is a dict representing the decorated resource.
+                It might be `None` if the user cannot access its home folder or if creation is not possible.
+
+        """
+        params = {"decoration": get_decoration(decoration)}
+        if additional_operations is not None:
+            params["additionalOperations"] = additional_operations  # type: ignore[assignment]
+
+        return self.api_request(
+            "GET",
+            "folders/home/v2",
+            params=params,
             **kwargs,
         )
