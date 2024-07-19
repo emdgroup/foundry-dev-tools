@@ -55,15 +55,23 @@ def test_oauth_token_provider(mocker: MockerFixture):
 
     tp = MockOAuthTokenProvider("client_id", grant_type="authorization_code")
     assert tp.scopes == DEFAULT_OAUTH_SCOPES
-    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes=["extra scope"])
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes=["otherScope"])
     assert sorted(tp_ac.scopes) == sorted(
         [
-            "extra scope",
-            *DEFAULT_OAUTH_SCOPES,
+            "otherScope",
         ]
     )
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes="")
+    assert sorted(tp_ac.scopes) == []
+
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes="compass:read")
+    assert sorted(tp_ac.scopes) == ["compass:read"]
+
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes="compass:read,second:scope")
+    assert sorted(tp_ac.scopes) == ["compass:read", "second:scope"]
+
     tp = MockOAuthTokenProvider("client_id", "client_secret", grant_type="client_credentials")
-    assert tp.scopes == []
+    assert tp.scopes is None
     tp_cc = MockOAuthTokenProvider("client_id", "client_secret", grant_type="client_credentials", scopes=["scope"])
     assert tp_cc.scopes == ["scope"]
 

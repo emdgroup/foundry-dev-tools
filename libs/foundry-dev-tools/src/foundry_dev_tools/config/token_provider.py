@@ -119,7 +119,7 @@ class OAuthTokenProvider(CachedTokenProvider):
         client_id: str,
         client_secret: str | None = None,
         grant_type: FoundryOAuthGrantType | None = None,
-        scopes: list[str] | None = None,
+        scopes: list[str] | str | None = None,
     ) -> None:
         """Provides tokens via the OAuth authentication.
 
@@ -133,7 +133,7 @@ class OAuthTokenProvider(CachedTokenProvider):
             scopes: if the `grant_type` is `authorization_code`
                 these will be appended to the :py:attr:`~foundry_dev_tools.config.token_provider.DEFAULT_OAUTH_SCOPES`,
                 if the `grant_type` is `client_credentials`
-                the scopes provided will be used, per default these are empty
+                the scopes provided will be used, per default these are null
         """
         super().__init__(host)
         self.grant_type = grant_type or "authorization_code"
@@ -142,13 +142,20 @@ class OAuthTokenProvider(CachedTokenProvider):
         if self.grant_type == "client_credentials" and self._client_secret is None:
             msg = "You need to provide a client secret for the client credentials grant type."
             raise TokenProviderConfigError(msg)
+        scopes = self._scopes_to_list(scopes)
         if self.grant_type == "authorization_code":
             if scopes is not None:
-                self.scopes = list({*DEFAULT_OAUTH_SCOPES, *scopes})
+                self.scopes = scopes
             else:
                 self.scopes = DEFAULT_OAUTH_SCOPES
         else:
-            self.scopes = scopes or []
+            self.scopes = scopes
+
+    def _scopes_to_list(self, scopes: list[str] | str | None) -> list[str]:
+        if scopes is not None and isinstance(scopes, str):
+            splitted = scopes.split(",")
+            return [] if len(splitted) == 1 and splitted[0] == "" else splitted
+        return scopes
 
     def _request_token(self) -> tuple[Token, float]:
         if self.grant_type == "authorization_code":
@@ -164,7 +171,9 @@ class OAuthTokenProvider(CachedTokenProvider):
             resp = requests.request(
                 "POST",
                 f"{self.host.url}/multipass/api/oauth2/token",
-                data={"grant_type": "client_credentials", "scope": self.scopes},
+                data={"grant_type": "client_credentials", "scope": self.scopes}
+                if self.scopes
+                else {"grant_type": "client_credentials"},
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
                     "Authorization": "Basic "

@@ -93,11 +93,17 @@ def _edit_file(f: Path):
 
 @click.group("config", invoke_without_command=True)
 @click.pass_context
-def config_cli(ctx: click.Context):
+@click.option(
+    "-p",
+    "--profile",
+    help=("The config profile to select.\n" "If not provided 'default' is used."),
+    default="default",
+)
+def config_cli(ctx: click.Context, profile: str):
     """Prints the current config and the config file locations."""
     if ctx.invoked_subcommand is None:
         console = Console(markup=True)
-        console.print(_config_section())
+        console.print(_config_section(profile=profile))
 
 
 @config_cli.command("edit")

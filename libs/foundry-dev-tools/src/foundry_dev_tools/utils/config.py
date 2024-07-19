@@ -131,11 +131,19 @@ def get_environment_variable_config() -> dict:
                 if cfg_part not in o or not isinstance(o[cfg_part], dict):
                     o[cfg_part] = {}
                 o = o[cfg_part]
-            o[parts[-1]] = value
+            o[parts[-1]] = _try_convert_to_bool(value)
     from foundry_dev_tools.utils.compat import get_v1_environment_variables  # otherwise circular import
 
     v1_env_dict = get_v1_environment_variables()
     return merge_dicts(env_dict, v1_env_dict)
+
+
+def _try_convert_to_bool(value: Any) -> Any:  # noqa: ANN401
+    if isinstance(value, str) and value.lower() == "false":
+        return False
+    elif isinstance(value, str) and value.lower() == "true":  # noqa: RET505
+        return True
+    return value
 
 
 @cache

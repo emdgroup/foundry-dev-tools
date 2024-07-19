@@ -62,7 +62,11 @@ token_provider = {name = "oauth", config = { client_id = "get_config_dict_client
         config.get_config_dict("config")
 
     with mock.patch.dict(os.environ, FDT_CONFIG__RICH_TRACEBACK="false"):
-        config.get_config_dict()["config"]["rich_traceback"] = False
+        assert config.get_config_dict()["config"]["rich_traceback"] is False
+
+    # ruff: noqa: S106
+    with mock.patch.dict(os.environ, FDT_CREDENTIALS__TOKEN_PROVIDER__CONFIG__SCOPES="one:scope,two:scope"):
+        assert config.get_config_dict()["credentials"]["token_provider"]["config"]["scopes"] == "one:scope,two:scope"
 
 
 def test_parse_credentials_config(mock_config_location):

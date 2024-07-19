@@ -202,12 +202,12 @@ def _dependency_section() -> Tree:  # noqa: C901,PLR0912
     return dependency_node
 
 
-def _config_section() -> Tree:
-    config_node = Tree("Configuration")
+def _config_section(profile: str) -> Tree:
+    config_node = Tree(f"Configuration (Profile '{profile}')")
     config_table = Table("Config Name", "Value")
     config_file_table = Table("Config File Path", "Exists")
 
-    config_dict = get_config_dict()
+    config_dict = get_config_dict(profile=profile)
     config = parse_general_config(config_dict)
     for config_item, value in config.__dict__.items():
         if isinstance(value, bool):
@@ -217,33 +217,41 @@ def _config_section() -> Tree:
     config_node.add(config_table)
     try:
         cred_config = parse_credentials_config(config_dict)
+
         cred_table = Table(
             "Credential Configuration Name",
             "Value",
             title=f"Using the {cred_config.__class__.__name__} implementation for authentication.",
         )
         for cred_config_entry, value in cred_config.__dict__.items():
-            if cred_config_entry.startswith("__"):
-                continue
-
             if cred_config_entry.startswith("_"):
                 cred_table.add_row(
                     cred_config_entry[1:],
                     _bool_color(
                         value is not None,
-                        f"Is {'not' if value is None else ''} set"
+                        f"Is {'not ' if value is None else ''}set"
                         f"{', but not shown for security reasons' if value is not None else ''}.",
                     ),
                 )
+            elif cred_config_entry.startswith("__"):
+                continue
+            else:
+                cred_table.add_row(
+                    cred_config_entry,
+                    str(value),
+                )
+
         ctx = FoundryContext(config=config, token_provider=cred_config)
         config_node.add(cred_table)
-        auth = False
-        try:
-            ctx.multipass.api_me()
-            auth = True
-        except:  # noqa: S110,E722
-            pass
-        config_node.add(_bool_color(auth, ("Successfully authenticated" if auth else "Failed to authenticate")))
+        username = None
+        with contextlib.suppress(Exception):
+            username = ctx.multipass.api_me().json()["username"]
+        config_node.add(
+            _bool_color(
+                bool(username),
+                (f"Successfully authenticated as '{username}'" if username else "Failed to authenticate"),
+            )
+        )
     except Exception as e:  # noqa: BLE001
         config_node.add(
             (
@@ -259,7 +267,13 @@ def _config_section() -> Tree:
 
 
 @click.command("info")
-def info_cli():
+@click.option(
+    "-p",
+    "--profile",
+    help=("The config profile to select.\n" "If not provided 'default' is used."),
+    default="default",
+)
+def info_cli(profile: str):
     """Prints useful information about the Foundry DevTools installation."""
     # Create the rich console and tree
     # Each section will be a node in the tree
@@ -275,4 +289,4 @@ def info_cli():
         tree.add(_java_section())
         tree.add(_sysinfo_section())
         tree.add(_dependency_section())
-        tree.add(_config_section())
+        tree.add(_config_section(profile=profile))

@@ -149,7 +149,7 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
     if not config:
         return None
     if profile is None:
-        profile = config.get("profile")
+        profile = config.get("profile", "default")
     if profile in ("config", "credentials"):
         msg = f"Profile name can't be {profile}"
         raise AttributeError(msg)
