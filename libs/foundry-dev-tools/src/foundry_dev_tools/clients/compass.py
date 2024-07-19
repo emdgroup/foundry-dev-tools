@@ -726,6 +726,10 @@ class CompassClient(APIClient):
             response:
                 the response contains a json which is a dict with a list of projects
                 and an optional nextPageToken in case all the projects could not be fetched all at once
+
+        Raises:
+            ValueError: When `page_token` is in inappropriate format. Should be a number in the range 0 <= N <= 500.
+
         """
         if decorations is not None:
             decorations = get_decoration(decorations)
@@ -743,6 +747,7 @@ class CompassClient(APIClient):
                 f"the maximum page size ({MAXIMUM_PROJECTS_PAGE_SIZE}). "
                 f"Defaulting to {MAXIMUM_PROJECTS_SEARCH_OFFSET}."
             )
+            page_size = MAXIMUM_PROJECTS_PAGE_SIZE
 
         if page_token is not None:
             if page_token.isdecimal() is False:
