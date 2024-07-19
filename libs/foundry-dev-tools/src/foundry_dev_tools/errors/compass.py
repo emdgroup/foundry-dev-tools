@@ -184,3 +184,9 @@ class InvalidMavenGroupPrefixError(FoundryAPIError):
     """Exception is thrown when the portfolio's maven group is not the maven group of the product id."""
 
     message = "Portfolio's maven group is not the maven group of the product id."
+
+
+class ResourceNotTrashedError(FoundryAPIError):
+    """Exception is thrown when trying to delete a resource which is not trashed."""
+
+    message = "Resource needs to be trashed before deleting it."
