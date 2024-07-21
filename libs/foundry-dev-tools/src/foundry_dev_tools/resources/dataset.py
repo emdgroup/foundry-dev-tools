@@ -14,6 +14,7 @@ from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.dataset import (
     BranchNotFoundError,
     DatasetHasNoOpenTransactionError,
+    DatasetNotFoundError,
     TransactionTypeMismatchError,
 )
 from foundry_dev_tools.resources import resource
@@ -789,7 +790,10 @@ class Dataset(resource.Resource):
         """Fetches the attributes again + the dataset branch information."""
         # update branch information
         self.switch_branch(self.branch["id"])
-        return super().sync()
+        try:
+            return super().sync()
+        except ResourceNotFoundError as e:
+            raise DatasetNotFoundError from e
 
 
 resource.RID_CLASS_REGISTRY[Dataset.rid_start] = Dataset

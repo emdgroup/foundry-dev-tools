@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.meta import FoundryAPIError, FoundryDevToolsError
 
 
@@ -30,7 +31,7 @@ class BranchesAlreadyExistError(FoundryAPIError):
     message = "Branch already exists."
 
 
-class DatasetNotFoundError(FoundryAPIError):
+class DatasetNotFoundError(ResourceNotFoundError):
     """Exception is thrown when dataset does not exist."""
 
     message = "Dataset not found."
