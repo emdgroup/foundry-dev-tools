@@ -31,6 +31,16 @@ INTEGRATION_TEST_COMPASS_ROOT_RID = os.getenv(
     "ri.compass.main.folder.abd54c7b-7e3f-4653-89fc-b25988ea3f71",
 )
 
+INTEGRATION_TEST_PROJECT_RID = "ri.compass.main.folder.f94fc087-6068-4e66-ac27-978fce7b9d9d"
+"""The rid of `ls-use-case-foundry-devtools-dev-workspace` project."""
+
+MARKING_ID = "3abebc75-4915-4b5c-8749-9ce06726b6e1"
+"""The id of `ls-use-case-foundry-devtools-dev-workspace` marking.
+
+To carry out tests depending on this marking, the user must be member of
+`ls-use-case-foundry-devtools-dev-workspace-editor` group (63d61c77-59e3-4f47-b16d-297996fc4c2d).
+"""
+
 TEST_FOLDER = Path(__file__).parent.parent.resolve()
 
 IRIS_SCHEMA = {

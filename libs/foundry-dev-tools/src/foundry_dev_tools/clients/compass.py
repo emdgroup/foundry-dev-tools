@@ -272,39 +272,39 @@ class CompassClient(APIClient):
             **kwargs,
         )
 
-    def api_get_paths(self, resource_ids: list[api_types.Rid], **kwargs) -> requests.Response:
+    def api_get_paths(self, resource_rids: list[api_types.Rid], **kwargs) -> requests.Response:
         """Get paths for RIDs.
 
         Args:
-            resource_ids: The identifiers of resources
+            resource_rids: The identifiers of resources
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         """
         return self.api_request(
             "POST",
             "batch/paths",
-            json=resource_ids,
+            json=resource_rids,
             **kwargs,
         )
 
     def get_paths(
         self,
-        resource_ids: list[api_types.Rid],
+        resource_rids: list[api_types.Rid],
     ) -> dict[api_types.Rid, api_types.FoundryPath]:
         """Returns a dict which maps RIDs to Paths.
 
         Args:
-            resource_ids: The identifiers of resources
+            resource_rids: The identifiers of resources
 
         Returns:
             dict:
                 mapping between rid and path
         """
-        list_len = len(resource_ids)
+        list_len = len(resource_rids)
         if list_len < GET_PATHS_BATCH_SIZE:
-            batches = [resource_ids]
+            batches = [resource_rids]
         else:
-            batches = [resource_ids[i : i + GET_PATHS_BATCH_SIZE] for i in range(0, list_len, GET_PATHS_BATCH_SIZE)]
+            batches = [resource_rids[i : i + GET_PATHS_BATCH_SIZE] for i in range(0, list_len, GET_PATHS_BATCH_SIZE)]
         result: dict[api_types.Rid, api_types.FoundryPath] = {}
         for batch in batches:
             result = {**result, **self.api_get_paths(batch).json()}
@@ -312,17 +312,17 @@ class CompassClient(APIClient):
 
     def get_path(
         self,
-        resource_id: api_types.Rid,
+        resource_rid: api_types.Rid,
     ) -> api_types.FoundryPath | None:
         """Returns the Path of the resource or `None` if the resource does not exist.
 
         Args:
-            resource_id: The identifier of the resource for which to retrieve the path
+            resource_rid: The identifier of the resource for which to retrieve the path
 
         Returns:
             path of the resource
         """
-        response = self.api_get_path(resource_id)
+        response = self.api_get_path(resource_rid)
 
         if response.status_code == 200:
             return response.json()
