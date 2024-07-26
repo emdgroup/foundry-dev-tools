@@ -11,8 +11,42 @@ from foundry_dev_tools.clients.compass import (
     MINIMUM_PROJECTS_PAGE_SIZE,
     MINIMUM_PROJECTS_SEARCH_OFFSET,
 )
+from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils.clients import build_api_url
 from tests.unit.mocks import TEST_HOST
+
+COMPASS_FOLDER_RID = "ri.compass.main.folder.01234567-89ab-cdef-a618-819292bc3a10"
+
+
+def test_api_restore(test_context_mock):
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "compass", "batch/trash/restore"),
+        response_list=[{"status_code": 204}, {"status_code": 400}],
+    )
+
+    resp = test_context_mock.compass.api_restore({COMPASS_FOLDER_RID})
+
+    assert resp.status_code == 204
+
+    with pytest.raises(FoundryAPIError):
+        test_context_mock.compass.api_restore({COMPASS_FOLDER_RID})
+
+
+def test_get_path(test_context_mock):
+    test_context_mock.mock_adapter.register_uri(
+        "GET",
+        build_api_url(TEST_HOST.url, "compass", f"resources/{COMPASS_FOLDER_RID}/path-json"),
+        response_list=[{"json": "path/to/resource", "status_code": 200}, {"status_code": 204}],
+    )
+
+    path = test_context_mock.compass.get_path(COMPASS_FOLDER_RID)
+
+    assert path == "path/to/resource"
+
+    path = test_context_mock.compass.get_path(COMPASS_FOLDER_RID)
+
+    assert path is None
 
 
 @patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
