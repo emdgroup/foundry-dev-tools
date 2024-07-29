@@ -118,16 +118,16 @@ class FoundryRestClient:
 
         """
         self.ctx.catalog.api_delete_dataset(dataset_rid)
-        self.move_resource_to_trash(resource_id=dataset_rid)
+        self.move_resource_to_trash(rid=dataset_rid)
 
-    def move_resource_to_trash(self, resource_id: api_types.Rid):
+    def move_resource_to_trash(self, rid: api_types.Rid):
         """Moves a Compass resource (e.g. dataset or folder) to trash.
 
         Args:
-            resource_id (str): rid of the resource
+            rid (str): rid of the resource
 
         """
-        self.ctx.compass.api_add_to_trash({resource_id})
+        self.ctx.compass.api_add_to_trash({rid})
 
     def create_branch(
         self,

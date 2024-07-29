@@ -478,7 +478,7 @@ def test_get_folder_children():
     no_children = TEST_SINGLETON.v1_client.get_child_objects_of_folder(folder_rid=no_children_folder["rid"])
     assert len(list(no_children)) == 0
 
-    TEST_SINGLETON.v1_client.move_resource_to_trash(resource_id=no_children_folder["rid"])
+    TEST_SINGLETON.v1_client.move_resource_to_trash(rid=no_children_folder["rid"])
 
     with pytest.raises(FolderNotFoundError):
         next(TEST_SINGLETON.v1_client.get_child_objects_of_folder(folder_rid="ri.compass.main.folder.1337"))
