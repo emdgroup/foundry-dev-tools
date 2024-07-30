@@ -86,7 +86,7 @@ class CompassClient(APIClient):
         if permissive_folders is not None:
             params["permissiveFolders"] = permissive_folders  # type: ignore[assignment]
         if additional_operations is not None:
-            params["additionalOperations"] = additional_operations  # type: ignore[assignment]
+            params["additionalOperations"] = list(additional_operations)  # type: ignore[assignment]
         return self.api_request(
             "GET",
             f"resources/{rid}",
@@ -116,7 +116,7 @@ class CompassClient(APIClient):
         if permissive_folders is not None:
             params["permissiveFolders"] = permissive_folders  # type: ignore[assignment]
         if additional_operations is not None:
-            params["additionalOperations"] = additional_operations  # type: ignore[assignment]
+            params["additionalOperations"] = list(additional_operations)  # type: ignore[assignment]
         return self.api_request(
             "GET",
             "resources",
@@ -253,9 +253,9 @@ class CompassClient(APIClient):
                     with keys rid and name and other properties.
 
         """
-        json: dict[str, str | set] = {"name": name, "parentId": parent_id}
+        json: dict[str, str | list] = {"name": name, "parentId": parent_id}
         if marking_ids:
-            json["markingIds"] = marking_ids
+            json["markingIds"] = list(marking_ids)
         return self.api_request(
             "POST",
             "folders",
@@ -364,7 +364,7 @@ class CompassClient(APIClient):
             "GET",
             f"folders/{rid}/children",
             params={
-                "filter": filter,
+                "filter": list(filter) if filter else None,
                 "decoration": get_decoration(decoration),
                 "limit": limit,
                 "sort": sort,
@@ -444,7 +444,7 @@ class CompassClient(APIClient):
             params={
                 "decoration": get_decoration(decoration),
                 "includeOperations": include_operations,
-                "additionalOperations": list(additional_operations) if additional_operations is not None else None,
+                "additionalOperations": list(additional_operations) if additional_operations else None,
             },
             json=list(rids),
         )
@@ -719,7 +719,7 @@ class CompassClient(APIClient):
         tags: set[api_types.Rid] | None = None,
         roles: set[api_types.RoleId] | None = None,
         include_home_projects: bool | None = None,
-        direct_role_grant_principal_ids: dict[str, set[api_types.RoleId]] | None = None,
+        direct_role_grant_principal_ids: dict[str, list[api_types.RoleId]] | None = None,
         sort: api_types.SortSpec | None = None,
         page_size: int = DEFAULT_PROJECTS_PAGE_SIZE,
         page_token: str | None = None,
@@ -795,9 +795,9 @@ class CompassClient(APIClient):
         body = {
             "query": query,
             "decorations": decorations,
-            "organizations": organizations,
-            "tags": tags,
-            "roles": roles,
+            "organizations": list(organizations) if organizations else None,
+            "tags": list(tags) if tags else None,
+            "roles": list(roles) if roles else None,
             "includeHomeProjects": include_home_projects,
             "directRoleGrantPrincipalIds": direct_role_grant_principal_ids,
             "sort": sort,
@@ -820,7 +820,7 @@ class CompassClient(APIClient):
         tags: set[api_types.Rid] | None = None,
         roles: set[api_types.RoleId] | None = None,
         include_home_projects: bool | None = None,
-        direct_role_grant_principal_ids: dict[str, set[api_types.RoleId]] | None = None,
+        direct_role_grant_principal_ids: dict[str, list[api_types.RoleId]] | None = None,
         sort: api_types.SortSpec | None = None,
         page_size: int = DEFAULT_PROJECTS_PAGE_SIZE,
     ) -> Iterator[dict]:
@@ -912,9 +912,9 @@ class CompassClient(APIClient):
         body = {}
 
         if grant_patches is not None:
-            body["grantPatches"] = grant_patches
+            body["grantPatches"] = list(grant_patches)
         if disable_inherited_permissions_for_principals is not None:
-            body["disableInheritedPermissionsForPrincipals"] = disable_inherited_permissions_for_principals
+            body["disableInheritedPermissionsForPrincipals"] = list(disable_inherited_permissions_for_principals)
         if disable_inherited_permissions is not None:
             body["disableInheritedPermissions"] = disable_inherited_permissions
 
@@ -946,7 +946,7 @@ class CompassClient(APIClient):
         """
         params = {"decoration": get_decoration(decoration)}
         if additional_operations is not None:
-            params["additionalOperations"] = additional_operations  # type: ignore[assignment]
+            params["additionalOperations"] = list(additional_operations)  # type: ignore[assignment]
 
         return self.api_request(
             "GET",
