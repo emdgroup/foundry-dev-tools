@@ -1,18 +1,21 @@
 """Tests for the tokenproviders."""
+
 import sys
+from argparse import Namespace
 from unittest import mock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from foundry_dev_tools.utils.token_provider import APP_SERVICE_ACCESS_TOKEN_HEADER
 from tests.conftest import PatchConfig
 
 
-def test_token_provider_streamlit(mocker):
+def test_token_provider_streamlit(mocker: MockerFixture):
     """Tests the streamlit token provider."""
     mocker.patch(
-        "foundry_dev_tools.utils.token_provider.AppServiceStreamlitTokenProvider.get_streamlit_request_headers",
-        return_value={APP_SERVICE_ACCESS_TOKEN_HEADER: "secret-token"},
+        "streamlit.context",
+        Namespace(headers={APP_SERVICE_ACCESS_TOKEN_HEADER: "secret-token"}),
     )
     with PatchConfig(config_overwrite={"jwt": None}):
         from foundry_dev_tools.foundry_api_client import FoundryRestClient
@@ -20,6 +23,16 @@ def test_token_provider_streamlit(mocker):
         client = FoundryRestClient()
         print(client._config)
         assert client._config["jwt"] == "secret-token"
+    mocker.patch(
+        "foundry_dev_tools.utils.token_provider.AppServiceStreamlitTokenProvider.get_streamlit_request_headers",
+        return_value={APP_SERVICE_ACCESS_TOKEN_HEADER: "secret-token2"},
+    )
+    with PatchConfig(config_overwrite={"jwt": None}):
+        from foundry_dev_tools.foundry_api_client import FoundryRestClient
+
+        client = FoundryRestClient()
+        print(client._config)
+        assert client._config["jwt"] == "secret-token2"
 
 
 def test_token_provider_streamlit_114_case_insensitive():

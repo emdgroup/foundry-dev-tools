@@ -44,7 +44,6 @@ fdt = "foundry_dev_tools.cli.main:cli"
 foundry = "foundry_dev_tools.fsspec_impl.FoundryFileSystem"
 
 [project.optional-dependencies]
-integration = ["dask", "fastparquet"]
 testing = [
   "pytest",
   "pytest-mock",
@@ -54,8 +53,10 @@ testing = [
   "requests-mock",
   "fsspec",
   "timeflake",
-  "polars"
+  "polars",
+  "streamlit",
 ]
+integration = ["dask", "fastparquet"]
 transforms = ["pyspark>=3.0.0"]
 cli = ["click", "inquirer", "websockets", "rich", "packaging"]
 s3 = ["aiobotocore[boto3]"]
