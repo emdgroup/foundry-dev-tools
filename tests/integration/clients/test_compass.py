@@ -5,7 +5,12 @@ from string import ascii_uppercase, hexdigits
 import pytest
 import requests
 
-from foundry_dev_tools.errors.compass import DuplicateNameError, ResourceNotTrashedError
+from foundry_dev_tools.errors.compass import (
+    CircularDependencyError,
+    DuplicateNameError,
+    ResourceNotTrashedError,
+    UnexpectedParentError,
+)
 from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
@@ -18,9 +23,14 @@ from tests.integration.utils import (
 
 
 def create_compass_folder() -> tuple[api_types.FolderRid, str]:
-    """Create a new folder and return its resource identifier."""
+    """Create new folders and return their id and name.
 
-    rnd = "".join(choice(ascii_uppercase) for i in range(5))
+    Returns:
+        tuple:
+            contains compass folder rid as first element and the name as second element
+
+    """
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
     compass_folder_name = f"compass_folder_{rnd}"
 
     response = TEST_SINGLETON.ctx.compass.api_create_folder(compass_folder_name, INTEGRATION_TEST_COMPASS_ROOT_RID)
@@ -35,31 +45,41 @@ def create_compass_folder() -> tuple[api_types.FolderRid, str]:
     return rid, name
 
 
-def delete_compass_folder(folder_rid: api_types.FolderRid) -> None:
+def delete_compass_folders(folder_rids: list[api_types.FolderRid]) -> None:
     """Tear-Down logic: Permanently Delete the compass folder with the associated `folder_rid`
 
     Args:
-        folder_rid: The resource identifier of the folder to be deleted.
+        folder_rids: The resource identifiers of the folders to be deleted.
 
     """
 
     # Delete permanently with additional delete_options
     response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
-        {folder_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
+        set(folder_rids), delete_options={"DO_NOT_REQUIRE_TRASHED"}
     )
 
     assert response.status_code == 200
 
 
 @pytest.fixture()
-def compass_folder_setup_fixture():
+def compass_folder_setup_fixture() -> tuple[api_types.FolderRid, str]:
     # Create test folder
     compass_folder_rid, compass_folder_name = create_compass_folder()
 
     yield compass_folder_rid, compass_folder_name
 
     # Delete test folder
-    delete_compass_folder(compass_folder_rid)
+    delete_compass_folders([compass_folder_rid])
+
+
+@pytest.fixture()
+def multiple_compass_folder_setup_fixture() -> list[tuple[api_types.FolderRid, str]]:
+    compass_folders = [create_compass_folder() for _ in range(2)]
+    compass_folder_rids = [c[0] for c in compass_folders]
+
+    yield compass_folders
+
+    delete_compass_folders(compass_folder_rids)
 
 
 def test_create_and_delete_compass_folder():
@@ -203,29 +223,84 @@ def test_rename_of_folder(compass_folder_setup_fixture):
     assert response_data["name"] == new_compass_folder_name
 
 
-def test_compass_child_objects(compass_folder_setup_fixture):
-    compass_folder_rid, compass_folder_name = compass_folder_setup_fixture
+def test_compass_child_objects(multiple_compass_folder_setup_fixture):
+    compass_folders = multiple_compass_folder_setup_fixture
 
-    # Create another compass folder and a dataset inside compass folder
-    datasets = {}
-    for _ in range(5):
+    compass_folder_rid, compass_folder_name = compass_folders[0]
+
+    # Create compass folders as children inside previously constructed compass folder
+    folders = {}
+    for _ in range(3):
         rnd = "".join(choice(ascii_uppercase) for _ in range(5))
-        dataset_name = f"test_dataset_{rnd}"
+        test_folder_name = f"test_folder_{rnd}"
 
-        dataset_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/{compass_folder_name}/{dataset_name}"
-        response = TEST_SINGLETON.ctx.catalog.api_create_dataset(dataset_path)
+        response = TEST_SINGLETON.ctx.compass.api_create_folder(test_folder_name, compass_folder_rid)
 
         assert response.status_code == 200
 
-        dataset_rid = response.json()["rid"]
+        test_folder_rid = response.json()["rid"]
 
-        datasets[dataset_rid] = dataset_name
+        folders[test_folder_rid] = test_folder_name
 
     child_objects = list(TEST_SINGLETON.ctx.compass.get_child_objects_of_folder(compass_folder_rid))
 
     children = {resource["rid"]: resource["name"] for resource in child_objects}
 
-    assert sorted(datasets) == sorted(children)
+    assert sorted(folders) == sorted(children)
+
+    # Read out a new folder to establish a destination to move children at
+    other_compass_folder_rid, other_compass_folder_name = compass_folders[1]
+    children_rids = list(children.keys())
+
+    # Raises CircularDependencyError when trying to move all children to one of the children
+    with pytest.raises(CircularDependencyError):
+        TEST_SINGLETON.ctx.compass.api_move_children(children_rids[0], children_rids)
+
+    # Raises UnexpectedParentError when parent does not match the actual parent of one resource
+    invalid_expected_parents = {children_rids[0]: children_rids[0]}
+
+    with pytest.raises(UnexpectedParentError):
+        TEST_SINGLETON.ctx.compass.api_move_children(
+            other_compass_folder_rid, children_rids, expected_parents=invalid_expected_parents
+        )
+
+    # Move children to another folder and assert that the children have actually been moved
+    response = TEST_SINGLETON.ctx.compass.api_move_children(other_compass_folder_rid, children_rids)
+
+    assert response.status_code == 204
+
+    other_folder_child_objects = list(TEST_SINGLETON.ctx.compass.get_child_objects_of_folder(other_compass_folder_rid))
+    child_objects = list(TEST_SINGLETON.ctx.compass.get_child_objects_of_folder(compass_folder_rid))
+
+    assert len(other_folder_child_objects) == len(children)
+    assert len(child_objects) == 0
+
+    # In the original folder create a resource carrying the name of one of the children. Attempting to move should fail.
+    child = other_folder_child_objects[0]
+    child_rid = child["rid"]
+    child_name = child["name"]
+
+    response = TEST_SINGLETON.ctx.compass.api_create_folder(child_name, compass_folder_rid)
+
+    assert response.status_code == 200
+
+    with pytest.raises(DuplicateNameError):
+        TEST_SINGLETON.ctx.compass.api_move_children(compass_folder_rid, children_rids)
+
+    # But should not raise when setting `DECONFLICT_NAME` option
+    response = TEST_SINGLETON.ctx.compass.api_move_children(
+        compass_folder_rid, children_rids, options={"DECONFLICT_NAME"}
+    )
+
+    assert response.status_code == 204
+
+    response = TEST_SINGLETON.ctx.compass.api_get_resource(child_rid)
+
+    suffix = " (1)"
+    expected_child_name = child_name + suffix
+
+    assert response.status_code == 200
+    assert response.json()["name"] == expected_child_name
 
 
 def test_marking_endpoints(compass_folder_setup_fixture):
@@ -346,14 +421,29 @@ def test_imports():
 
     home_project_folder_rid = response.json()["rid"]
 
+    # Add dataset as reference to home project
     response = TEST_SINGLETON.ctx.compass.api_add_imports(home_project_folder_rid, {dataset_rid})
 
     assert response.status_code == 204
 
+    # Validate that home folder holds reference to the previously added home project
+    imports = list(TEST_SINGLETON.ctx.compass.get_imports(home_project_folder_rid, import_filter="FILE_SYSTEM"))
+
+    assert any(imp["importedFileSystemResource"]["resourceRid"] == dataset_rid for imp in imports)
+
+    # Remove dataset import from home project
     response = TEST_SINGLETON.ctx.compass.api_remove_imports(home_project_folder_rid, {dataset_rid})
 
     assert response.status_code == 204
 
+    response = TEST_SINGLETON.ctx.compass.api_delete_permanently({dataset_rid}, {"DO_NOT_REQUIRE_TRASHED"})
+
+    response_data = response.json()[0]
+
+    assert response.status_code == 200
+    assert response_data["rid"] == dataset_rid
+
+    # Delete dataset
     response = TEST_SINGLETON.ctx.compass.api_delete_permanently({dataset_rid}, {"DO_NOT_REQUIRE_TRASHED"})
 
     response_data = response.json()[0]
@@ -473,3 +563,82 @@ def _update_resource_roles(
         grants = result["resourceRolesResultMap"][rid]["grants"]
 
     return grants
+
+
+def test_get_decorated_project_and_namespace_information():
+    # Create new folder in ls-use-case-foundry-devtools-dev-workspace project
+    rnd = "".join(choice(ascii_uppercase) for i in range(5))
+    compass_folder_name = f"TEST_{rnd}"
+
+    response = TEST_SINGLETON.ctx.compass.api_create_folder(compass_folder_name, INTEGRATION_TEST_PROJECT_RID)
+
+    assert response.status_code == 200
+
+    compass_folder_rid = response.json()["rid"]
+
+    # Fetch the organization and project information
+    response = TEST_SINGLETON.ctx.compass.api_get_decorated_organization_and_project_information({compass_folder_rid})
+    response_data = response.json()
+
+    assert response.status_code == 200
+    assert compass_folder_rid in response_data
+
+    organization = response_data[compass_folder_rid]["organization"]["resource"]
+    project = response_data[compass_folder_rid]["project"]["resource"]
+
+    # Resolve path of resource to retrieve the components
+    path = TEST_SINGLETON.ctx.compass.get_path(compass_folder_rid)
+    components = TEST_SINGLETON.ctx.compass.api_resolve_path(path).json()
+
+    # Ensure that the resolved path contains a component matching the organization from the information response
+    organization_component = next(
+        (component for component in components if component["rid"] in organization["rid"]), None
+    )
+
+    assert organization_component is not None
+    assert organization["name"] == organization_component["name"]
+
+    # Ensure that the resolved path contains a component matching the project from the information response
+    project_component = next((component for component in components if component["rid"] in project["rid"]), None)
+
+    assert project_component is not None
+    assert project["rid"] == INTEGRATION_TEST_PROJECT_RID
+    assert project["name"] == project_component["name"]
+
+    # Delete test folder again
+    response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
+        {compass_folder_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
+    )
+
+    assert response.status_code == 200
+
+    # Try to fetch information for invalid rid should return empty map in response
+    rnd = "".join(choice(ascii_uppercase) for i in range(5))
+    invalid_compass_folder_rid = compass_folder_rid + rnd
+
+    response = TEST_SINGLETON.ctx.compass.api_get_decorated_organization_and_project_information(
+        {invalid_compass_folder_rid}
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 0
+
+
+def test_api_get_all_namespace_rids():
+    response = TEST_SINGLETON.ctx.compass.api_get_all_namespace_rids(include_internal_namespaces=True)
+
+    assert response.status_code == 200
+
+    response_data = response.json()
+
+    # Fetch the children from root compass folder (which are the namespace folders)
+    response = TEST_SINGLETON.ctx.compass.api_get_resource_by_path("/")
+
+    assert response.status_code == 200
+
+    root_compass_folder_rid = response.json()["rid"]
+
+    namespaces = list(TEST_SINGLETON.ctx.compass.get_child_objects_of_folder(root_compass_folder_rid))
+    namespace_rids = [namespace["rid"] for namespace in namespaces]
+
+    assert sorted(response_data) == sorted(namespace_rids)
