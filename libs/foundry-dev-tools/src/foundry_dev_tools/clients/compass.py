@@ -511,7 +511,7 @@ class CompassClient(APIClient):
     def api_add_imports(
         self,
         project_rid: api_types.ProjectRid,
-        rids: list[api_types.Rid],
+        rids: set[api_types.Rid],
         user_bearer_token: str | None = None,
         **kwargs,
     ) -> requests.Response:
