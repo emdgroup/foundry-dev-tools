@@ -1,4 +1,5 @@
 """Token Provider for common UPTIMIZE AppService."""
+
 from abc import abstractmethod
 
 from requests.structures import CaseInsensitiveDict
@@ -76,6 +77,11 @@ class AppServiceStreamlitTokenProvider(AbstractTokenProvider):
                 request headers
 
         """
+        import streamlit as st
+
+        if hasattr(st, "context"):
+            return st.context.headers
+
         from streamlit.scriptrunner.script_run_context import get_script_run_ctx
         from streamlit.server.server import Server
 
