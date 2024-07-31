@@ -190,3 +190,21 @@ class ResourceNotTrashedError(FoundryAPIError):
     """Exception is thrown when trying to delete a resource which is not trashed."""
 
     message = "Resource needs to be trashed before deleting it."
+
+
+class CircularDependencyError(FoundryAPIError):
+    """Exception is thrown when trying to move to a destination which is one of its children."""
+
+    message = "Cannot move resources to destination which is one of its children."
+
+
+class CannotMoveResourcesUnderHiddenResourceError(FoundryAPIError):
+    """Exception is thrown when the destination is a hidden resource."""
+
+    message = "The destination is a hidden resource."
+
+
+class UnexpectedParentError(FoundryAPIError):
+    """Exception is thrown when a parent is specified that does not match the resource's current parent."""
+
+    message = "A parent is specified that does not match the resource's current parent."

@@ -28,6 +28,10 @@ MAXIMUM_PROJECTS_PAGE_SIZE = 500
 MINIMUM_PROJECTS_SEARCH_OFFSET = 0
 MAXIMUM_PROJECTS_SEARCH_OFFSET = 500
 
+DEFAULT_IMPORTS_PAGE_SIZE = 100
+MINIMUM_IMPORTS_PAGE_SIZE = 0
+MAXIMUM_IMPORTS_PAGE_SIZE = 100
+
 
 @overload
 def get_decoration(
@@ -422,6 +426,56 @@ class CompassClient(APIClient):
             if (page_token := response_as_json["nextPageToken"]) is None:
                 break
 
+    def api_move_children(
+        self,
+        folder_rid: api_types.FolderRid,
+        children: set[api_types.Rid],
+        roles_map: dict[api_types.RoleId, list[api_types.RoleId]] | None = None,
+        options: set[api_types.MoveResourcesOption] | None = None,
+        expected_parents: dict[api_types.Rid, api_types.Rid] | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Moves a list of resources to the given folder.
+
+        Args:
+            folder_rid: The resource identifier of the destination compass folder
+            children: A set of resource identifiers for which the resources should be moved to the destination folder
+            roles_map: Mapping that allows updating role grants on move,
+                e.g. when moving resources between projects with different role sets.
+                The mapping must contain an entry for any non-deleted roles in any role set
+                that exists on the source but not on the destination, unless specifying `REMOVE_ROLE_GRANTS` in options.
+                This cannot be used to map from role sets that are present at both the source and the destination
+            options: Set of options to give control about the way resources should be moved
+            expected_parents: A map from moved resource to expected current parent.
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Raises:
+            ResourcesNotFoundError: if destination folder does not exist
+            ForbiddenOperationOnHiddenResource: if destination or any resources to move are hidden resources
+            ForbiddenOperationOnServiceProjectResources: if destination or any of the resources to move
+                are service projects or service project resources
+            DuplicateNameError: if a resource with the given name already exists
+            CircularDependencyError: if  the destination is the resource itself or one of its children
+            UsersNamespaceOperationForbiddenError: if trying to move projects in or out of the Users namespace
+            CannotMoveResourcesUnderHiddenResourceError: if the destination is a hidden resource
+            UnexpectedParentError: if a parent is specified that does not match the resource's current parent
+
+        """
+        body = {"children": list(children)}
+
+        if options:
+            for option in options:
+                assert_in_literal(option, api_types.MoveResourcesOption, "options")
+
+            body["options"] = list(options)
+
+        if roles_map:
+            body["rolesMap"] = roles_map
+        if expected_parents:
+            body["expectedParents"] = expected_parents
+
+        return self.api_request("POST", f"folders/{folder_rid}/children", json=body, **kwargs)
+
     def api_get_resources(
         self,
         rids: set[api_types.Rid],
@@ -557,6 +611,124 @@ class CompassClient(APIClient):
             json=body,
             **kwargs,
         )
+
+    def api_get_imports(
+        self,
+        project_rid: api_types.ProjectRid,
+        import_filter: api_types.ImportType | None = None,
+        page_size: int = DEFAULT_IMPORTS_PAGE_SIZE,
+        page_token: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Returns a list of imported resources along some dangling imports for the specified project.
+
+        Args:
+            project_rid: The resource identifier of the project for which to retrieve the imports
+            import_filter: Filter for specific imports only
+            page_size: The number of elements to fetch in one request. It is restricted to 100 at most
+                and defaults to this value in case it should exceed
+            page_token: start position for request
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                Besides a `nextPageToken` which marks the start position for the next request but may be None
+                the response also contains a list of imports and dangling imports
+        """
+        if page_size < MINIMUM_IMPORTS_PAGE_SIZE:
+            warnings.warn(
+                f"Parameter `page_size` ({page_size}) is less than "
+                f"the minimum page size ({MINIMUM_IMPORTS_PAGE_SIZE}). "
+                f"Defaulting to {MINIMUM_IMPORTS_PAGE_SIZE}."
+            )
+            page_size = MINIMUM_IMPORTS_PAGE_SIZE
+        elif page_size > MAXIMUM_IMPORTS_PAGE_SIZE:
+            warnings.warn(
+                f"Parameter `page_size` ({page_size}) is greater than "
+                f"the maximum page size ({MAXIMUM_IMPORTS_PAGE_SIZE}). "
+                f"Defaulting to {MAXIMUM_IMPORTS_PAGE_SIZE}."
+            )
+            page_size = MAXIMUM_IMPORTS_PAGE_SIZE
+
+        body = {"pageSize": page_size}
+        if import_filter:
+            assert_in_literal(import_filter, api_types.ImportType, "import_filter")
+            body["importFilter"] = import_filter
+        if page_token:
+            body["pageToken"] = page_token
+
+        return self.api_request(
+            "POST",
+            f"projects/imports/{project_rid}",
+            json=body,
+            **kwargs,
+        )
+
+    def get_imports(
+        self,
+        project_rid: api_types.ProjectRid,
+        import_filter: api_types.ImportType | None = None,
+        page_size: int = DEFAULT_IMPORTS_PAGE_SIZE,
+    ) -> Iterator[dict]:
+        """Returns a list of imported resources for the specified project (automatic pagination).
+
+        Args:
+            project_rid: The resource identifier of the project for which to retrieve the imports
+            import_filter: Filter for specific imports only
+            page_size: The number of elements to fetch in one request. It is restricted to 100 at most
+                and defaults to this value in case it should exceed
+
+        Returns:
+            Iterator[dict]:
+                Returns an interator holding the imported resources.
+        """
+        page_token = None
+
+        while True:
+            response_as_json = self.api_get_imports(
+                project_rid=project_rid,
+                import_filter=import_filter,
+                page_size=page_size,
+                page_token=page_token,
+            ).json()
+            yield from response_as_json["values"]
+
+            page_token = response_as_json["nextPageToken"]
+            if page_token is None:
+                break
+
+    def get_dangling_imports(
+        self,
+        project_rid: api_types.ProjectRid,
+        import_filter: api_types.ImportType | None = None,
+        page_size: int = DEFAULT_IMPORTS_PAGE_SIZE,
+    ) -> Iterator[dict]:
+        """Returns a list of dangling imports for the specified project (automatic pagination).
+
+        Args:
+            project_rid: The resource identifier of the project for which to retrieve the imports
+            import_filter: Filter for specific imports only
+            page_size: The number of elements to fetch in one request. It is restricted to 100 at most
+                and defaults to this value in case it should exceed
+
+        Returns:
+            Iterator[dict]:
+                Returns an interator holding the imported resources.
+        """
+        page_token = None
+
+        while True:
+            response_as_json = self.api_get_imports(
+                project_rid=project_rid,
+                import_filter=import_filter,
+                page_size=page_size,
+                page_token=page_token,
+            ).json()
+            yield from response_as_json["danglingImports"]
+
+            page_token = response_as_json["nextPageToken"]
+            if page_token is None:
+                break
 
     def api_set_name(
         self,
@@ -951,6 +1123,66 @@ class CompassClient(APIClient):
         return self.api_request(
             "GET",
             "folders/home/v2",
+            params=params,
+            **kwargs,
+        )
+
+    def api_get_decorated_organization_and_project_information(
+        self,
+        rids: set[api_types.Rid],
+        decoration: api_types.ResourceDecorationSetAll | None = None,
+        additional_operations: set[str] | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Returns the associated namespace and project information for a list of rids.
+
+        At most 500 resources should be requested at once.
+
+        Args:
+            rids: The rids for which to fetch namespace and project information
+            decoration: extra decoration entries in the response
+            additional_operations: include extra operations in result if user has the operation
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                the response contains a json which maps a resource identifier to namespace and project information
+        """
+        params = {"decoration": get_decoration(decoration)}
+        if additional_operations:
+            params["additionalOperations"] = list(additional_operations)  # type: ignore[assignment]
+
+        return self.api_request(
+            "POST",
+            "batch/hierarchy/projects/decorated",
+            json=list(rids),
+            params=params,
+            **kwargs,
+        )
+
+    def api_get_all_namespace_rids(
+        self,
+        include_internal_namespaces: bool | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """For a list of rids return the associated namespace and project information.
+
+        Args:
+            include_internal_namespaces: When set to true, namespaces created by the Compass system
+                will be included in the response. Default is `False`
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                the response contains a list of all namespace rids
+        """
+        params = {}
+        if include_internal_namespaces is not None:
+            params["includeInternalNamespaces"] = include_internal_namespaces
+
+        return self.api_request(
+            "GET",
+            "hierarchy/v2/all-namespace-rids",
             params=params,
             **kwargs,
         )

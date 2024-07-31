@@ -465,3 +465,9 @@ class ProjectFolderDisplaySettingsUpdate(TypedDict):
 
 MavenProductId = str
 """Foundry MavenProduct identifier."""
+
+MoveResourcesOption = Literal["ALLOW_MOVING_TO_HIDDEN", "REMOVE_ROLE_GRANTS", "DECONFLICT_NAME"]
+"""Foundry MoveResourcesOption to be used when moving resources"""
+
+ImportType = Literal["EXTERNAL", "FILE_SYSTEM"]
+"""Foundry import types as indicator for Compass-tracked (file-system) respectively non-Compass-tracked (external) resources."""  # noqa: E501
