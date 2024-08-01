@@ -8,6 +8,7 @@ import requests
 from foundry_dev_tools.errors.compass import (
     CircularDependencyError,
     DuplicateNameError,
+    ResourceNotFoundError,
     ResourceNotTrashedError,
     UnexpectedParentError,
 )
@@ -98,6 +99,12 @@ def test_create_and_delete_compass_folder():
 
     compass_folder_rid = response_data["rid"]
 
+    # Check that INTEGRATION_TEST_COMPASS_ROOT_RID is the parent of the newly created folder
+    response = TEST_SINGLETON.ctx.compass.api_get_parent(compass_folder_rid)
+
+    assert response.status_code == 200
+    assert response.json()["rid"] == INTEGRATION_TEST_COMPASS_ROOT_RID
+
     # Move folder to trash
     response = TEST_SINGLETON.ctx.compass.api_add_to_trash({compass_folder_rid})
 
@@ -148,6 +155,13 @@ def test_create_and_delete_compass_folder():
 
 def test_resource_and_path_endpoints(compass_folder_setup_fixture):
     compass_folder_rid, compass_folder_name = compass_folder_setup_fixture
+
+    # Fetch resource for invalid rid should throw NotFound
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+    invalid_rid = compass_folder_rid + rnd
+
+    with pytest.raises(ResourceNotFoundError):
+        TEST_SINGLETON.ctx.compass.api_get_resource(invalid_rid)
 
     # Fetch resource with `path` decoration
     response = TEST_SINGLETON.ctx.compass.api_get_resource(compass_folder_rid, decoration={"path"})
