@@ -19,7 +19,7 @@ class Host:
         self.url = (self.scheme + "://" + self.domain).rstrip("/")
 
     def __repr__(self) -> str:
-        return "<" + self.__class__.__name__ + "(" + self.url + ")>"
+        return self.url
 
     def __eq__(self, o: Host | object):
         if isinstance(o, Host):

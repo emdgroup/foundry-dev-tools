@@ -130,8 +130,8 @@ class OAuthTokenProvider(CachedTokenProvider):
                 and mandatory if the `grant_type` is `client_credentials`
             grant_type: the OAuth grant type,
                 see :py:class:`~foundry_dev_tools.config.config_types.FoundryOAuthGrantType`
-            scopes: if the `grant_type` is `authorization_code`
-                these will be appended to the :py:attr:`~foundry_dev_tools.config.token_provider.DEFAULT_OAUTH_SCOPES`,
+            scopes: if the `grant_type` is `authorization_code` and not set
+                it will default to :py:attr:`~foundry_dev_tools.config.token_provider.DEFAULT_OAUTH_SCOPES`,
                 if the `grant_type` is `client_credentials`
                 the scopes provided will be used, per default these are null
         """
@@ -151,10 +151,10 @@ class OAuthTokenProvider(CachedTokenProvider):
         else:
             self.scopes = scopes
 
-    def _scopes_to_list(self, scopes: list[str] | str | None) -> list[str]:
+    def _scopes_to_list(self, scopes: list[str] | str | None) -> list[str] | None:
         if scopes is not None and isinstance(scopes, str):
             splitted = scopes.split(",")
-            return [] if len(splitted) == 1 and splitted[0] == "" else splitted
+            return [scope for scope in splitted if len(scope) > 0]
         return scopes
 
     def _request_token(self) -> tuple[Token, float]:

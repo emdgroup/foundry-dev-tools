@@ -96,10 +96,9 @@ def _edit_file(f: Path):
 @click.option(
     "-p",
     "--profile",
-    help=("The config profile to select.\n" "If not provided 'default' is used."),
-    default="default",
+    help=("The config profile to select.\n"),
 )
-def config_cli(ctx: click.Context, profile: str):
+def config_cli(ctx: click.Context, profile: str | None):
     """Prints the current config and the config file locations."""
     if ctx.invoked_subcommand is None:
         console = Console(markup=True)

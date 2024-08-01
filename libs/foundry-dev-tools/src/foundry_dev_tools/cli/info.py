@@ -20,7 +20,12 @@ from rich.table import Table, box
 from rich.tree import Tree
 
 from foundry_dev_tools.__about__ import __version__
-from foundry_dev_tools.config.config import get_config_dict, parse_credentials_config, parse_general_config
+from foundry_dev_tools.config.config import (
+    _pure_config_dict,
+    get_config_dict,
+    parse_credentials_config,
+    parse_general_config,
+)
 from foundry_dev_tools.config.context import FoundryContext
 from foundry_dev_tools.utils.cli import _bool_color, _bool_icon
 from foundry_dev_tools.utils.config import cfg_files
@@ -202,8 +207,12 @@ def _dependency_section() -> Tree:  # noqa: C901,PLR0912
     return dependency_node
 
 
-def _config_section(profile: str) -> Tree:
-    config_node = Tree(f"Configuration (Profile '{profile}')")
+def _config_section(profile: str | None) -> Tree:
+    if profile is None:
+        pure_config = _pure_config_dict()
+        if pure_config is not None:
+            profile = pure_config.get("profile")
+    config_node = Tree("Configuration" + ((f"(Profile '{profile}')") if profile is not None else ""))
     config_table = Table("Config Name", "Value")
     config_file_table = Table("Config File Path", "Exists")
 
@@ -224,6 +233,11 @@ def _config_section(profile: str) -> Tree:
             title=f"Using the {cred_config.__class__.__name__} implementation for authentication.",
         )
         for cred_config_entry, value in cred_config.__dict__.items():
+            # This check needs to happend before the single underscore check
+            # Otherwise this check would be unecessary
+            if cred_config_entry.startswith("__"):
+                continue
+
             if cred_config_entry.startswith("_"):
                 cred_table.add_row(
                     cred_config_entry[1:],
@@ -233,8 +247,6 @@ def _config_section(profile: str) -> Tree:
                         f"{', but not shown for security reasons' if value is not None else ''}.",
                     ),
                 )
-            elif cred_config_entry.startswith("__"):
-                continue
             else:
                 cred_table.add_row(
                     cred_config_entry,
@@ -270,10 +282,9 @@ def _config_section(profile: str) -> Tree:
 @click.option(
     "-p",
     "--profile",
-    help=("The config profile to select.\n" "If not provided 'default' is used."),
-    default="default",
+    help=("The config profile to select.\n"),
 )
-def info_cli(profile: str):
+def info_cli(profile: str | None):
     """Prints useful information about the Foundry DevTools installation."""
     # Create the rich console and tree
     # Each section will be a node in the tree

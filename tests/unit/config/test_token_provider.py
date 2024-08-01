@@ -63,6 +63,10 @@ def test_oauth_token_provider(mocker: MockerFixture):
     )
     tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes="")
     assert sorted(tp_ac.scopes) == []
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes=",")
+    assert sorted(tp_ac.scopes) == []
+    tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes="a,")
+    assert sorted(tp_ac.scopes) == ["a"]
 
     tp_ac = MockOAuthTokenProvider("client_id", grant_type="authorization_code", scopes="compass:read")
     assert sorted(tp_ac.scopes) == ["compass:read"]

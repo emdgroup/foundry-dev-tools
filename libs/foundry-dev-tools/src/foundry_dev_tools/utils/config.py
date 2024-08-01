@@ -123,8 +123,12 @@ def get_environment_variable_config() -> dict:
         if name.startswith(ENVIRONMENT_VARIABLE_PREFIX):
             parts = name[len(ENVIRONMENT_VARIABLE_PREFIX) :].lower().split("__")
             if len(parts) <= 1:
-                warnings.warn(f"{name} is not a valid Foundry DevTools configuration environment variable.")
-                continue
+                if parts[0] == "profile":  # profile is a special case
+                    if len(value) == 0:
+                        value = None  # allow erasing via env variable  # noqa: PLW2901
+                else:
+                    warnings.warn(f"{name} is not a valid Foundry DevTools configuration environment variable.")
+                    continue
             cfg_parts = parts[:-1]
             o = env_dict
             for cfg_part in cfg_parts:

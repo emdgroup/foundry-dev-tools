@@ -123,6 +123,13 @@ def _load_config_files(config_files: Iterable[Path]) -> dict:
     return config
 
 
+def _pure_config_dict(env: bool = True) -> dict:
+    config = _load_config_files(cfg_files())
+    if env:
+        config = merge_dicts(config, get_environment_variable_config())
+    return config
+
+
 def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None:
     """Loads config from the config files and environment variables.
 
@@ -143,13 +150,11 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
         profile: The profile to use, if None the default profile is used
         env: Whether to load the environment variables
     """
-    config = _load_config_files(cfg_files())
-    if env:
-        config = merge_dicts(config, get_environment_variable_config())
+    config = _pure_config_dict(env=env)
     if not config:
         return None
     if profile is None:
-        profile = config.get("profile", "default")
+        profile = config.get("profile")
     if profile in ("config", "credentials"):
         msg = f"Profile name can't be {profile}"
         raise AttributeError(msg)
