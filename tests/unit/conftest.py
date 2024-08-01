@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
+from freezegun import freeze_time
 
 from foundry_dev_tools.config.config import Config
 from foundry_dev_tools.utils.config import CFG_FILE_NAME
@@ -21,6 +23,12 @@ def foundry_token(request):
     This is useful to trace back a token to a test function.
     """
     return request.node.name + "_token"
+
+
+@pytest.fixture()
+def foundry_token_expiration_date():
+    with freeze_time("0s"):
+        yield datetime.now(tz=timezone.utc) + timedelta(seconds=3600)
 
 
 @pytest.fixture()

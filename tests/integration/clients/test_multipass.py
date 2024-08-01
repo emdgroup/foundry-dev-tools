@@ -6,8 +6,10 @@ Rotate Secret rotate_third_party_application_secret.
 import pytest
 import requests
 
+from foundry_dev_tools.clients.multipass import DEFAULT_TOKEN_LIFETIME_IN_SECONDS
 from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
+from tests.integration.conftest import TEST_SINGLETON
 
 
 def test_crud(mocker):
@@ -111,3 +113,55 @@ def _test_crud_inner(mocker):
     assert tpa_user_info["attributes"]["multipass:realm"][0] == "oauth2-client-realm"
 
     client.delete_third_party_application(client_id=client_id)
+
+
+def test_token_endpoints():
+    try:
+        _test_token_endpoints_inner()
+    except FoundryAPIError as err:
+        if err.response.status_code == requests.codes.forbidden:
+            pytest.skip("To test integration for multipass token endpoints, you need permissions to manage tokens!")
+        else:
+            raise
+
+
+def _test_token_endpoints_inner():
+    # Create a new token
+    name = "test-token"
+    description = "test-description"
+
+    response = TEST_SINGLETON.ctx.multipass.api_create_token(name, description, DEFAULT_TOKEN_LIFETIME_IN_SECONDS)
+
+    assert response.status_code == 200
+
+    token_info = response.json()["tokenInfo"]
+    user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
+
+    assert token_info["userId"] == user_info["id"]
+    assert token_info["expires_in"] == DEFAULT_TOKEN_LIFETIME_IN_SECONDS - 1
+    assert token_info["name"] == name
+    assert token_info["description"] == description
+    assert token_info["state"] == "ENABLED"
+
+    token_id = token_info["tokenId"]
+    token_expires_in = token_info["expires_in"]
+
+    # Get tokens and check whether it contains the newly generated token
+    tokens = list(TEST_SINGLETON.ctx.multipass.get_tokens("USER_GENERATED", limit=1))
+
+    token = next((t for t in tokens if t["tokenId"] == token_id), None)
+
+    assert token is not None
+    assert token["tokenId"] == token_id
+    assert token["userId"] == user_info["id"]
+    assert token["name"] == name
+    assert token["description"] == description
+    assert token["expires_in"] <= token_expires_in
+
+    # Revoke the token created previously
+    response = TEST_SINGLETON.ctx.multipass.api_revoke_token(token_id)
+
+    is_revoked = response.json()
+
+    assert response.status_code == 200
+    assert is_revoked
