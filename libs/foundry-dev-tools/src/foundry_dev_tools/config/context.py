@@ -16,6 +16,7 @@ from foundry_dev_tools.clients import (
     jemma,
     metadata,
     multipass,
+    public_ontologies_client,
     s3_client,
     schema_inference,
 )
@@ -122,6 +123,11 @@ class FoundryContext:
     def s3(self) -> s3_client.S3Client:
         """Returns :py:class:`foundry_dev_tools.clients.s3_client.S3Client`."""
         return s3_client.S3Client(self)
+
+    @cached_property
+    def ontologies(self) -> public_ontologies_client.OntologiesClient:
+        """Returns :py:class:`foundry_dev_tools.clients.public_ontologies.OntologiesClient`."""
+        return public_ontologies_client.OntologiesClient(self)
 
     @cached_property
     def cached_foundry_client(self) -> CachedFoundryClient:

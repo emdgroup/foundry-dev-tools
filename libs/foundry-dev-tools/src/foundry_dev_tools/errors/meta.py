@@ -57,7 +57,9 @@ class FoundryAPIError(FoundryDevToolsError):
             self.message = api_message
             del self.kwargs["message"]
         term_size = shutil.get_terminal_size().columns
-        msg = f"{self.message}\n{self.info}"
+        msg = self.message
+        if self.info:
+            msg += "\n{self.info}"
         request_sep = "-" * int((term_size - 7) / 2)
         msg += request_sep + "REQUEST" + request_sep + "\n"
         if self.response is not None:
