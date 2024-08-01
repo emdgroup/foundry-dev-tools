@@ -145,6 +145,12 @@ ALL_RESOURCE_DECORATIONS: ResourceDecorationSet = {
     "resourceLevelRoleGrantsAllowed",
 }
 
+TokenId = str
+"""An identifier for a token issued by foundry."""
+
+TokenType = Literal["USER_GENERATED"]
+"""The type of a token."""
+
 
 class Attribution(TypedDict):
     """User and timestamp for resource creation."""
