@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "foundry-dev-tools"
-readme = "README.md"
+readme = "../../README.md"
 description = "Seamlessly run your Palantir Foundry Repository transforms code on your local machine."
 requires-python = ">=3.10"
 authors = [
@@ -47,18 +47,6 @@ fdt = "foundry_dev_tools.cli.main:cli"
 git-credential-foundry = "foundry_dev_tools.cli.git_credential_foundry:_helper"
 
 [project.optional-dependencies]
-integration = ["dask", "fastparquet"]
-testing = [
-  "pyarrow",
-  "pandas",
-  "pytest",
-  "pytest-mock",
-  "freezegun",
-  "pytest-asyncio",
-  "requests-mock",
-  "polars",
-  "pyfakefs",
-]
 s3 = ["aiobotocore[boto3]"]
 full = ["foundry-dev-tools-transforms", "foundry-dev-tools[s3]"]
 

@@ -17,10 +17,21 @@ distribution = false
 [tool.pdm.dev-dependencies]
 dev = [
   "-e file:///${PROJECT_ROOT}/libs/transforms",
-  "-e file:///${PROJECT_ROOT}/libs/foundry-dev-tools[s3,testing,integration]",
+  "-e file:///${PROJECT_ROOT}/libs/foundry-dev-tools[s3]",
   "pre-commit",
   "ruff",
   "pytest",
+  # "pyarrow",
+  # "pandas",
+  # "pytest",
+  # "pytest-mock",
+  # "freezegun",
+  # "pytest-asyncio",
+  # "requests-mock",
+  # "polars",
+  # "pyfakefs",
+  # "dask",
+  # "fastparquet",
 ]
 
 [tool.pdm.scripts]
