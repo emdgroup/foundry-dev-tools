@@ -333,6 +333,23 @@ class CompassClient(APIClient):
 
         return None
 
+    def api_get_parent(self, rid: api_types.Rid, **kwargs) -> requests.Response:
+        """Returns the parent of a given resource.
+
+        Args:
+            rid: The rid of the resource for which to obtain the parent
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            response:
+                which contains a json that either holds the parent resource or None if no parent exists
+        """
+        return self.api_request(
+            "GET",
+            f"resources/{rid}/parent",
+            **kwargs,
+        )
+
     def api_get_children(
         self,
         rid: api_types.Rid,
