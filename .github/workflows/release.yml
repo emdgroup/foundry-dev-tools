@@ -1,0 +1,48 @@
+name: Foundry DevTools Release
+
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with: {fetch-depth: 0}  # deep clone for git tag
+      - uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.12"
+          cache: true
+      - name: Install dependencies
+        run: pdm install --frozen-lockfile
+      - name: Run static analysis and format checkers
+        run: pdm run lint
+      - name: Run python tests
+        run: pdm run unit
+
+  publish:
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      # This permission is needed for private repositories.
+      contents: read
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.12"
+          cache: true
+      - name: publish foundry-dev-tools
+        working-directory: /lib/foundry-dev-tools/
+        run: pdm publish
+      - name: publish foundry-dev-tools-transforms
+        working-directory: /lib/transforms/
+        run: pdm publish
+

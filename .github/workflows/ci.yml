@@ -2,7 +2,6 @@ name: Foundry DevTools CI
 
 on:
   push:
-    tags: ["v*"]
     branches:
       - main
     paths-ignore:
@@ -39,7 +38,7 @@ jobs:
       fail-fast: false # always test both versions
       matrix:
         python:
-        - "3.9"
+        - "3.10"
         - "3.12"  # newest Python that is supported by pyspark
     steps:
       - uses: actions/checkout@v3
@@ -54,21 +53,3 @@ jobs:
         run: pdm run lint
       - name: Run python tests
         run: pdm run unit
-
-  publish:
-    needs: tests
-    if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: pdm-project/setup-pdm@v4
-        with:
-          python-version: "3.12"
-          cache: true
-      - name: publish foundry-dev-tools
-        working-directory: /lib/foundry-dev-tools/
-        run: pdm publish --repository http://testuser:123@localhost:3141/testuser/dev/+simple/
-      - name: publish foundry-dev-tools-transforms
-        working-directory: /lib/transforms/
-        run: pdm publish --repository http://testuser:123@localhost:3141/testuser/dev/+simple/
-        
