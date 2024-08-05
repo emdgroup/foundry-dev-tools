@@ -149,12 +149,6 @@ def test_api_ping_history():
     assert history[1] == {"ping": 1, "pong": 2}
 :::
 
-This is of course a fairly simple example and could also be tested using unit tests and mocks.
-But to demonstrate a more intricate scenario where integration tests are indispensable, consider the following test case:
-
-_"We want to bootstrap a code repository in order to insert a transform script that is used to build and update a dataset. 
-Afterward we want to validate a transaction for that same dataset that has been triggered by a build."_
-
 :::{warning}
 Integration tests which make use of the [`TEST_SINGLETON`](#tests.integration.conftest.TEST_SINGLETON) variable do not rely on mocks, so every API request will be sent to Foundry and actually be processed.
 Thus, be cautious and pay attention to what you do to not break anything by accident!
