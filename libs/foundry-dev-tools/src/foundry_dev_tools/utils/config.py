@@ -103,13 +103,18 @@ def find_project_config_file(project_directory: Path | None = None, use_git: boo
 
     Args:
         project_directory: the path to a (sub)directory of a git repo,
-            otherwise current working directory
+            otherwise checks caller filename directory and working directory
         use_git: passed to :py:meth:git_toplevel_dir
 
     Returns:
         Path | None: Path to the project config or None if no file was found
     """
-    git_directory = git_toplevel_dir(project_directory, use_git=use_git)
+    if project_directory is None:
+        git_directory = git_toplevel_dir(Path(inspect.stack()[-1].filename).parent, use_git=use_git)
+        if git_directory is None:
+            git_directory = git_toplevel_dir(Path.cwd(), use_git=use_git)
+    else:
+        git_directory = git_toplevel_dir(project_directory, use_git=use_git)
     if not git_directory:
         return None
 
