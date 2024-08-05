@@ -203,17 +203,27 @@ class AppServiceTokenProvider(CachedTokenProvider):
 
     header: ClassVar[str] = "X-Foundry-AccessToken"
 
-    def __init__(self, host: Host | str):
-        super().__init__(host)
+    def _streamlit(self) -> Token | None:
+        try:
+            from streamlit import context
+        except ImportError:
+            pass
+        else:
+            if context and (token := context.headers.get(self.header)):
+                return token
+        return None
+
+    def _deprecated_streamlit(self) -> Token | None:
         try:
             from streamlit.web.server.websocket_headers import _get_websocket_headers
         except ImportError:
             pass
         else:
             if (headers := _get_websocket_headers()) and (token := CaseInsensitiveDict(headers).get(self.header)):
-                self._cached = token
-                self._valid_until = time.time() + 3600
-                return
+                return token
+        return None
+
+    def _flask(self) -> Token | None:
         try:
             from flask import request
         except ImportError:
@@ -221,11 +231,20 @@ class AppServiceTokenProvider(CachedTokenProvider):
         else:
             try:
                 if request is not None and (token := request.headers.get(self.header)):
-                    self._cached = token
-                    self._valid_until = time.time() + 3600
-                    return
+                    return token
             except RuntimeError:
                 pass
+        return None
+
+    def __init__(self, host: Host | str):
+        super().__init__(host)
+
+        token = self._streamlit() or self._deprecated_streamlit() or self._flask()
+
+        if token is not None:
+            self._cached = token
+            self._valid_until = time.time() + 3600
+            return
         msg = "Could not get Foundry token from flask/dash/streamlit headers."
         raise TokenProviderConfigError(msg)
 

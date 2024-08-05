@@ -114,6 +114,7 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
 def test_app_service_token_provider():
     with (
         mock.patch.dict(sys.modules, {"streamlit.web.server.websocket_headers": None, "flask": None}),
+        mock.patch("streamlit.context", None),
         pytest.raises(
             FoundryConfigError,
             match="Could not get Foundry token from flask/dash/streamlit headers.",
@@ -149,6 +150,24 @@ def test_app_service_token_provider():
     ):
         tp = AppServiceTokenProvider(TEST_HOST)
         assert tp.token == "bla2"  # noqa: S105:
+
+    # new streamlit method takes precedence if available
+
+    with (
+        mock.patch.dict(
+            sys.modules,
+            {
+                "streamlit.web.server.websocket_headers": Namespace(
+                    _get_websocket_headers=lambda: {"X-Foundry-AccessToken": "bla2"},
+                ),
+                "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
+            },
+        ),
+        mock.patch("streamlit.context", Namespace(headers={"X-Foundry-AccessToken": "new_streamlit"})),
+        freeze_time("0s"),
+    ):
+        tp = AppServiceTokenProvider(TEST_HOST)
+        assert tp.token == "new_streamlit"  # noqa: S105:
 
     with freeze_time("1h"), pytest.raises(FoundryConfigError, match="Token is expired. Please refresh the web page."):
         str(tp.token)
