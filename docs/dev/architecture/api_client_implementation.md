@@ -39,7 +39,7 @@ For example the API client for "foundry-catalog" is called [`CatalogClient`](#fo
 
 #### Direct API calls
 
-If it is just a wrapper around an API and does nothing else than calling the [`api_request`] method, the method's name should begin with 'api_' followed by the name of the api.
+If it is just a wrapper around an API and does nothing else than calling the [`api_request`] method. The method's name should begin with 'api_' followed by the name of the api.
 
 For example the [`DataProxyClient.api_get_file`](#foundry_dev_tools.clients.data_proxy.DataProxyClient.api_get_file) method:
 

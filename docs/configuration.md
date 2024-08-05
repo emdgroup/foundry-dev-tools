@@ -5,7 +5,7 @@ The configuration gets loaded from multiple configuration files and environment 
 To see the configuration paths for your system and easily launch a config file in your editor, use the [`fdt config`](/getting_started/cli.md#view-the-config-and-config-files) CLI.
 
 :::{note}
-The configuration files get merged to one configuration. The environment variables take precedence above all files. See [below](#how-the-configuration-gets-loaded-and-merged).
+The configuration files get merged into one configuration. The environment variables take precedence above all files. See [below](#how-the-configuration-gets-loaded-and-merged).
 :::
 
 ## Credentials Config
@@ -21,7 +21,7 @@ name = "token provider implementation name"
 config = {} # token provider implementation specific configuration
 ```
 
-- The `domain` and `scheme` get converted to a [Host](#foundry_dev_tools.config.config_types.Host), whic is the first parameter of each [token provider](/dev/architecture/token_provider_implementation.md) implementation.
+- The `domain` and `scheme` get converted to a [Host](#foundry_dev_tools.config.config_types.Host), which is the first parameter of each [token provider](/dev/architecture/token_provider_implementation.md) implementation.
   - The default for scheme is 'https' defined in [DEFAULT_SCHEME](#foundry_dev_tools.config.config_types)
 - The `token_provider` table configures the token provider which gets used for authentication to Foundry.
   - The `name` value lets you select the token provider implemention, per default, this is "jwt"
@@ -154,7 +154,7 @@ from foundry_dev_tools import FoundryContext
 ctx = FoundryContext(profile="dev")
 ```
 
-In this instance, `FoundryContext` will only the configuration options prefixed with `dev` merged with the non-prefixed configuration. This allows for easy switching between different configurations by simply changing the profile when initializing `FoundryContext`.
+In this instance, `FoundryContext` will only consider the configuration options prefixed with `dev` and merge them with the non-prefixed configuration. This allows for easy switching between different configurations by simply changing the profile when initializing `FoundryContext`.
 
 You can also set the top level variable `profile` to set a specific prefix as the default.
 
