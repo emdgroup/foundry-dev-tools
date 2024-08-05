@@ -147,12 +147,15 @@ If you use `foundry-dev-tools-transforms` to install, it will install the PySpar
 pip install 'foundry-dev-tools-transforms'
 ```
 ````
+:::{note}
+TODO: release conda package for transforms
+:::
 
-````{tab} conda
-```shell
-conda install -c conda-forge 'pyspark>3' 'openjdk==17.*'
-```
-````
+<!-- ````{tab} conda -->
+<!-- ```shell -->
+<!-- conda install -c conda-forge 'pyspark>3' 'openjdk==17.*' -->
+<!-- ``` -->
+<!-- ```` -->
 
 Alternative installation methods, or more information on how to get Spark running,
 can be found in the [PySpark Documentation] and the [Spark Documentation].

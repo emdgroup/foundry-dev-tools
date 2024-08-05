@@ -40,9 +40,9 @@ jobs:
           python-version: "3.12"
           cache: true
       - name: publish foundry-dev-tools
-        working-directory: /lib/foundry-dev-tools/
+        working-directory: libs/foundry-dev-tools/
         run: pdm publish
       - name: publish foundry-dev-tools-transforms
-        working-directory: /lib/transforms/
+        working-directory: libs/transforms/
         run: pdm publish
 

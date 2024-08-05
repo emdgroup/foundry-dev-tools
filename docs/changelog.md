@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.0.0] - 2024-08-05
+
+## Added
+  - full rewrite of Foundry DevTools
+  - FoundryRestClient and CachedFoundryClient are still there for backwards compatibility
+  - new:
+    - configuration format: we now use toml, also with the option to use configuration 'profiles' (https://emdgroup.github.io/foundry-dev-tools/configuration.html)
+    - object oriented Dataset/Resource classes (https://emdgroup.github.io/foundry-dev-tools/examples/dataset.html)
+    - FoundryContext, makes it easier to discover and use all the API methods/clients (https://emdgroup.github.io/foundry-dev-tools/getting_started/foundry_dev_tools.html#foundrycontext)
+    - git credential helper for foundry repositories (https://emdgroup.github.io/foundry-dev-tools/api/foundry_dev_tools.cli.git_credential_foundry.html#module-foundry_dev_tools.cli.git_credential_foundry)
+    - if you want to run local transforms, you need to install an extra package (https://pypi.org/project/foundry-dev-tools-transforms)
+    - and more! (added typing, git cli, more API endpoints available, made Foundry DevTools extendable via entry points)
+
+## [1.5.0] - 2024-07-31
+
+## Added
+  - Official Streamlit Headers method since Streamlit Version 1.37.0 (#58)
+
+## [1.4.3] - 2024-07-11
+
+## Fixed
+  - Also check current working directory for project specific config, useful for Jupyter notebooks
+
 ## [1.4.2] - 2024-06-03
 
 ## Added
@@ -208,6 +231,10 @@ and this project adheres to [Semantic Versioning].
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+
+[2.0.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.5.0...v2.0.0
+[1.5.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.3...v1.5.0
+[1.4.3]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.3.5...v1.4.0
