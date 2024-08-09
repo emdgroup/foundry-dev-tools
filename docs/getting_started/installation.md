@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python >=3.8
+- Python >=3.10
 
 ## Get Necessary Credentials
 
@@ -31,7 +31,7 @@ after you activated it, just run:
 ```shell
 pip install 'foundry-dev-tools'
 ```
-If you want to use everything provided by FoundryDevTools (running transforms locally and the s3 compatible dataset api) you can use the following command:
+If you want to use everything provided by Foundry DevTools (running transforms locally and the s3 compatible dataset api) you can use the following command:
 
 ```shell
 pip install 'foundry-dev-tools[full]'
@@ -104,7 +104,7 @@ The client secret is optional with the authorization code grant.
 
 ```toml
 [credentials]
-domain = "palantir foundry domain"
+domain = "<stack>.palantirfoundry.comp"
 token_provider.name = "oauth"
 
 [credentials.token_provider.config]
@@ -126,7 +126,15 @@ grant_type = "client_credentials"
 ```
 ````
 
+After setting up the configuration, you can execute the following python one-linter to login using OAuth:
+
+```shell
+python -c "from foundry_dev_tools import FoundryContext; ctx = FoundryContext(); print(ctx.multipass.get_user_info())"
+```
+
 `````
+
+
 <!-- include_end -->
 
 :::{seealso}
