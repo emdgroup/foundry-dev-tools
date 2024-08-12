@@ -61,19 +61,10 @@ def _get_group_name(group_id: api_types.GroupId) -> str:
     return TEST_SINGLETON.ctx.multipass.api_get_group(group_id).json()["name"]
 
 
-def test_crud(mocker):
-    try:
-        _test_crud_inner(mocker)
-    except FoundryAPIError as err:
-        if err.response.status_code == requests.codes.forbidden:
-            pytest.skip(
-                "To test integration for multipass tpa, you need permissions to manage third party applications!",
-            )
-        else:
-            raise
-
-
-def _test_crud_inner(mocker):
+@handle_forbidden_error(
+    skip_message="To test integration for multipass tpa, you need permissions to manage third party applications!"
+)
+def test_crud_inner():
     client = FoundryRestClient()
     user_info = client.get_user_info()
     organization_rid = user_info["attributes"]["multipass:organization-rid"][0]
@@ -164,17 +155,10 @@ def _test_crud_inner(mocker):
     client.delete_third_party_application(client_id=client_id)
 
 
+@handle_forbidden_error(
+    skip_message="To test integration for multipass token endpoints, you need permissions to manage tokens!"
+)
 def test_token_endpoints():
-    try:
-        _test_token_endpoints_inner()
-    except FoundryAPIError as err:
-        if err.response.status_code == requests.codes.forbidden:
-            pytest.skip("To test integration for multipass token endpoints, you need permissions to manage tokens!")
-        else:
-            raise
-
-
-def _test_token_endpoints_inner():
     # Create a new token
     name = "test-token"
     description = "test-description"
