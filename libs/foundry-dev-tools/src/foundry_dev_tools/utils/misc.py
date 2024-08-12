@@ -14,11 +14,6 @@ LOGGER = logging.getLogger(__name__)
 
 DECAMELIZE_REGEX = re.compile(r"(?<!^)(?=[A-Z])")
 
-if sys.version_info < (3, 11):
-    from backports.datetime_fromisoformat import MonkeyPatch
-
-    MonkeyPatch.patch_fromisoformat()
-
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
@@ -99,4 +94,22 @@ def is_dataset_a_view(dataset_transaction: dict) -> bool:
 
 def parse_iso(iso_str: str) -> datetime:
     """Parses iso string to datetime."""
+    if sys.version_info < (3, 11):
+        # https://stackoverflow.com/a/75499881/3652805
+        if "." in iso_str:
+            if iso_str.endswith("Z"):
+                # palantir s3 api returns an iso string with nanosecond precision, we don't need that
+                # and python strptime %f can only parse 6 digits i.e. microsecond precision
+                # but its easier to just remove the nanoseconds, as they are not relevant for the expiry_time
+                iso_str = iso_str.split(".", maxsplit=1)[0] + "+00:00"
+            else:
+                return datetime.strptime(
+                    iso_str,
+                    "%Y-%m-%dT%H:%M:%S.%f%z",
+                )
+        return datetime.strptime(
+            iso_str,
+            "%Y-%m-%dT%H:%M:%S%z",
+        )
+
     return datetime.fromisoformat(iso_str)
