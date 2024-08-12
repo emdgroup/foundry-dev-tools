@@ -121,7 +121,7 @@ class MultipassClient(APIClient):
 
         return self.api_request("POST", "administration/groups", json=body, **kwargs)
 
-    def api_get_group(self, group_id: str, **kwargs) -> requests.Response:
+    def api_get_group(self, group_id: api_types.GroupId, **kwargs) -> requests.Response:
         """Returns the multipass group information.
 
         Args:
@@ -186,7 +186,7 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
-    def api_delete_group(self, group_id: str, **kwargs) -> requests.Response:
+    def api_delete_group(self, group_id: api_types.GroupId, **kwargs) -> requests.Response:
         """Deletes multipass group.
 
         Args:
