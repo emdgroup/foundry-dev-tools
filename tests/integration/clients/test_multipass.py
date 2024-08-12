@@ -4,6 +4,8 @@ Rotate Secret rotate_third_party_application_secret.
 """
 
 from datetime import datetime, timedelta, timezone
+from random import choice
+from string import ascii_uppercase
 
 import requests
 from integration.utils import backoff, skip_test_on_error
@@ -15,6 +17,8 @@ from foundry_dev_tools.clients.multipass import (
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
 from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
+
+ORGANIZATION_NAME = "Merck"
 
 TEST_GROUP_ID = "7bf29909-cb64-4353-a192-e5970e443909"
 
@@ -33,6 +37,92 @@ def _get_group_name(group_id: api_types.GroupId) -> str:
             the name of the group
     """
     return TEST_SINGLETON.ctx.multipass.api_get_group(group_id).json()["name"]
+
+
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
+    skip_message="To test integration for multipass groups, you need permissions to manage organizations!",
+)
+def test_groups():
+    # Retrieve all organizations and fetch the one which is the 'Merck' organization
+    resp = TEST_SINGLETON.ctx.multipass.api_get_all_organizations()
+
+    assert resp.status_code == 200
+
+    organization = next(
+        (organization for organization in resp.json() if organization["displayName"] == ORGANIZATION_NAME), None
+    )
+
+    assert organization
+
+    # Create a new group
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+
+    name = "test-group_" + rnd
+    description = "Description of test group"
+    organization_rid = organization["rid"]
+
+    resp = TEST_SINGLETON.ctx.multipass.api_create_group(name, [organization_rid], description)
+
+    assert resp.status_code == 200
+
+    group = resp.json()
+
+    assert "id" in group
+    assert group["name"] == name
+    assert description in group["attributes"]["multipass:description"]
+    assert organization_rid in group["attributes"]["multipass:organization-rid"]
+
+    group_id = group["id"]
+
+    # Retrieve the group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_group(group_id)
+
+    assert resp.status_code == 200
+
+    group = resp.json()
+
+    assert group["id"] == group_id
+    assert group["name"] == name
+    assert description in group["attributes"]["multipass:description"]
+    assert organization_rid in group["attributes"]["multipass:organization-rid"]
+
+    # Update group description
+    updated_description = "Description update"
+    resp = TEST_SINGLETON.ctx.multipass.api_update_group(group_id, updated_description)
+
+    assert resp.status_code == 200
+
+    group = resp.json()
+    assert group["id"] == group_id
+    assert len(group["attributes"]["multipass:description"]) == 1
+    assert group["attributes"]["multipass:description"][0] == updated_description
+
+    # Rename a group
+    new_group_name = name + "_RENAMED"
+
+    resp = TEST_SINGLETON.ctx.multipass.api_rename_group(group_id, new_group_name)
+
+    assert resp.status_code == 200
+
+    resp_body = resp.json()
+
+    renamed_group = resp_body["renamedGroup"]
+    alias_group = resp_body["aliasGroup"]
+
+    assert renamed_group["id"] == group_id
+    assert renamed_group["name"] == new_group_name
+
+    assert "id" in alias_group
+    assert alias_group["name"] == name
+
+    alias_group_id = alias_group["id"]
+
+    # Delete the groups
+    for g_id in [group_id, alias_group_id]:
+        resp = TEST_SINGLETON.ctx.multipass.api_delete_group(g_id)
+
+        assert resp.status_code == 204
 
 
 @skip_test_on_error(
