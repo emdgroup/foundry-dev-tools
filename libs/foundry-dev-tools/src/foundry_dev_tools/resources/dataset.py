@@ -795,5 +795,10 @@ class Dataset(resource.Resource):
         except ResourceNotFoundError as e:
             raise DatasetNotFoundError from e
 
+    def _get_repr_dict(self) -> dict:
+        d = super()._get_repr_dict()
+        d["branch"] = d["branch"]["id"]
+        return d
+
 
 resource.RID_CLASS_REGISTRY[Dataset.rid_start] = Dataset

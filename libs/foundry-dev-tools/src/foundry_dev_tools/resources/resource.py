@@ -26,17 +26,17 @@ class Resource:
     # always included (at least what I can see)
     rid: api_types.Rid
     name: str
-    directly_trashed: bool
-    is_autosave: bool
-    is_hidden: bool
+    path: api_types.FoundryPath  # not optional for this class, normally only included with extra decorations
     created: api_types.Attribution | None
     modified: api_types.Attribution | None
     last_modified: float | None
+    directly_trashed: bool
+    is_autosave: bool
+    is_hidden: bool
     operations: set[str] | None
     url_variables: dict[str, str]
 
     # included with extra decoration
-    path: api_types.FoundryPath  # not optional for this class
     description: str | None = None
     favorite: bool | None = None
     branches: set[api_types.CompassBranch] | None = None
@@ -117,12 +117,13 @@ class Resource:
     ):
         self.rid = rid
         self.name = name
-        self.directly_trashed = directlyTrashed
-        self.is_autosave = isAutosave
-        self.is_hidden = isHidden
+        self.path = path
         self.created = created
         self.modified = modified
         self.last_modified = lastModified
+        self.directly_trashed = directlyTrashed
+        self.is_autosave = isAutosave
+        self.is_hidden = isHidden
         self.operations = operations
         self.url_variables = urlVariables
         self.description = description
@@ -134,7 +135,6 @@ class Resource:
         self.has_branches = hasBranches
         self.has_multiple_branches = hasMultipleBranches
         self.backed_object_types = backedObjectTypes
-        self.path = path
         self.long_description = longDescription
         self.in_trash = inTrash
         self.deprecation = deprecation
@@ -248,6 +248,21 @@ class Resource:
         resource_json = self._context.compass.api_get_resource(self.rid, decoration=self._decoration).json()
         self._from_json(**resource_json)
         return self
+
+    def _get_repr_dict(self) -> dict:
+        d = {k: v for k, v in self.__dict__.items() if v is not None and not k.startswith("_")}
+        if c := d.get("created"):
+            d["created"] = c.get("time")
+        if c := d.get("modified"):
+            d["modified"] = c.get("time")
+        del d["operations"]
+        del d["url_variables"]
+        del d["last_modified"]  # already as a formatted date in "modified"
+        del d["name"]  # already visible in the "path"
+        return d
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}({self._get_repr_dict()!s})>"
 
 
 RID_CLASS_REGISTRY: dict[str, type[Resource]] = {}
