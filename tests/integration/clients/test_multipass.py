@@ -3,18 +3,15 @@ Rotate Secret rotate_third_party_application_secret.
 
 """
 
-import functools
 from datetime import datetime, timedelta, timezone
 
-import pytest
 import requests
-from integration.utils import backoff
+from integration.utils import backoff, skip_test_on_error
 
 from foundry_dev_tools.clients.multipass import (
     DEFAULT_MAX_DURATION_IN_SECONDS,
     DEFAULT_TOKEN_LIFETIME_IN_SECONDS,
 )
-from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
 from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
@@ -23,29 +20,6 @@ TEST_GROUP_ID = "7bf29909-cb64-4353-a192-e5970e443909"
 
 DEV_WORKSPACE_OWNER_GROUP_ID = "e9a4a5e7-fbff-4856-ac6c-c657e97a73c2"
 DEV_WORKSPACE_VIEWER_GROUP_ID = "2ba614c8-65bb-4d1f-afa1-323610b755ec"
-
-
-def handle_forbidden_error(skip_message):
-    """Decorator function to handle 403 forbidden error when user lacks permission to skip the test.
-
-    Args:
-        skip_message: The message to pass on to :py:meth:`pytest.skip` when skipping a function
-    """
-
-    def decorator(test_function):
-        @functools.wraps(test_function)
-        def wrapper(*args, **kwargs):
-            try:
-                test_function(*args, **kwargs)
-            except FoundryAPIError as err:
-                if err.response.status_code == requests.codes.forbidden:
-                    pytest.skip(skip_message)
-                else:
-                    raise
-
-        return wrapper
-
-    return decorator
 
 
 def _get_group_name(group_id: api_types.GroupId) -> str:
@@ -61,8 +35,9 @@ def _get_group_name(group_id: api_types.GroupId) -> str:
     return TEST_SINGLETON.ctx.multipass.api_get_group(group_id).json()["name"]
 
 
-@handle_forbidden_error(
-    skip_message="To test integration for multipass tpa, you need permissions to manage third party applications!"
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
+    skip_message="To test integration for multipass tpa, you need permissions to manage third party applications!",
 )
 def test_crud_inner():
     client = FoundryRestClient()
@@ -155,8 +130,9 @@ def test_crud_inner():
     client.delete_third_party_application(client_id=client_id)
 
 
-@handle_forbidden_error(
-    skip_message="To test integration for multipass token endpoints, you need permissions to manage tokens!"
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
+    skip_message="To test integration for multipass token endpoints, you need permissions to manage tokens!",
 )
 def test_token_endpoints():
     # Create a new token
@@ -200,11 +176,12 @@ def test_token_endpoints():
     assert is_revoked
 
 
-@handle_forbidden_error(
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
     skip_message=(
         "To test integration for multipass group administration endpoints, you need to be member of group "
         f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
-    )
+    ),
 )
 def test_group_administrations():
     user_id = TEST_SINGLETON.ctx.multipass.get_user_info()["id"]
@@ -276,11 +253,12 @@ def test_group_administrations():
     assert not any(member_manager["id"] == user_id for member_manager in resp.json())
 
 
-@handle_forbidden_error(
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
     skip_message=(
         "To test integration for multipass group member administration endpoints, you need to be member of group "
         f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
-    )
+    ),
 )
 def test_group_member_administration():
     user_id = TEST_SINGLETON.ctx.multipass.get_user_info()["id"]
@@ -378,11 +356,12 @@ def test_group_member_administration():
     assert not any(member["id"] == user_id for member in resp.json())
 
 
-@handle_forbidden_error(
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
     skip_message=(
         "To test integration for multipass group member expiration endpoints, you need to be member of group "
         f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
-    )
+    ),
 )
 def test_group_member_expiration():
     user_id = TEST_SINGLETON.ctx.multipass.get_user_info()["id"]
@@ -416,11 +395,12 @@ def test_group_member_expiration():
     assert resp.status_code == 204
 
 
-@handle_forbidden_error(
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
     skip_message=(
         "To test integration for multipass group member expiration settings endpoints, you need to be member of group "
         f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
-    )
+    ),
 )
 def test_group_member_expiration_settings():
     # Update expiration settings for test group

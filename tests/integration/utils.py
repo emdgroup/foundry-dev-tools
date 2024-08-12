@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
+import pytest
 
 from foundry_dev_tools.config.context import FoundryContext
+from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
 from foundry_dev_tools.utils.spark import get_spark_session
 
@@ -312,6 +314,32 @@ def backoff(
             break
         sleep += sleep
     return predicate(result), result, retries
+
+
+def skip_test_on_error(status_code_to_skip: int, skip_message: str) -> Callable[[Callable], None]:
+    """Decorator function to catch errors and skip the test for the specified status code. Otherwise it will raise the errors.
+
+    Args:
+        status_code_to_skip: The response status code for which to catch the error and skip the test
+        skip_message: The message to pass on to :py:meth:`pytest.skip` when skipping a function
+    Returns:
+        Callable:
+            the decorator function
+    """  # noqa: E501
+
+    def decorator(test_function):
+        def wrapper(*args, **kwargs):
+            try:
+                test_function(*args, **kwargs)
+            except FoundryAPIError as err:
+                if err.response.status_code == status_code_to_skip:
+                    pytest.skip(skip_message)
+                else:
+                    raise
+
+        return wrapper
+
+    return decorator
 
 
 def random_string_array(array_length: int, str_length: int = 20):
