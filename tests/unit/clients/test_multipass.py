@@ -204,7 +204,7 @@ def test_get_tokens(test_context_mock):
     assert test_context_mock.mock_adapter.call_count == 2
 
 
-def mock_generate_ttl(request, context, expiration_date) -> float:
+def mock_generate_ttl(expiration_date) -> float:
     t_now = datetime.now(tz=timezone.utc)
 
     return (expiration_date - t_now).total_seconds()
@@ -215,7 +215,7 @@ def test_api_get_ttl(test_context_mock, foundry_token_expiration_date):
         test_context_mock.mock_adapter.register_uri(
             "GET",
             build_api_url(TEST_HOST.url, "multipass", "token/ttl"),
-            json=lambda request, ctx: mock_generate_ttl(request, ctx, foundry_token_expiration_date),
+            json=mock_generate_ttl(foundry_token_expiration_date),
         )
 
         first_measure = test_context_mock.multipass.api_get_ttl().json()
@@ -224,7 +224,7 @@ def test_api_get_ttl(test_context_mock, foundry_token_expiration_date):
         test_context_mock.mock_adapter.register_uri(
             "GET",
             build_api_url(TEST_HOST.url, "multipass", "token/ttl"),
-            json=lambda request, ctx: mock_generate_ttl(request, ctx, foundry_token_expiration_date),
+            json=mock_generate_ttl(foundry_token_expiration_date),
         )
 
         second_measure = test_context_mock.multipass.api_get_ttl().json()
