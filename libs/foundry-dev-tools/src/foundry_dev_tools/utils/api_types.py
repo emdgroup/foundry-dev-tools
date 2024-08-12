@@ -68,6 +68,9 @@ FoundrySchema = dict[str, Any]
 FoundryTransaction = Literal["SNAPSHOT", "UPDATE", "APPEND", "DELETE"]
 """Foundry transaction types."""
 
+GroupId = str
+"""A group identifier on Foundry"""
+
 SqlDialect = Literal["ANSI", "SPARK"]
 """The SQL Dialect for Foundry SQL queries."""
 
