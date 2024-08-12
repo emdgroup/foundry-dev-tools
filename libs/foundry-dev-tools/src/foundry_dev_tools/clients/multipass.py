@@ -95,6 +95,32 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_create_group(
+        self,
+        name: str,
+        organization_rids: set[api_types.OrganizationRid],
+        description: str | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Create a new multipass group.
+
+        Args:
+            name: The name the group should receive on creation
+            organization_rids: A set of organization identifiers the group will belong to
+            description: An optional group description
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which is the newly created project itself
+        """
+        body = {"groupName": name, "organizationRids": list(organization_rids)}
+
+        if description:
+            body["attributes"] = {"multipass:description": [description]}
+
+        return self.api_request("POST", "administration/groups", json=body, **kwargs)
+
     def api_get_group(self, group_id: str, **kwargs) -> requests.Response:
         """Returns the multipass group information.
 
@@ -119,6 +145,44 @@ class MultipassClient(APIClient):
         return self.api_request(
             "GET",
             f"groups/{group_id}",
+            **kwargs,
+        )
+
+    def api_update_group(self, group_id: api_types.GroupId, group_description: str, **kwargs) -> requests.Response:
+        """Update the specified multipass group.
+
+        Args:
+            group_id: The identifier of the group which to update
+            group_description: The updated description to apply to the group
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which is the updated group
+        """
+        body = {"multipass:description": [group_description]}
+
+        return self.api_request("PUT", f"administration/groups/{group_id}", json=body, **kwargs)
+
+    def api_rename_group(self, group_id: api_types.GroupId, new_group_name: str, **kwargs) -> requests.Response:
+        """Rename a group.
+
+        Args:
+            group_id: identifier of the group for which to update its name
+            new_group_name: the name the group will be renamed to
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which consists of an entry for the renamed or original group
+                and a group which serves as alias group, keeping the old name and directing to the new group
+        """
+        body = {"groupName": new_group_name}
+
+        return self.api_request(
+            "POST",
+            f"administration/groups/{group_id}/name",
+            json=body,
             **kwargs,
         )
 
@@ -984,3 +1048,22 @@ class MultipassClient(APIClient):
                 the response contains the remaining lifetime of the token until it expires
         """
         return self.api_request("GET", "token/ttl")
+
+    def api_get_all_organizations(
+        self,
+        **kwargs,
+    ) -> requests.Response:
+        """Returns a list of all organizations the user can view.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which is a list of organizations and their associated properties
+        """
+        return self.api_request(
+            "GET",
+            "organizations/all",
+            **kwargs,
+        )

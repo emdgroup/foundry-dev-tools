@@ -59,6 +59,9 @@ FolderRid = str
 JobSpecRid = str
 """A jobspec resource identifier."""
 
+OrganizationRid = str
+"""An organization resource identifier."""
+
 ProjectRid = str
 """A compass project root folder resource identifier."""
 
