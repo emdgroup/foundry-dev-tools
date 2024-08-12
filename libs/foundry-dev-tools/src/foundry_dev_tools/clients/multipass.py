@@ -14,8 +14,9 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     import requests
+
 DEFAULT_TOKEN_LIFETIME_IN_SECONDS = 604800
-"""The default token lifetime in seconds which is equivalent to seven days."""
+"""The default token lifetime in seconds which is equivalent to seven days (7*24*60*60)."""
 
 MINIMUM_TOKEN_PAGE_SIZE = 0
 DEFAULT_TOKEN_PAGE_SIZE = 100
