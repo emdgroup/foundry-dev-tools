@@ -95,6 +95,24 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_get_principals(self, principal_ids: set[api_types.PrincipalId], **kwargs) -> requests.Response:
+        """Returns the principal information for the provided principal identifiers.
+
+        Args:
+            principal_ids: A set of principal identifiers for which to gather information
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which is a list of principals along with some principal-related information
+        """
+        return self.api_request(
+            "POST",
+            "administration/principals",
+            json=list(principal_ids),
+            **kwargs,
+        )
+
     def api_create_group(
         self,
         name: str,
