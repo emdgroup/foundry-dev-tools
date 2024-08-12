@@ -7,7 +7,7 @@ import time
 from decimal import Decimal
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 
@@ -16,6 +16,8 @@ from foundry_dev_tools.foundry_api_client import FoundryRestClient
 from foundry_dev_tools.utils.spark import get_spark_session
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import pyspark.sql
 
     from foundry_dev_tools.resources.dataset import Dataset
@@ -286,6 +288,30 @@ FOUNDRY_SCHEMA_COMPLEX_DATASET = {
 }
 
 rng = np.random.default_rng()
+
+T = TypeVar("T")
+
+INITIAL_SLEEP_TIME = 1.0
+MAX_RETRIES = 3
+
+
+def backoff(
+    func: Callable[[], T],
+    predicate: Callable[[T], bool],
+    sleep: float = INITIAL_SLEEP_TIME,
+    num_retries: int = MAX_RETRIES,
+) -> tuple[bool, T, int]:
+    result = func()
+
+    retries = 0
+    while not predicate(result):
+        time.sleep(sleep)
+        result = func()
+        retries += 1
+        if retries == num_retries:
+            break
+        sleep += sleep
+    return predicate(result), result, retries
 
 
 def random_string_array(array_length: int, str_length: int = 20):
