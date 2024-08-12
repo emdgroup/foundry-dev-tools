@@ -222,6 +222,42 @@ def test_crud_inner():
 
 @skip_test_on_error(
     status_code_to_skip=requests.codes.forbidden,
+    skip_message=(
+        "To test integration for multipass user and principal endpoints, you need to be member of group "
+        f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
+    ),
+)
+def test_user_information_and_principal_endpoints():
+    # Retrieve user information
+    user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
+
+    user_id = user_info["id"]
+
+    # Get multiple principals at once
+    resp = TEST_SINGLETON.ctx.multipass.api_get_principals({user_id, TEST_GROUP_ID, DEV_WORKSPACE_VIEWER_GROUP_ID})
+
+    assert resp.status_code == 200
+
+    user = next((principal for principal in resp.json() if principal["id"] == user_id), None)
+    test_group = next((principal for principal in resp.json() if principal["id"] == TEST_GROUP_ID), None)
+    dev_workspace_viewer_group = next(
+        (principal for principal in resp.json() if principal["id"] == DEV_WORKSPACE_VIEWER_GROUP_ID), None
+    )
+
+    assert user
+    assert user_info == user
+
+    assert test_group
+    assert test_group["id"] == TEST_GROUP_ID
+    assert test_group["name"] == _get_group_name(TEST_GROUP_ID)
+
+    assert dev_workspace_viewer_group
+    assert dev_workspace_viewer_group["id"] == DEV_WORKSPACE_VIEWER_GROUP_ID
+    assert dev_workspace_viewer_group["name"] == _get_group_name(DEV_WORKSPACE_VIEWER_GROUP_ID)
+
+
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
     skip_message="To test integration for multipass token endpoints, you need permissions to manage tokens!",
 )
 def test_token_endpoints():
