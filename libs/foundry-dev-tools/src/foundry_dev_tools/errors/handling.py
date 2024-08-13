@@ -46,6 +46,7 @@ from foundry_dev_tools.errors.dataset import (
     DatasetNotFoundError,
 )
 from foundry_dev_tools.errors.meta import FoundryAPIError
+from foundry_dev_tools.errors.multipass import DuplicateGroupNameError
 from foundry_dev_tools.errors.sql import (
     FoundrySqlQueryFailedError,
 )
@@ -97,6 +98,7 @@ DEFAULT_ERROR_MAPPING: dict[str | None, type[FoundryAPIError]] = {
     "FoundrySqlServer:InvalidDatasetNoSchema": DatasetHasNoSchemaError,
     "FoundrySqlServer:InvalidDatasetCannotAccess": BranchNotFoundError,
     "FoundrySqlServer:InvalidDatasetPathNotFound": DatasetNotFoundError,
+    "Multipass:DuplicateGroupName": DuplicateGroupNameError,
 }
 """This mapping maps the Error names coming from the API to the Foundry DevTools classes."""
 
