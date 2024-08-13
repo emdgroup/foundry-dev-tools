@@ -67,25 +67,33 @@ def test_api_update_group_member_expiration_settings_max_expiration_in_past(api_
 
     # Assert that expiration in the past is reset to the datetime of the beginning of the next day
     max_expiration = now_utc - timedelta(seconds=DEFAULT_MAX_DURATION_IN_SECONDS)
-    expected_max_expiration = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     with pytest.warns():
         test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
 
     request_body = api_request.call_args.kwargs["json"]
 
-    assert datetime.fromisoformat(request_body["maxExpiration"]) == expected_max_expiration
+    expected_max_expiration = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    actual_max_expiration = datetime.strptime(request_body["maxExpiration"], "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+    assert actual_max_expiration == expected_max_expiration
 
     # Assert that expiration date in the moment of time is also reset to the datetime of the beginning of the next day
     max_expiration = now_utc
-    expected_max_expiration = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     with pytest.warns():
         test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
 
     request_body = api_request.call_args.kwargs["json"]
 
-    assert datetime.fromisoformat(request_body["maxExpiration"]) == expected_max_expiration
+    expected_max_expiration = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    actual_max_expiration = datetime.strptime(request_body["maxExpiration"], "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+    assert actual_max_expiration == expected_max_expiration
 
     # Check that max_expiration without timezone throws warning for missing timezone
     max_expiration = datetime.now() + timedelta(seconds=DEFAULT_MAX_DURATION_IN_SECONDS)  # noqa: DTZ005
@@ -114,14 +122,17 @@ def test_api_update_group_member_expiration_settings_different_timezones(
         ),
     )
 
-    # Assert that time zone of max_expiration gets converted into UTC time zone before being sent
-    expected_max_expiration = max_expiration.astimezone(timezone.utc).replace(microsecond=0)
-
     test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
 
     request_body = api_request.call_args.kwargs["json"]
 
-    assert datetime.fromisoformat(request_body["maxExpiration"]) == expected_max_expiration
+    # Assert that time zone of max_expiration gets converted into UTC time zone before being sent
+    expected_max_expiration = max_expiration.astimezone(timezone.utc).replace(microsecond=0)
+    actual_max_expiration = datetime.strptime(request_body["maxExpiration"], "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+    assert actual_max_expiration == expected_max_expiration
 
 
 @pytest.mark.usefixtures(_register_update_member_expiration_settings.__name__)
