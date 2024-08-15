@@ -78,7 +78,3 @@ output = apply_the_schema.compute()
 # output in pandas format
 output.toPandas()
 ```
-
-:::{seealso}
-[Configuration for Transforms](/docs/configuration.md#configuration-for-transforms)
-:::
