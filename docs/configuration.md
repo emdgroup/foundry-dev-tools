@@ -106,6 +106,10 @@ ctx = FoundryContext(config=Config())
 ctx = FoundryContext(config=Config(debug=True))
 ```
 ### Configuration for Transforms
+
+If you want to use Foundry DevTools inside a Transform running on Foundry, you can set the configuration like this:
+
+1. Authenticate via the auth header from External Systems
 ```python
 # from pyspark.sql import functions as F
 from transforms.api import transform, Output
@@ -141,31 +145,30 @@ def compute(ctx, output_transform, egress):
 
 ```
 
+2. Using [source based external transforms](https://www.palantir.com/docs/foundry/data-integration/external-transforms-source-based/) with client secret authentication
+
 ```python
-# from pyspark.sql import functions as F
 from transforms.api import transform, Output
 from transforms.external.systems import external_systems, Source, ResolvedSource
-from foundry_dev_tools import FoundryContext, JWTTokenProvider
+from foundry_dev_tools import FoundryContext, OAuthTokenProvider
 import json
 
 
 @external_systems(
-    ls_rest_foundry_endpoint_source=Source(
-        "ri.magritte..source.[...]"
-    )
+    source=Source("ri.magritte..source.[...]")
 )
 @transform(
     output_transform=Output(
         "/path/to/dataset"
     ),
 )
-def compute(ctx, output_transform, ls_rest_foundry_endpoint_source: ResolvedSource):
+def compute(ctx, output_transform, source: ResolvedSource):
     fdt_context = FoundryContext(
-        token_provider=JWTTokenProvider(
-            host=ls_rest_foundry_endpoint_source.get_https_connection().url.replace(
-                "https://", ""
-            ),
-            jwt=ctx.auth_header.split(" ")[1],
+        token_provider=OAuthTokenProvider(
+            host=source.get_https_connection().url.replace("https://", ""),
+            client_id=source.get_secret("additionalSecretClientId"),
+            client_secret=source.get_secret("additionalSecretClientSecret"),
+            grant_type="client_credentials",
         )
     )
     user_info = json.dumps(fdt_context.multipass.get_user_info())
@@ -175,7 +178,6 @@ def compute(ctx, output_transform, ls_rest_foundry_endpoint_source: ResolvedSour
             data=[[user_info]], schema="user_info_json: string"
         )
     )
-
 ```
 
 ## How the Configuration Gets Loaded and Merged
