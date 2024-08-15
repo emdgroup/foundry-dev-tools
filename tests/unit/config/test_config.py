@@ -30,8 +30,8 @@ def test_get_config_dict(mock_config_location: dict[Path, None]):
 [config]
 rich_traceback = true
 
-[credentials.token_provider]
-config = { client_id = "will_be_overriden_by_site_config", client_secret = "get_config_dict_client_secret" }
+[credentials]
+oauth ={ client_id = "will_be_overriden_by_site_config", client_secret = "get_config_dict_client_secret" }
 """,
     )
     user_config.write_text(
@@ -39,7 +39,7 @@ config = { client_id = "will_be_overriden_by_site_config", client_secret = "get_
 [credentials]
 domain = "example.com"
 scheme = "mock"
-token_provider = {name = "oauth", config = { client_id = "get_config_dict_client_id" }}
+oauth = { client_id = "get_config_dict_client_id" }
 """,
     )
     assert config.get_config_dict() == {
@@ -49,10 +49,7 @@ token_provider = {name = "oauth", config = { client_id = "get_config_dict_client
         "credentials": {
             "domain": "example.com",
             "scheme": "mock",
-            "token_provider": {
-                "name": "oauth",
-                "config": {"client_id": "get_config_dict_client_id", "client_secret": "get_config_dict_client_secret"},
-            },
+            "oauth": {"client_id": "get_config_dict_client_id", "client_secret": "get_config_dict_client_secret"},
         },
     }
     with pytest.raises(AttributeError, match="Profile name can't be credentials"):
@@ -65,8 +62,8 @@ token_provider = {name = "oauth", config = { client_id = "get_config_dict_client
         assert config.get_config_dict()["config"]["rich_traceback"] is False
 
     # ruff: noqa: S106
-    with mock.patch.dict(os.environ, FDT_CREDENTIALS__TOKEN_PROVIDER__CONFIG__SCOPES="one:scope,two:scope"):
-        assert config.get_config_dict()["credentials"]["token_provider"]["config"]["scopes"] == "one:scope,two:scope"
+    with mock.patch.dict(os.environ, FDT_CREDENTIALS__OAUTH__SCOPES="one:scope,two:scope"):
+        assert config.get_config_dict()["credentials"]["oauth"]["scopes"] == "one:scope,two:scope"
 
 
 def test_parse_credentials_config(mock_config_location):
@@ -77,19 +74,19 @@ def test_parse_credentials_config(mock_config_location):
         config.parse_credentials_config({"credentials": {}})
 
     with pytest.raises(MissingFoundryHostError):
-        config.parse_credentials_config({"credentials": {"token_provider": {"config": {}}}})
+        config.parse_credentials_config({"credentials": {"no_domain": 1}})
 
     with pytest.raises(TokenProviderConfigError, match="To authenticate with Foundry you need a TokenProvider"):
         config.parse_credentials_config({"credentials": {"domain": "example.com"}})
     with pytest.raises(
         TokenProviderConfigError,
-        match="The token provider implementation test_token_provider_does_not_exist does not exist",
+        match="The token provider implementation example does not exist",
     ):
         config.parse_credentials_config(
             {
                 "credentials": {
                     "domain": "example.com",
-                    "token_provider": {"name": "test_token_provider_does_not_exist"},
+                    "example": "does not exist",
                 },
             },
         )
@@ -99,7 +96,7 @@ def test_parse_credentials_config(mock_config_location):
         # return the dict 'kwargs'
         check_init_mock.side_effect = lambda *args, **kwargs: args[2]  # noqa: ARG005
         config.parse_credentials_config(
-            {"credentials": {"domain": "example.com", "token_provider": {"config": {"jwt": "test"}}}},
+            {"credentials": {"domain": "example.com", "jwt": "test"}},
         )
         check_init_mock.assert_called_with(
             JWTTokenProvider,
@@ -110,7 +107,7 @@ def test_parse_credentials_config(mock_config_location):
             {
                 "credentials": {
                     "domain": "example.com",
-                    "token_provider": {"name": "oauth", "config": {"client_id": "test"}},
+                    "oauth": {"client_id": "test"},
                 },
             },
         )

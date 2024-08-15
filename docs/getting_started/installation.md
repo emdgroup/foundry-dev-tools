@@ -92,7 +92,7 @@ The following contents are needed for the JWT authentication:
 ```toml
 [credentials]
 domain = "palantir foundry domain"
-token_provider.config.jwt = "jwt token you generated"
+jwt = "jwt token you generated"
 ```
 ````
 
@@ -105,9 +105,8 @@ The client secret is optional with the authorization code grant.
 ```toml
 [credentials]
 domain = "<stack>.palantirfoundry.comp"
-token_provider.name = "oauth"
 
-[credentials.token_provider.config]
+[credentials.oauth]
 client_id = "client_id"
 client_secret = "client_secret" # optional with authorization code grant
 ```
@@ -117,9 +116,8 @@ client_secret = "client_secret" # optional with authorization code grant
 ```toml
 [credentials]
 domain = "palantir foundry domain"
-token_provider.name = "oauth"
 
-[credentials.token_provider.config]
+[credentials.oauth]
 client_id = "your client_id"
 client_secret = "your client secret" # required with the client credentials grant
 grant_type = "client_credentials"
