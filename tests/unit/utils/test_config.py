@@ -1,10 +1,11 @@
 import os
+from unittest import mock
 
 import pytest
-from pytest_mock import MockerFixture
 
+from foundry_dev_tools.config.config import get_config_dict
 from foundry_dev_tools.errors.config import FoundryConfigError
-from foundry_dev_tools.utils.config import check_init, get_environment_variable_config
+from foundry_dev_tools.utils.config import check_init
 
 
 def test_check_init():
@@ -30,12 +31,12 @@ def test_check_init():
         check_init(X, "mock", {"a": {}, "b": True})
 
 
-def test_get_environment_variable_config(mocker: MockerFixture):
+# using fakefs, as we only care about the env variables and not config files
+def test_get_environment_variable_config(fs):
     # Set up mock environment variables
     env = {
         "FDT_CREDENTIALS__DOMAIN": "domain",
-        "FDT_CREDENTIALS__TOKEN_PROVIDER__NAME": "jwt",
-        "FDT_CREDENTIALS__TOKEN_PROVIDER__CONFIG__JWT": "jwt_value",
+        "FDT_CREDENTIALS__JWT": "jwt_value",
         "FDT_TEST": "invalid",
         "OTHER_VARIABLE": "othervalue",
     }
@@ -47,71 +48,36 @@ def test_get_environment_variable_config(mocker: MockerFixture):
         "FOUNDRY_DEV_TOOLS_CLIENT_ID": "client_id",
         "FOUNDRY_DEV_TOOLS_FOUNDRY_URL": "https://domain_v1",
     }
-    v1_oauth_env.update(env)
-    mocker.patch.dict(
-        os.environ,
-        env,
-    )
 
-    with pytest.warns(
-        UserWarning,
-        match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
-    ):
-        result = get_environment_variable_config()
+    # parses v1 env
+    with mock.patch.dict(os.environ, v1_env):
+        result = get_config_dict()
+    assert result == {"credentials": {"domain": "domain_v1", "jwt": "jwt_value_v1"}}
 
-    # Check the result
-    assert result == {
-        "credentials": {"domain": "domain", "token_provider": {"name": "jwt", "config": {"jwt": "jwt_value"}}},
-    }
-
-    # Check that non-FDT_ variables are ignored
-    assert "othervalue" not in str(result)
-
-    mocker.patch.dict(os.environ, v1_env)
     with (
         pytest.warns(
             UserWarning,
             match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
         ),
-        pytest.warns(
-            DeprecationWarning,
-            match="The v1 environment variables are deprecated, please use the v2 environment variables instead",
-        ),
+        mock.patch.dict(os.environ, env),
     ):
-        result = get_environment_variable_config()
+        result = get_config_dict()
+    assert result == {"credentials": {"domain": "domain", "jwt": "jwt_value"}}
 
-    # Check the result
-    assert result == {
-        "credentials": {
-            "domain": "domain_v1",
-            "scheme": "https",
-            "token_provider": {"name": "jwt", "config": {"jwt": "jwt_value_v1"}},
-        },
-    }
-    mocker.patch.dict(os.environ, v1_oauth_env, clear=True)
+    with mock.patch.dict(os.environ, v1_oauth_env):
+        result = get_config_dict()
+    assert result == {"credentials": {"domain": "domain_v1", "oauth": {"client_id": "client_id"}}}
+
+    # v1 and v2 together
+    env.update(v1_env)
+
     with (
         pytest.warns(
             UserWarning,
             match="FDT_TEST is not a valid Foundry DevTools configuration environment variable.",
         ),
-        pytest.warns(
-            DeprecationWarning,
-            match="The v1 environment variables are deprecated, please use the v2 environment variables instead",
-        ),
+        mock.patch.dict(os.environ, env),
     ):
-        result = get_environment_variable_config()
-
-    # Check the result
-    assert result == {
-        "credentials": {
-            "domain": "domain_v1",
-            "scheme": "https",
-            "token_provider": {
-                "name": "oauth",
-                "config": {
-                    "jwt": "jwt_value",  # TODO remove jwt when merging config dicts
-                    "client_id": "client_id",
-                },
-            },
-        },
-    }
+        result = get_config_dict()
+    # v2 takes precedence
+    assert result == {"credentials": {"domain": "domain", "jwt": "jwt_value"}}

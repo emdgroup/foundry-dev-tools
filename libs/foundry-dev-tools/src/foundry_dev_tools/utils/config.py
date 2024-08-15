@@ -88,7 +88,7 @@ def merge_dicts(a: dict, b: dict) -> dict:
             else:
                 a[k] = b[k]
         return a
-    return b
+    return b if b is not None else a
 
 
 def path_from_path_or_str(path: Path | PathLike[str] | str) -> Path:
@@ -144,7 +144,7 @@ def get_environment_variable_config() -> dict:
     from foundry_dev_tools.utils.compat import get_v1_environment_variables  # otherwise circular import
 
     v1_env_dict = get_v1_environment_variables()
-    return merge_dicts(env_dict, v1_env_dict)
+    return merge_dicts(v1_env_dict, env_dict)
 
 
 def _try_convert_to_bool(value: Any) -> Any:  # noqa: ANN401

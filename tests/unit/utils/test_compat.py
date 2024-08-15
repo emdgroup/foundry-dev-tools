@@ -22,7 +22,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     get_config_dict.return_value = {
         "credentials": {
             "domain": "test",
-            "token_provider": {"name": "oauth", "config": {"client_id": "cid", "client_secret": "csec"}},
+            "oauth": {"client_id": "cid", "client_secret": "csec"},
         },
     }
     tp, v2c = v1_to_v2_config({"jwt": "123"})
@@ -32,7 +32,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     get_config_dict.return_value = {
         "credentials": {
             "domain": "test",
-            "token_provider": {"name": "oauth", "config": {"client_id": "cid2", "client_secret": "csec2"}},
+            "oauth": {"client_id": "cid2", "client_secret": "csec2"},
         },
     }
 
@@ -45,7 +45,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     get_config_dict.return_value = {
         "credentials": {
             "domain": "test",
-            "token_provider": {"name": "oauth", "config": {"client_id": "cid3", "client_secret": "csec3"}},
+            "oauth": {"client_id": "cid3", "client_secret": "csec3"},
         },
     }
 
@@ -58,12 +58,7 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     get_config_dict.return_value = {
         "credentials": {
             "domain": "test",
-            "token_provider": {
-                "name": "jwt",
-                "config": {
-                    "jwt": "jwt3",
-                },
-            },
+            "jwt": "jwt3",
         },
     }
 
@@ -94,8 +89,7 @@ def test_get_v1_environment_variables(mocker: MockerFixture):
     # Check the result
     assert result == {
         "credentials": {
-            "token_provider": {"name": "jwt", "config": {"jwt": "jwt"}},
+            "jwt": "jwt",
             "domain": "example.com",
-            "scheme": "https",
         },
     }

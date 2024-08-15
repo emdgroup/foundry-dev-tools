@@ -11,7 +11,6 @@ from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.config.token_provider import (
     TOKEN_PROVIDER_MAPPING,
     AppServiceTokenProvider,
-    JWTTokenProvider,
     TokenProvider,
 )
 from foundry_dev_tools.errors.config import (
@@ -130,6 +129,20 @@ def _pure_config_dict(env: bool = True) -> dict:
     return config
 
 
+def _find_token_provider(credentials: dict) -> str | None:
+    # go backwards, to use the last defined token provider in the config
+    for k in reversed(credentials):
+        if k in TOKEN_PROVIDER_MAPPING:
+            return k
+    return None
+
+
+MISSING_TP_ERROR = TokenProviderConfigError(
+    "To authenticate with Foundry you need a TokenProvider. The token provider can be configured either via the"
+    " configuration file or the token_provider FoundryContext parameter."
+)
+
+
 def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None:
     """Loads config from the config files and environment variables.
 
@@ -158,13 +171,43 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
     if profile in ("config", "credentials"):
         msg = f"Profile name can't be {profile}"
         raise AttributeError(msg)
-    if profile is not None and (profile_config := config.get(profile)) and isinstance(profile_config, dict):
-        # merge the profile config with the non-prefixed config
-        config = {
-            "config": merge_dicts(config.get("config", {}), profile_config.get("config", {})),
-            "credentials": merge_dicts(config.get("credentials", {}), profile_config.get("credentials", {})),
-        }
-    return config
+    if profile and (profile_config := config.get(profile)) and isinstance(profile_config, dict):
+        profile_credentials = profile_config.get("credentials", {})
+        profile_config = profile_config.get("config", {})
+    else:
+        # use an empty profile config if no profile is specified
+        # this aims to reduce duplicate code
+        # but is going to do useless operations
+        profile_credentials = {}
+        profile_config = {}
+
+    default_credentials = config.get("credentials", {})
+    domain = profile_credentials.pop("domain", default_credentials.pop("domain", None))
+    # a domain must always be provided
+    if not domain:
+        raise MissingFoundryHostError
+
+    scheme = profile_credentials.pop("scheme", default_credentials.pop("scheme", None))
+
+    # decide which will be the token provider used
+    token_provider_name = _find_token_provider(profile_credentials) or _find_token_provider(default_credentials)
+    if not token_provider_name:
+        raise MISSING_TP_ERROR
+    # merge the profile config with the non-prefixed config
+    return_config = {}
+    merged_config = merge_dicts(config.get("config", {}), profile_config.get("config", {}))
+    if merged_config:
+        return_config["config"] = merged_config
+    return_config["credentials"] = {
+        "domain": domain,
+        token_provider_name: merge_dicts(
+            default_credentials.get(token_provider_name), profile_credentials.get(token_provider_name)
+        ),
+    }
+
+    if scheme is not None:
+        return_config["credentials"]["scheme"] = scheme
+    return return_config
 
 
 def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
@@ -178,8 +221,13 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
         # create a host object with the domain and the optional scheme setting
         host = Host(credentials_config.pop("domain"), credentials_config.pop("scheme", None))
         # get the token provider config setting, if it does not exist use an empty dict
-        token_provider = credentials_config.pop("token_provider", {})
-        tp_name, tp_config = token_provider.get("name"), token_provider.get("config", {})
+        try:
+            tp_name, tp_config = credentials_config.popitem()
+            # make it possible to do jwt = "eyJ" instead of jwt = {jwt="eyJ"}
+            if not isinstance(tp_config, dict):
+                tp_config = {tp_name: tp_config}
+        except KeyError:
+            tp_name, tp_config = None, None
 
         if tp_name:
             if mapped_class := TOKEN_PROVIDER_MAPPING.get(tp_name):
@@ -190,19 +238,10 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
             msg = f"The token provider implementation {tp_name} does not exist."
             raise TokenProviderConfigError(msg)
 
-        # the jwt token provider needs a config
-        if tp_config:
-            ci = check_init(JWTTokenProvider, "credentials", {"host": host, **tp_config})
-            return JWTTokenProvider(**ci)
-
         # use flask/dash/streamlit provider when used in the app service
         if "APP_SERVICE_TS" in os.environ:
             return AppServiceTokenProvider(host=host)
-        msg = (
-            "To authenticate with Foundry you need a TokenProvider. The token provider can be configured either via the"
-            " configuration file or the token_provider FoundryContext parameter."
-        )
-        raise TokenProviderConfigError(msg)
+        raise MISSING_TP_ERROR
     raise MissingCredentialsConfigError
 
 
