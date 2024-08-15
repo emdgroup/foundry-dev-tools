@@ -15,17 +15,13 @@ The credentials config consists of these keys:
 [credentials]
 domain = "your foundry domain"
 scheme = "scheme" # http/https
-
-[credentials.token_provider]
-name = "token provider implementation name"
-config = {} # token provider implementation specific configuration
+# TOKEN_PROVIDER_NAME is for example jwt or oauth
+TOKEN_PROVIDER_NAME = {} # token provider implementation specific configuration
 ```
 
 - The `domain` and `scheme` get converted to a [Host](#foundry_dev_tools.config.config_types.Host), which is the first parameter of each [token provider](/dev/architecture/token_provider_implementation.md) implementation.
   - The default for scheme is 'https' defined in [DEFAULT_SCHEME](#foundry_dev_tools.config.config_types)
-- The `token_provider` table configures the token provider which gets used for authentication to Foundry.
-  - The `name` value lets you select the token provider implemention, per default, this is "jwt"
-  - The `config` [table] options depends on the [`token_provider`](#foundry_dev_tools.config.token_provider) implementation.
+- The `TOKEN_PROVIDER_NAME` table configures the token provider which gets used for authentication to Foundry, the options depend on the [`token_provider`](#foundry_dev_tools.config.token_provider) implementation.
 
 Examples from [Getting Started - Credentials Configuration](/getting_started/installation.md#credentials-configuration):
 
@@ -77,6 +73,112 @@ ctx.config.cache_dir = cache_dir
 ```
 ````
 
+## Configuration in Python
+
+Configuring Foundry DevTools in Python works through the [FoundryContext].
+
+```python
+from foundry_dev_tools import FoundryContext
+
+# this way it will take the configuration and credentials
+# from your configuration files and environment variables
+ctx = FoundryContext()
+
+# or if you don't want to use configuration files,
+# you can supply the configuration and credentials as parameters
+# either jwt token provider or oauth token provider is needed,
+# or another custom token provider
+from foundry_dev_tools import Config, JWTTokenProvider, OAuthTokenProvider
+
+# This way the configuration files are not read/ignored
+# note: credentials shouldn't be stored directly in your code, this is just an example
+# jwt:
+ctx = FoundryContext(config=Config(), token_provider=JWTTokenProvider(jwt="..."))
+# oauth:
+ctx = FoundryContext(config=Config(), token_provider=OAuthTokenProvider(client_id="..."))
+
+# If you only supply either config or token_provider, the config files will be read, but only be used for the non supplied parameter
+
+# This will read your config files, but it does not read the 'config' table from the config files, only the credentials
+ctx = FoundryContext(config=Config())
+
+# For example to enable some debug logging
+ctx = FoundryContext(config=Config(debug=True))
+```
+### Configuration for Transforms
+
+If you want to use Foundry DevTools inside a Transform running on Foundry, you can set the configuration like this:
+
+1. Authenticate via the auth header from External Systems
+```python
+# from pyspark.sql import functions as F
+from transforms.api import transform, Output
+from transforms.external.systems import use_external_systems, EgressPolicy
+from foundry_dev_tools import FoundryContext, JWTTokenProvider
+import json
+
+
+@use_external_systems(
+    egress=EgressPolicy(
+        "ri.resource-policy-manager.global.network-egress-policy.[...]"
+    ),
+)
+@transform(
+    output_transform=Output(
+        "/path/to/dataset"
+    ),
+)
+def compute(ctx, output_transform, egress):
+    fdt_context = FoundryContext(
+        token_provider=JWTTokenProvider(
+            host="your-stack.palantirfoundry.com",
+            jwt=ctx.auth_header.split(" ")[1],
+        )
+    )
+    user_info = json.dumps(fdt_context.multipass.get_user_info())
+
+    output_transform.write_dataframe(
+        ctx.spark_session.createDataFrame(
+            data=[[user_info]], schema="user_info_json: string"
+        )
+    )
+
+```
+
+2. Using [source based external transforms](https://www.palantir.com/docs/foundry/data-integration/external-transforms-source-based/) with client secret authentication
+
+```python
+from transforms.api import transform, Output
+from transforms.external.systems import external_systems, Source, ResolvedSource
+from foundry_dev_tools import FoundryContext, OAuthTokenProvider
+import json
+
+
+@external_systems(
+    source=Source("ri.magritte..source.[...]")
+)
+@transform(
+    output_transform=Output(
+        "/path/to/dataset"
+    ),
+)
+def compute(ctx, output_transform, source: ResolvedSource):
+    fdt_context = FoundryContext(
+        token_provider=OAuthTokenProvider(
+            host=source.get_https_connection().url.replace("https://", ""),
+            client_id=source.get_secret("additionalSecretClientId"),
+            client_secret=source.get_secret("additionalSecretClientSecret"),
+            grant_type="client_credentials",
+        )
+    )
+    user_info = json.dumps(fdt_context.multipass.get_user_info())
+
+    output_transform.write_dataframe(
+        ctx.spark_session.createDataFrame(
+            data=[[user_info]], schema="user_info_json: string"
+        )
+    )
+```
 
 ## How the Configuration Gets Loaded and Merged
 
@@ -86,10 +188,7 @@ For example if there are the files /etc/foundry-dev-tools/config.toml:
 key = 123
 key2 = "foobar"
 
-[credentials.token_provider]
-name = "oauth"
-
-[credentials.token_provider.config]
+[credentials.oauth]
 client_id = "topsecret"
 ```
 And the configuration file /home/user/.config/foundry-dev-tools/config.toml
@@ -98,7 +197,7 @@ And the configuration file /home/user/.config/foundry-dev-tools/config.toml
 key = 987
 key3 = "baz"
 
-[credentials.token_provider.config]
+[credentials.oauth]
 client_secret = "top_client_secret"
 ````
 And the environment variable `FDT_CONFIG__KEY3=asdf`
@@ -109,10 +208,7 @@ key = 987
 key2 = "foobar"
 key3 = "asdf"
 
-[credentials]
-token_provider.name = "oauth"
-
-[credentials.token_provider.config]
+[credentials.oauth]
 client_id = "topsecret"
 client_secret = "top_client_secret"
 ```
@@ -170,14 +266,14 @@ requests_ca_bundle = '/path/to/bundle/for/one'
 [one.credentials]
 domain = "one.plntr-domain"
 scheme = "http"
-token_provider.config = {"jwt"="eyJ..1"}
+jwt="eyJ..1"
 
 [two.config]
 requests_ca_bundle = '/path/to/bundle/for/two'
 
 [two.credentials]
 domain = "two.plntr-domain"
-token_provider.config = {"jwt"="eyJ..2"}
+jwt="eyJ..2"
 
 :::
 
@@ -206,15 +302,12 @@ Let's assume we want to represent this json in toml:
 {
   "credentials": {
     "domain": "example.com",
-    "token_provider": {
-      "name": "oauth",
-      "config": {
-        "client_id": "client id",
-        "scopes": [
-          "scope1",
-          "scope2"
-        ]
-      }
+    "oauth": {
+      "client_id": "client id",
+      "scopes": [
+        "scope1",
+        "scope2"
+      ]
     }
   }
 }
@@ -226,10 +319,7 @@ We can present them (at least, there are more, but these could make sense for th
 ```toml
 [credentials]
 domain = "example.com"
-token_provider = { "name" = "oauth", config = { client_id = "client id", scopes = [
-  "scope1",
-  "scope2",
-] } }
+oauth = { client_id = "client id", scopes = ["scope1", "scope2"] }
 ```
 ````
 
@@ -237,9 +327,8 @@ token_provider = { "name" = "oauth", config = { client_id = "client id", scopes 
 ```toml
 [credentials]
 domain = "example.com"
-token_provider.name = "oauth"
-token_provider.config.client_id = "client id"
-token_provider.config.scopes = ["scope1", "scope2"]
+oauth.client_id = "client id"
+oauth.scopes = ["scope1", "scope2"]
 ```
 ````
 
@@ -248,13 +337,11 @@ token_provider.config.scopes = ["scope1", "scope2"]
 [credentials]
 domain = "example.com"
 
-[credentials.token_provider]
-name = "oauth"
-
-[credentials.token_provider.config]
+[credentials.oauth]
 client_id = "client id"
 scopes = ["scope1", "scope2"]
 ```
 ````
 
 [table]: https://toml.io/en/v1.0.0#table
+[FoundryContext]: ./getting_started/foundry_dev_tools.md#foundrycontext

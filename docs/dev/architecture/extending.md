@@ -15,7 +15,7 @@ And then in your `pyproject.toml` add the following:
 my_token_provider = "your.module.name:MyTokenProvider"
 ```
 
-Replace `my_token_provider` with something more fitting, this will be the name used in the [credentials config](/configuration.md#credentials-config) as the token provider name.
+Replace `my_token_provider` with something more fitting, this will be the settings key `credentials.${name}` used in the [credentials config](/configuration.md#credentials-config) as the token provider name.
 Also change "your.module.name" to the module name you chose, and "MyTokenProvider" to the class name of your token provider.
 
 Now If you install the package, you will be able to use the token provider in Foundry DevTools. 

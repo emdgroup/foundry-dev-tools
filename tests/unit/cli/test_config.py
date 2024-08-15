@@ -54,12 +54,6 @@ foundry_url=https://example.com
         v2_conf_path.read_text()
         == """[credentials]
 domain = "example.com"
-scheme = "https"
-
-[credentials.token_provider]
-name = "jwt"
-
-[credentials.token_provider.config]
 jwt = "123"
 """
     )
@@ -100,10 +94,7 @@ def test_migrate_project(fs: FakeFilesystem):
     assert res.exit_code == 0
     assert (
         v2_proj_file.contents.replace(os.linesep, "\n")
-        == """[credentials.token_provider]
-name = "jwt"
-
-[credentials.token_provider.config]
+        == """[credentials]
 jwt = "123"
 """
     )

@@ -7,6 +7,7 @@ import warnings
 from urllib.parse import urlparse
 
 from foundry_dev_tools.config.config import TokenProvider, get_config_dict, parse_credentials_config
+from foundry_dev_tools.config.config_types import DEFAULT_SCHEME
 
 
 def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True) -> dict:  # noqa: C901
@@ -30,8 +31,6 @@ def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True
     scheme = None
     if jwt or foundry_url or client_id is not False:
         _config.setdefault("credentials", {})
-        if jwt or client_id is not False:
-            _config["credentials"].setdefault("token_provider", {})
 
     if foundry_url:
         parsed_foundry_url = urlparse(foundry_url)
@@ -44,25 +43,22 @@ def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True
         if scheme:
             _config["credentials"]["scheme"] = scheme
 
-    elif domain := _config.get("credentials", {}).get("domain"):
-        scheme = _config.get("credentials", {}).get("scheme")
+    if "credentials" in _config and (scheme := _config["credentials"].get("scheme")) and scheme == DEFAULT_SCHEME:
+        del _config["credentials"]["scheme"]
 
     if jwt:
-        _config["credentials"]["token_provider"]["name"] = "jwt"
-        _config["credentials"]["token_provider"]["config"] = {"jwt": jwt}
+        _config["credentials"]["jwt"] = jwt
     elif client_id is not False:
-        _config["credentials"]["token_provider"]["name"] = "oauth"
-        _config["credentials"]["token_provider"].setdefault("config", {})
-        _config["credentials"]["token_provider"]["config"].pop("jwt", None)
-        _config["credentials"]["token_provider"]["config"]["client_id"] = client_id
+        _config["credentials"].setdefault("oauth", {})
+        _config["credentials"]["oauth"]["client_id"] = client_id
 
-    if _config.get("credentials", {}).get("token_provider", {}).get("name") == "oauth":
+    if "oauth" in _config.get("credentials", {}):
         if client_secret is not False:
-            _config["credentials"]["token_provider"]["config"]["client_secret"] = client_secret
+            _config["credentials"]["oauth"]["client_secret"] = client_secret
         if grant_type is not False:
-            _config["credentials"]["token_provider"]["config"]["grant_type"] = grant_type
+            _config["credentials"]["oauth"]["grant_type"] = grant_type
         if scopes is not False:
-            _config["credentials"]["token_provider"]["config"]["scopes"] = scopes
+            _config["credentials"]["oauth"]["scopes"] = scopes
     return _config
 
 
