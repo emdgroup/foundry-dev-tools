@@ -5,6 +5,9 @@ Foundry DevTools can be used a utility to feed data into Foundry on an event-tri
 This page describes an example where Foundry DevTools is deployed as a lambda function and copies objects from an
 S3 Bucket to a Foundry dataset, whenever new objects are uploaded to the bucket.
 
+![architecture_dark](../../docs/pictures/aws_lambda_example_dark.svg#gh-dark-mode-only)
+![architecture_light](../../docs/pictures/aws_lambda_example_light.svg#gh-light-mode-only)
+
 ## Pre-requisites
 
 This example uses pixi as package manager. Pixi manages all other dependencies, except `docker`.
