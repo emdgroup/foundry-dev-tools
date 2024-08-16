@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Self
+from typing import TYPE_CHECKING, Self
 
 from foundry_dev_tools.resources.principal import Principal
 
@@ -15,8 +15,6 @@ class User(Principal):
     """Helper class for users."""
 
     username: str
-
-    cls_attributes: ClassVar[list[str]] = ["id", "username", "attributes"]
 
     def __init__(self, *args, **kwargs) -> None:
         """Not intended to be initialized directly. Use :py:meth:`User.me` instead."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Self
+from typing import TYPE_CHECKING, Self
 
 from foundry_dev_tools.resources.principal import Principal
 
@@ -17,8 +17,6 @@ class Group(Principal):
     """Helper class for groups."""
 
     name: str
-
-    cls_attributes: ClassVar[list[str]] = ["id", "name", "attributes"]
 
     def __init__(self, *args, **kwargs) -> None:
         """Not intended to be initialized directly. Use :py:meth:`Group.from_id` or :py:meth:`Group.create_group` instead."""  # noqa: E501

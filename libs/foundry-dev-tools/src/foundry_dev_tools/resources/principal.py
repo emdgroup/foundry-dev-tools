@@ -54,12 +54,10 @@ class Principal(ABC):
         """
         json = context.multipass.api_get_principals({principal_id}).json()[0]
 
-        if all(attribute in json for attribute in resources.User.cls_attributes):
+        # Users contain the 'username' attribute while groups only specify a 'name' attribute
+        if "username" in json:
             inst = resources.User._create_instance(context, json)  # noqa: SLF001
-        elif all(attribute in json for attribute in resources.Group.cls_attributes):
-            inst = resources.Group._create_instance(context, json)  # noqa: SLF001
         else:
-            msg = f"Received principal ({json}) does not match any of the principal types User or Group"
-            raise RuntimeError(msg)
+            inst = resources.Group._create_instance(context, json)  # noqa: SLF001
 
         return inst
