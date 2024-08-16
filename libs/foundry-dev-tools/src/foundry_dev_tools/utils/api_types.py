@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict, get_args
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 def assert_in_literal(option, literal, variable_name) -> None:  # noqa: ANN001
@@ -159,6 +162,9 @@ TokenId = str
 
 TokenType = Literal["USER_GENERATED"]
 """The type of a token."""
+
+UserId = str
+"""An identifier for an user on foundry."""
 
 
 class Attribution(TypedDict):
@@ -486,6 +492,29 @@ MoveResourcesOption = Literal["ALLOW_MOVING_TO_HIDDEN", "REMOVE_ROLE_GRANTS", "D
 
 ImportType = Literal["EXTERNAL", "FILE_SYSTEM"]
 """Foundry import types as indicator for Compass-tracked (file-system) respectively non-Compass-tracked (external) resources."""  # noqa: E501
+
+
+class User(TypedDict):
+    """Foundry multipass user."""
+
+    id: UserId
+    username: str
+    attributes: dict[str, list[str]]
+
+
+class Group(TypedDict):
+    """Foundry multipass group."""
+
+    id: GroupId
+    name: str
+    attributes: dict[str, list[str]]
+
+
+class GroupMemberExpirationSettings(TypedDict):
+    """Foundry GroupMemberExpirationSettings API object."""
+
+    maxExpiration: datetime | None
+    maxDurationInSeconds: int | None
 
 
 class DatasetsJobSpecSelection(TypedDict):
