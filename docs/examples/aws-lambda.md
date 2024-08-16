@@ -18,3 +18,7 @@ class: only-light
 class: only-dark
 ---
 ```
+
+## Full Example
+
+You can find the full example including a CloudFormation templates in the repository examples [folder](https://github.com/emdgroup/foundry-dev-tools/tree/master/examples/lambda).
