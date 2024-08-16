@@ -114,7 +114,7 @@ Use [PDM]:
 ```shell
 cd docs
 pdm install
-pdm run build
+pdm run live
 ```
 
 
