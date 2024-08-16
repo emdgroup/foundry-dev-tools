@@ -2,4 +2,5 @@
 :hidden:
 api
 dataset
+aws-lambda
 ```

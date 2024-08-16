@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  # An ECR Repository to upload Lambda Function Container Images
+  StagingRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${AWS::StackName}-container-repo"
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "delete untagged images",
+              "selection": {
+                "tagStatus": "untagged",
+                "countType": "sinceImagePushed",
+                "countUnit": "days",
+                "countNumber": 10
+              },
+              "action": { "type": "expire" }
+            }]
+          }
+
+Outputs:
+  StagingDockerRepositoryArn:
+    Description: The staging ECR Repository ARN
+    Value: !GetAtt StagingRepository.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StagingDockerRepositoryArn"
+  StagingDockerRepositoryUri:
+    Description: The staging ECR Repository URI
+    Value: !GetAtt StagingRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-StagingDockerRepositoryUri"

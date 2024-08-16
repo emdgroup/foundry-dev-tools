@@ -1,0 +1,83 @@
+[project]
+authors = ["nicornk <nicornk@users.noreply.github.com>"]
+channels = ["conda-forge"]
+description = "Example how to use Foundry DevTools in AWS Lambda function"
+name = "lambda"
+platforms = ["osx-64", "osx-arm64", "linux-64", "linux-aarch64", "win-64"]
+version = "1.0.0"
+
+[dependencies]
+python = ">=3.11,<3.12"
+
+[feature.ci.dependencies]
+awscli = ">=2,<3"
+cfn-lint = ">=0.86.2,<0.87"
+
+[feature.lambda.pypi-dependencies]
+awslambdaric = "*"
+
+[feature.lambda.dependencies]
+foundry-dev-tools = ">=2,<3"
+boto3 = ">=1.34.160,<2"
+
+[environments]
+ci = { features = ["ci"], solve-group = "default" }
+lambda = { features = ["lambda"], solve-group = "default" }
+
+[feature.ci.tasks]
+awscli-version = "aws --version"
+aws-sts = "aws sts get-caller-identity"
+
+cfn-deploy-staging = """
+    aws cloudformation deploy
+        --template-file cfn/staging.yaml
+        --stack-name fdt-lambda-example-staging
+"""
+
+
+docker-build-lambda = """
+    export DOCKER_BUILDKIT=1
+    &&
+    export BUILDKIT_PROGRESS=plain
+    &&
+    docker build \
+      -t fdt-lambda:snapshot \
+      -f Dockerfile \
+      .
+"""
+
+docker-push-lambda = """
+    docker tag fdt-lambda:snapshot $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/fdt-lambda-example-staging-container-repo:fdt-lambda &&
+    docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/fdt-lambda-example-staging-container-repo:fdt-lambda
+"""
+
+cfn-deploy-lambda = { cmd = """
+    aws cloudformation deploy
+        --template-file cfn/lambda.yaml
+        --stack-name fdt-lambda-example
+        --capabilities CAPABILITY_IAM
+        --parameter-overrides
+            FdtLambdaImageTag=$(pixi run --environment ci docker-get-latest-lambda-image-tag)
+            VpcId="$VPC_ID"
+            SubnetId1="$SUBNET_ID1"
+            SubnetId2="$SUBNET_ID2"
+            FoundryStackHostname="$FOUNDRY_STACK_HOSTNAME"
+            FoundryTPAClientId="$FOUNRDY_TPA_CLIENT_ID"
+            FoundryTPAClientSecret="$FOUNDRY_TPA_CLIENT_SECRET"
+""", env = {VPC_ID = "", SUBNET_ID1 = "", SUBNET_ID2 = ""} }
+
+docker-get-latest-lambda-image-tag = """
+    echo fdt-lambda-example-staging-container-repo@$(aws ecr list-images --repository-name fdt-lambda-example-staging-container-repo | jq -r '.imageIds[] | select(.imageTag == "fdt-lambda").imageDigest')
+"""
+
+docker-login = """
+    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+"""
+
+get-bucket-name = """
+    echo $(aws cloudformation list-exports | jq -r '.Exports[] | select(.Name == "fdt-lambda-example-BucketName").Value')
+"""
+
+upload-sample-object = { cmd = """
+    echo "bar" | aws s3 cp - s3://$(pixi run --environment ci get-bucket-name)/$TARGET_DATASET_RID/foo.txt
+""", env = {TARGET_DATASET_RID = "ri.foundry.main.dataset.1234"} }

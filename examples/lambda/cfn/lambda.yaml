@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - 'AWS::Serverless-2016-10-31'
+  - 'AWS::LanguageExtensions'
+Description: "A Lambda that mirrors s3 bucket uploads to Foundry using FDT"
+
+Parameters:
+  FdtLambdaImageTag:
+    Type: String
+    Default: 'fdt-lambda-example-staging-container-repo:fdt-lambda'
+  
+  FoundryStackHostname:
+    Type: String
+    Default: 'yourStack.palantirfoundry.com'
+  
+  FoundryTPAClientId:
+    Type: String
+
+  FoundryTPAClientSecret:
+    Type: String
+
+  VpcId:
+    Type: String
+    Default: ''
+  
+  SubnetId1:
+    Type: String
+    Default: ''
+  
+  SubnetId2:
+    Type: String
+    Default: ''
+
+
+Conditions:
+  HasVpcConfig: !Not [!Equals [!Ref VpcId, '']]
+
+Resources: 
+  FdtExampleS3Bucket:
+    Type: AWS::S3::Bucket
+    DependsOn: BucketCallLambdaPermission
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-bucket"
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt FdtLambdaFunction.Arn
+  
+  BucketCallLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Ref FdtLambdaFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref "AWS::AccountId"
+      SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-bucket"
+  
+  FdtLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !If 
+          - HasVpcConfig
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+          - !Ref "AWS::NoValue"
+      Path: /
+      Policies:
+        - PolicyName: 'LambdaPolicyToAccessBucket'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource:
+                  - !Sub "arn:aws:s3:::${AWS::StackName}-bucket/*"
+
+  FdtLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-fdt-lambda"
+      Description: s3 event to dataset upload
+      Architectures:
+        - 'arm64'
+      PackageType: Image
+      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${FdtLambdaImageTag}'
+      MemorySize: 768
+      Timeout: 120
+      VpcConfig:
+        !If 
+        - HasVpcConfig
+        -
+          SecurityGroupIds:
+            - !Ref 'FdtLambdaFunctionSecurityGroup'
+          SubnetIds:
+            - !Ref 'SubnetId1'
+            - !Ref 'SubnetId2'
+        - !Ref "AWS::NoValue"
+      Environment:
+        Variables:
+          FDT_CREDENTIALS__DOMAIN: !Ref 'FoundryStackHostname'
+          FDT_CREDENTIALS__OAUTH__CLIENT_ID: !Ref 'FoundryTPAClientId'
+          FDT_CREDENTIALS__OAUTH__CLIENT_SECRET: !Ref 'FoundryTPAClientSecret'
+          FDT_CREDENTIALS__OAUTH__GRANT_TYPE: 'client_credentials'
+          FDT_CREDENTIALS__OAUTH__SCOPES: 'compass:edit'
+      Role: !GetAtt FdtLambdaExecutionRole.Arn
+  
+  FdtLambdaFunctionLogging:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-fdt-lambda'
+      RetentionInDays: 60
+  
+  FdtLambdaFunctionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: HasVpcConfig
+    Properties:
+      GroupDescription: Lambda Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+  
+Outputs:
+  FdtExampleS3BucketName:
+    Value: !Sub "${FdtExampleS3Bucket}"
+    Export:
+      Name: !Sub "${AWS::StackName}-BucketName"
+
