@@ -7,6 +7,8 @@ import time
 from decimal import Decimal
 from functools import cached_property
 from pathlib import Path
+from random import choice
+from string import ascii_uppercase
 from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
@@ -22,6 +24,7 @@ if TYPE_CHECKING:
 
     import pyspark.sql
 
+    from foundry_dev_tools.resources import Group, User
     from foundry_dev_tools.resources.dataset import Dataset
     from foundry_dev_tools.utils import api_types
 
@@ -289,6 +292,13 @@ FOUNDRY_SCHEMA_COMPLEX_DATASET = {
     "customMetadata": {"format": "parquet"},
 }
 
+PROJECT_GROUP_ROLE_VIEWER = "viewer"
+PROJECT_GROUP_ROLE_EDITOR = "editor"
+PROJECT_GROUP_ROLE_OWNER = "owner"
+
+DEFAULT_PROJECT_GROUP_ROLES = [PROJECT_GROUP_ROLE_VIEWER, PROJECT_GROUP_ROLE_EDITOR, PROJECT_GROUP_ROLE_OWNER]
+"""Default project roles for groups that are assigned to and created for groups of a project on Foundry."""
+
 rng = np.random.default_rng()
 
 T = TypeVar("T")
@@ -522,3 +532,42 @@ class TestSingleton:
                 ds.upload_schema(transaction["rid"], foundry_schema)
             return ds, transaction
         return ds, None
+
+    @cached_property
+    def user(self) -> User:
+        return self.ctx.get_user_info()
+
+    @cached_property
+    def simple_group(self) -> Group:
+        rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+        name = "test-group_" + rnd
+
+        organization_rid = self.user.attributes["multipass:organization-rid"][0]
+
+        return self.ctx.create_group(name, {organization_rid})
+
+    @cached_property
+    def project_groups(self) -> dict[str, Group]:
+        rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+        base_group_name = "test-group_" + rnd
+        organization_rid = self.user.attributes["multipass:organization-rid"][0]
+
+        role_group_mapping = {}
+
+        for role in DEFAULT_PROJECT_GROUP_ROLES:
+            name = base_group_name + "-" + role
+
+            group = self.ctx.create_group(name, {organization_rid})
+            role_group_mapping[role] = group
+
+        owner_group = role_group_mapping[PROJECT_GROUP_ROLE_OWNER]
+        owner_group.add_members({self.user.id})
+
+        role_group_mapping[PROJECT_GROUP_ROLE_EDITOR].update_managers(
+            deleted_manager_managers={self.user.id}, new_manager_managers={owner_group.id}
+        )
+        role_group_mapping[PROJECT_GROUP_ROLE_VIEWER].update_managers(
+            deleted_manager_managers={self.user.id}, new_manager_managers={owner_group.id}
+        )
+
+        return role_group_mapping

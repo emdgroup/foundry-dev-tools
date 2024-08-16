@@ -9,60 +9,71 @@ from string import ascii_uppercase
 
 import pytest
 import requests
-from integration.utils import backoff, skip_test_on_error
+from integration.utils import (
+    PROJECT_GROUP_ROLE_EDITOR,
+    PROJECT_GROUP_ROLE_OWNER,
+    PROJECT_GROUP_ROLE_VIEWER,
+    backoff,
+    skip_test_on_error,
+)
 
 from foundry_dev_tools.clients.multipass import (
     DEFAULT_MAX_DURATION_IN_SECONDS,
     DEFAULT_TOKEN_LIFETIME_IN_SECONDS,
 )
+from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.errors.multipass import DuplicateGroupNameError
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
-from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
 
-ORGANIZATION_NAME = "Merck"
 
-TEST_GROUP_ID = "7bf29909-cb64-4353-a192-e5970e443909"
+@pytest.fixture(scope="module", autouse=True)
+def _tear_down():
+    yield
 
-DEV_WORKSPACE_OWNER_GROUP_ID = "e9a4a5e7-fbff-4856-ac6c-c657e97a73c2"
-DEV_WORKSPACE_VIEWER_GROUP_ID = "2ba614c8-65bb-4d1f-afa1-323610b755ec"
+    try:
+        # Remove simple group
+        TEST_SINGLETON.simple_group.delete()
 
-
-def _get_group_name(group_id: api_types.GroupId) -> str:
-    """Helper function to retrieve the name of the specified group identifier.
-
-    Args:
-        group_id: The identifier of the group for which to retrieve the name
-
-    Returns:
-        str:
-            the name of the group
-    """
-    return TEST_SINGLETON.ctx.multipass.api_get_group(group_id).json()["name"]
+        # Remove project groups
+        project_groups = TEST_SINGLETON.project_groups
+        project_groups[PROJECT_GROUP_ROLE_VIEWER].delete()
+        project_groups[PROJECT_GROUP_ROLE_EDITOR].delete()
+        project_groups[PROJECT_GROUP_ROLE_OWNER].delete()
+    except FoundryAPIError as exc:
+        if exc.response.status_code != requests.codes.forbidden:
+            raise
 
 
-@skip_test_on_error(
-    status_code_to_skip=requests.codes.forbidden,
-    skip_message="To test integration for multipass groups, you need permissions to manage organizations!",
-)
-def test_create_and_delete_group():
-    # Retrieve all organizations and fetch the one which is the 'Merck' organization
+def test_organizations():
+    user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
+
+    organization_rid = user_info["attributes"]["multipass:organization-rid"][0]
+    organization_name = user_info["attributes"]["multipass:organization"][0]
+
     resp = TEST_SINGLETON.ctx.multipass.api_get_all_organizations()
 
     assert resp.status_code == 200
 
-    organization = next(
-        (organization for organization in resp.json() if organization["displayName"] == ORGANIZATION_NAME), None
-    )
+    organization = next((organization for organization in resp.json() if organization["rid"] == organization_rid), None)
 
-    assert organization
+    assert organization is not None
+    assert organization["rid"] == organization_rid
+    assert organization["displayName"] == organization_name
 
+
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
+    skip_message="To test integration for multipass groups, you need permissions to manage groups in organizations!",
+)
+def test_create_and_delete_group():
     # Create a new group
     rnd = "".join(choice(ascii_uppercase) for _ in range(5))
-
     name = "test-group_" + rnd
     description = "Description of test group"
-    organization_rid = organization["rid"]
+
+    user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
+    organization_rid = user_info["attributes"]["multipass:organization-rid"][0]
 
     resp = TEST_SINGLETON.ctx.multipass.api_create_group(name, [organization_rid], description)
 
@@ -72,7 +83,9 @@ def test_create_and_delete_group():
 
     assert "id" in group
     assert group["name"] == name
+    assert len(group["attributes"]["multipass:description"]) == 1
     assert description in group["attributes"]["multipass:description"]
+    assert len(group["attributes"]["multipass:organization-rid"]) == 1
     assert organization_rid in group["attributes"]["multipass:organization-rid"]
 
     group_id = group["id"]
@@ -101,48 +114,25 @@ def test_create_and_delete_group():
 
 @skip_test_on_error(
     status_code_to_skip=requests.codes.forbidden,
-    skip_message="To test integration for multipass groups, you need permissions to manage organizations!",
+    skip_message="To test integration for multipass groups, you need permissions to manage groups in organizations!",
 )
 def test_update_group():
-    # Retrieve all organizations and fetch the one which is the 'Merck' organization
-    resp = TEST_SINGLETON.ctx.multipass.api_get_all_organizations()
-
-    assert resp.status_code == 200
-
-    organization = next(
-        (organization for organization in resp.json() if organization["displayName"] == ORGANIZATION_NAME), None
-    )
-
-    assert organization
-
-    # Create a new group
-    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
-
-    name = "test-group_" + rnd
-    description = "Description of test group"
-    organization_rid = organization["rid"]
-
-    resp = TEST_SINGLETON.ctx.multipass.api_create_group(name, [organization_rid], description)
-
-    assert resp.status_code == 200
-
-    group_id = resp.json()["id"]
-
     # Update group description
     updated_description = "Description update"
-    resp = TEST_SINGLETON.ctx.multipass.api_update_group(group_id, updated_description)
+    resp = TEST_SINGLETON.ctx.multipass.api_update_group(TEST_SINGLETON.simple_group.id, updated_description)
 
     assert resp.status_code == 200
 
     group = resp.json()
-    assert group["id"] == group_id
+    assert group["id"] == TEST_SINGLETON.simple_group.id
     assert len(group["attributes"]["multipass:description"]) == 1
     assert group["attributes"]["multipass:description"][0] == updated_description
 
     # Rename group
-    new_group_name = name + "_RENAMED"
+    original_name = TEST_SINGLETON.simple_group.name
+    new_group_name = original_name + "_RENAMED"
 
-    resp = TEST_SINGLETON.ctx.multipass.api_rename_group(group_id, new_group_name)
+    resp = TEST_SINGLETON.ctx.multipass.api_rename_group(TEST_SINGLETON.simple_group.id, new_group_name)
 
     assert resp.status_code == 200
 
@@ -151,16 +141,16 @@ def test_update_group():
     renamed_group = resp_body["renamedGroup"]
     alias_group = resp_body["aliasGroup"]
 
-    assert renamed_group["id"] == group_id
+    assert renamed_group["id"] == TEST_SINGLETON.simple_group.id
     assert renamed_group["name"] == new_group_name
 
     assert "id" in alias_group
-    assert alias_group["name"] == name
+    assert alias_group["name"] == original_name
 
     alias_group_id = alias_group["id"]
 
     # Renaming a group to the name of the group itself should not change anything and not create alias group
-    resp = TEST_SINGLETON.ctx.multipass.api_rename_group(group_id, new_group_name)
+    resp = TEST_SINGLETON.ctx.multipass.api_rename_group(TEST_SINGLETON.simple_group.id, new_group_name)
 
     assert resp.status_code == 200
 
@@ -169,20 +159,19 @@ def test_update_group():
     renamed_group = resp_body["renamedGroup"]
     alias_group = resp_body["aliasGroup"]
 
-    assert renamed_group["id"] == group_id
+    assert renamed_group["id"] == TEST_SINGLETON.simple_group.id
     assert renamed_group["name"] == new_group_name
 
     assert alias_group is None
 
     # Renaming a group to a name that already exists, should fail
     with pytest.raises(DuplicateGroupNameError):
-        TEST_SINGLETON.ctx.multipass.api_rename_group(group_id, name)
+        TEST_SINGLETON.ctx.multipass.api_rename_group(TEST_SINGLETON.simple_group.id, original_name)
 
-    # Delete the groups
-    for g_id in [group_id, alias_group_id]:
-        resp = TEST_SINGLETON.ctx.multipass.api_delete_group(g_id)
+    # Delete the alias group
+    resp = TEST_SINGLETON.ctx.multipass.api_delete_group(alias_group_id)
 
-        assert resp.status_code == 204
+    assert resp.status_code == 204
 
 
 @skip_test_on_error(
@@ -280,13 +269,6 @@ def test_crud_inner():
     client.delete_third_party_application(client_id=client_id)
 
 
-@skip_test_on_error(
-    status_code_to_skip=requests.codes.forbidden,
-    skip_message=(
-        "To test integration for multipass user and principal endpoints, you need to be member of group "
-        f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
-    ),
-)
 def test_user_information_and_principal_endpoints():
     # Retrieve user information
     user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
@@ -294,26 +276,14 @@ def test_user_information_and_principal_endpoints():
     user_id = user_info["id"]
 
     # Get multiple principals at once
-    resp = TEST_SINGLETON.ctx.multipass.api_get_principals({user_id, TEST_GROUP_ID, DEV_WORKSPACE_VIEWER_GROUP_ID})
+    resp = TEST_SINGLETON.ctx.multipass.api_get_principals({user_id})
 
     assert resp.status_code == 200
 
     user = next((principal for principal in resp.json() if principal["id"] == user_id), None)
-    test_group = next((principal for principal in resp.json() if principal["id"] == TEST_GROUP_ID), None)
-    dev_workspace_viewer_group = next(
-        (principal for principal in resp.json() if principal["id"] == DEV_WORKSPACE_VIEWER_GROUP_ID), None
-    )
 
     assert user
     assert user_info == user
-
-    assert test_group
-    assert test_group["id"] == TEST_GROUP_ID
-    assert test_group["name"] == _get_group_name(TEST_GROUP_ID)
-
-    assert dev_workspace_viewer_group
-    assert dev_workspace_viewer_group["id"] == DEV_WORKSPACE_VIEWER_GROUP_ID
-    assert dev_workspace_viewer_group["name"] == _get_group_name(DEV_WORKSPACE_VIEWER_GROUP_ID)
 
 
 @skip_test_on_error(
@@ -365,227 +335,228 @@ def test_token_endpoints():
 @skip_test_on_error(
     status_code_to_skip=requests.codes.forbidden,
     skip_message=(
-        "To test integration for multipass group administration endpoints, you need to be member of group "
-        f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
+        "To test integration for multipass group administration endpoints, "
+        "you need permissions to manage groups in organizations!"
     ),
 )
 def test_group_administrations():
-    user_id = TEST_SINGLETON.ctx.multipass.get_user_info()["id"]
-
     sleep_time = 0.2
 
-    # Add user as `manager manager` to test group
-    resp = TEST_SINGLETON.ctx.multipass.add_group_manager_managers(TEST_GROUP_ID, {user_id})
+    # Retrieve the viewer group from TEST_SINGLETON project groups
+    viewer_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_VIEWER]
+
+    # Add user as `manager manager` to viewer group
+    resp = TEST_SINGLETON.ctx.multipass.add_group_manager_managers(viewer_group.id, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
 
     successful, resp, _ = backoff(
-        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_manager_managers(TEST_GROUP_ID),
-        lambda r: any(manager_manager["id"] == user_id for manager_manager in r.json()),
+        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_manager_managers(viewer_group.id),
+        lambda r: any(manager_manager["id"] == TEST_SINGLETON.user.id for manager_manager in r.json()),
         sleep_time,
     )
 
     assert successful
     assert resp.status_code == 200
 
-    assert any(manager_manager["id"] == user_id for manager_manager in resp.json())
+    assert any(manager_manager["id"] == TEST_SINGLETON.user.id for manager_manager in resp.json())
 
-    # Withdraw the role of `manager manager` from user for the test group
-    resp = TEST_SINGLETON.ctx.multipass.remove_group_manager_managers(TEST_GROUP_ID, {user_id})
+    # Withdraw the role of `manager manager` from user viewer group
+    resp = TEST_SINGLETON.ctx.multipass.remove_group_manager_managers(viewer_group.id, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
 
     successful, resp, _ = backoff(
-        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_manager_managers(TEST_GROUP_ID),
-        lambda r: not any(manager_manager["id"] == user_id for manager_manager in r.json()),
+        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_manager_managers(viewer_group.id),
+        lambda r: not any(manager_manager["id"] == TEST_SINGLETON.user.id for manager_manager in r.json()),
         sleep_time,
     )
 
     assert successful
     assert resp.status_code == 200
 
-    assert not any(manager_manager["id"] == user_id for manager_manager in resp.json())
+    assert not any(manager_manager["id"] == TEST_SINGLETON.user.id for manager_manager in resp.json())
 
-    # Add user as `member manager` to test group
-    resp = TEST_SINGLETON.ctx.multipass.add_group_member_managers(TEST_GROUP_ID, {user_id})
+    # Add user as `member manager` to viewer group
+    resp = TEST_SINGLETON.ctx.multipass.add_group_member_managers(viewer_group.id, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
 
     successful, resp, _ = backoff(
-        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_member_managers(TEST_GROUP_ID),
-        lambda r: any(member_manager["id"] == user_id for member_manager in r.json()),
+        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_member_managers(viewer_group.id),
+        lambda r: any(member_manager["id"] == TEST_SINGLETON.user.id for member_manager in r.json()),
         sleep_time,
     )
 
     assert successful
     assert resp.status_code == 200
 
-    assert any(member_manager["id"] == user_id for member_manager in resp.json())
+    assert any(member_manager["id"] == TEST_SINGLETON.user.id for member_manager in resp.json())
 
-    # Withdraw the role of `member manager` from user for the test group
-    resp = TEST_SINGLETON.ctx.multipass.remove_group_member_managers(TEST_GROUP_ID, {user_id})
+    # Withdraw the role of `member manager` from user for viewer group
+    resp = TEST_SINGLETON.ctx.multipass.remove_group_member_managers(viewer_group.id, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
 
     successful, resp, _ = backoff(
-        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_member_managers(TEST_GROUP_ID),
-        lambda r: not any(member_manager["id"] == user_id for member_manager in r.json()),
+        lambda: TEST_SINGLETON.ctx.multipass.api_get_group_member_managers(viewer_group.id),
+        lambda r: not any(member_manager["id"] == TEST_SINGLETON.user.id for member_manager in r.json()),
         sleep_time,
     )
 
     assert successful
     assert resp.status_code == 200
 
-    assert not any(member_manager["id"] == user_id for member_manager in resp.json())
+    assert not any(member_manager["id"] == TEST_SINGLETON.user.id for member_manager in resp.json())
 
 
 @skip_test_on_error(
     status_code_to_skip=requests.codes.forbidden,
     skip_message=(
-        "To test integration for multipass group member administration endpoints, you need to be member of group "
-        f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
+        "To test integration for multipass group member administration endpoints, "
+        "you need permissions to manage groups in organizations!"
     ),
 )
 def test_group_member_administration():
-    user_id = TEST_SINGLETON.ctx.multipass.get_user_info()["id"]
+    # Retrieve the viewer and editor group from TEST_SINGLETON project groups
+    viewer_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_VIEWER]
+    editor_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_EDITOR]
 
     # Add user as member to test group
-    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members({TEST_GROUP_ID}, {user_id})
+    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members({editor_group.id}, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
 
-    # Additionally make the test group a member of the dev workspace viewer group
-    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members({DEV_WORKSPACE_VIEWER_GROUP_ID}, {TEST_GROUP_ID})
+    # Additionally make the editor group a member of the viewer group
+    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members({viewer_group.id}, {editor_group.id})
 
     assert resp.status_code == 204
 
-    # When retrieving immediate group members for dev workspace viewer group assert it does not contain the user
-    resp = TEST_SINGLETON.ctx.multipass.api_get_immediate_group_members(DEV_WORKSPACE_VIEWER_GROUP_ID)
+    # When retrieving immediate group members for viewer group assert it does not contain the user
+    resp = TEST_SINGLETON.ctx.multipass.api_get_immediate_group_members(viewer_group.id)
 
     assert resp.status_code == 200
 
     group_members = resp.json()
 
-    assert any(member["id"] == TEST_GROUP_ID for member in group_members)
-    assert not any(member["id"] == user_id for member in group_members)
+    assert any(member["id"] == editor_group.id for member in group_members)
+    assert not any(member["id"] == TEST_SINGLETON.user.id for member in group_members)
 
-    # Assert that the user has been added as member to test group and is indirect member of dev workspace viewer group
-    resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_members({TEST_GROUP_ID, DEV_WORKSPACE_VIEWER_GROUP_ID})
+    # Assert that the user has been added as member to editor group and is indirect member of viewer group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_members({editor_group.id, viewer_group.id})
 
     assert resp.status_code == 200
 
     group_id_members_mapping = resp.json()["membersByGroupId"]
 
-    assert TEST_GROUP_ID in group_id_members_mapping
-    assert any(member["principalId"] == user_id for member in group_id_members_mapping[TEST_GROUP_ID])
+    assert editor_group.id in group_id_members_mapping
+    assert any(member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[editor_group.id])
 
-    assert DEV_WORKSPACE_VIEWER_GROUP_ID in group_id_members_mapping
-    assert any(
-        member["principalId"] == TEST_GROUP_ID for member in group_id_members_mapping[DEV_WORKSPACE_VIEWER_GROUP_ID]
-    )
-    assert any(member["principalId"] == user_id for member in group_id_members_mapping[DEV_WORKSPACE_VIEWER_GROUP_ID])
+    assert viewer_group.id in group_id_members_mapping
+    assert any(member["principalId"] == editor_group.id for member in group_id_members_mapping[viewer_group.id])
+    assert any(member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[viewer_group.id])
 
-    # Assert that users of dev workspace viewer group contain at least all known user members of the dev workspace group
-    # but none of group members
-    resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_users(DEV_WORKSPACE_VIEWER_GROUP_ID)
+    # Assert that users of viewer group contain at least all known users of the viewer group but no groups
+    resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_users(viewer_group.id)
 
     assert resp.status_code == 200
 
     users = [user["id"] for user in resp.json()]
-    user_members = [
-        member["principalId"]
-        for member in group_id_members_mapping[DEV_WORKSPACE_VIEWER_GROUP_ID]
-        if member["principalType"] == "USER"
-    ]
-    group_members = [
-        member["principalId"]
-        for member in group_id_members_mapping[DEV_WORKSPACE_VIEWER_GROUP_ID]
-        if member["principalType"] == "GROUP"
-    ]
 
-    assert len(users) >= len(group_members)
+    members_of_viewer_group = group_id_members_mapping[viewer_group.id]
+    user_members = [member["principalId"] for member in members_of_viewer_group if member["principalType"] == "USER"]
+    group_members = [member["principalId"] for member in members_of_viewer_group if member["principalType"] == "GROUP"]
+
     assert all(user in users for user in user_members)
     assert not any(group in users for group in group_members)
 
-    # Remove test group as member from dev workspace viewer group
-    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(DEV_WORKSPACE_VIEWER_GROUP_ID, {TEST_GROUP_ID})
+    # Remove editor group as member from viewer group
+    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(viewer_group.id, {editor_group.id})
 
     assert resp.status_code == 204
 
-    # Verify that test group has been removed from the dev workspace viewer group
-    resp = TEST_SINGLETON.ctx.multipass.api_get_immediate_group_members(DEV_WORKSPACE_VIEWER_GROUP_ID)
+    # Verify that editor group has been removed from viewer group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_immediate_group_members(viewer_group.id)
 
     assert resp.status_code == 200
-    assert not any(member["id"] == TEST_GROUP_ID for member in resp.json())
+    assert not any(member["id"] == editor_group.id for member in resp.json())
 
-    # Assert that user is not indirect member of dev workspace viewer group anymore
-    resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_members({DEV_WORKSPACE_VIEWER_GROUP_ID})
+    # Assert that user is not indirect member of viewer group anymore
+    resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_members({viewer_group.id})
 
     assert resp.status_code == 200
 
     group_id_members_mapping = resp.json()["membersByGroupId"]
 
-    assert DEV_WORKSPACE_VIEWER_GROUP_ID in group_id_members_mapping
+    assert viewer_group.id in group_id_members_mapping
     assert not any(
-        member["principalId"] == user_id for member in group_id_members_mapping[DEV_WORKSPACE_VIEWER_GROUP_ID]
+        member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[viewer_group.id]
     )
 
-    # Remove user from test group again
-    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(TEST_GROUP_ID, {user_id})
+    # Remove user from editor group again
+    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(editor_group.id, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
 
-    # Verify that user has been removed from test group
-    resp = TEST_SINGLETON.ctx.multipass.api_get_immediate_group_members(TEST_GROUP_ID)
+    # Verify that user has been removed from editor group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_immediate_group_members(editor_group.id)
 
     assert resp.status_code == 200
-    assert not any(member["id"] == user_id for member in resp.json())
+    assert not any(member["id"] == TEST_SINGLETON.user.id for member in resp.json())
 
 
 @skip_test_on_error(
     status_code_to_skip=requests.codes.forbidden,
     skip_message=(
-        "To test integration for multipass group member expiration endpoints, you need to be member of group "
-        f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
+        "To test integration for multipass group member expiration endpoints, "
+        "you need permissions to manage groups in organizations!"
     ),
 )
 def test_group_member_expiration():
-    user_id = TEST_SINGLETON.ctx.multipass.get_user_info()["id"]
-
-    # Add user as member to test group
+    # Add user as member to the test group
     expiration_date = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=7)
-    expirations = {TEST_GROUP_ID: {user_id: expiration_date}}
+    expirations = {TEST_SINGLETON.simple_group.id: {TEST_SINGLETON.user.id: expiration_date}}
 
-    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members({TEST_GROUP_ID}, {user_id}, expirations)
+    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members(
+        {TEST_SINGLETON.simple_group.id}, {TEST_SINGLETON.user.id}, expirations
+    )
 
     assert resp.status_code == 204
 
-    # Check that the expiration has been applied for the membership in test group
-    resp = TEST_SINGLETON.ctx.multipass.api_get_group_member_expirations({TEST_GROUP_ID})
+    # Check that the expiration has been applied for the membership in the test group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_group_member_expirations({TEST_SINGLETON.simple_group.id})
 
     assert resp.status_code == 200
 
     expirations = resp.json()["expirationsByGroupId"]
 
-    assert TEST_GROUP_ID in expirations
-    assert "expirationsByPrincipalId" in expirations[TEST_GROUP_ID]
+    assert TEST_SINGLETON.simple_group.id in expirations
+    assert "expirationsByPrincipalId" in expirations[TEST_SINGLETON.simple_group.id]
 
-    principal_expirations = expirations[TEST_GROUP_ID]["expirationsByPrincipalId"]
+    principal_expirations = expirations[TEST_SINGLETON.simple_group.id]["expirationsByPrincipalId"]
 
-    assert user_id in principal_expirations
-    assert datetime.fromisoformat(principal_expirations[user_id]["expiration"]) == expiration_date
+    assert TEST_SINGLETON.user.id in principal_expirations
+    assert datetime.fromisoformat(principal_expirations[TEST_SINGLETON.user.id]["expiration"]) == expiration_date
 
-    # Remove user as member from test group
-    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(TEST_GROUP_ID, {user_id})
+    # Reset expiration for user
+    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members(
+        {TEST_SINGLETON.simple_group.id}, {TEST_SINGLETON.user.id}, None
+    )
 
     assert resp.status_code == 204
+
+    # Check that the expiration has been removed for the membership in the test group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_group_member_expirations({TEST_SINGLETON.simple_group.id})
+
+    assert resp.status_code == 200
+    assert TEST_SINGLETON.simple_group.id not in resp.json()["expirationsByGroupId"]
 
 
 @skip_test_on_error(
     status_code_to_skip=requests.codes.forbidden,
     skip_message=(
-        "To test integration for multipass group member expiration settings endpoints, you need to be member of group "
-        f"`{_get_group_name(DEV_WORKSPACE_OWNER_GROUP_ID)}` ({DEV_WORKSPACE_OWNER_GROUP_ID})!"
+        "To test integration for multipass group member expiration settings endpoints, "
+        "you need permissions to manage groups in organizations!"
     ),
 )
 def test_group_member_expiration_settings():
@@ -594,7 +565,7 @@ def test_group_member_expiration_settings():
     max_duration_in_seconds = DEFAULT_MAX_DURATION_IN_SECONDS
 
     resp = TEST_SINGLETON.ctx.multipass.api_update_group_member_expiration_settings(
-        TEST_GROUP_ID, max_expiration, max_duration_in_seconds
+        TEST_SINGLETON.simple_group.id, max_expiration, max_duration_in_seconds
     )
 
     assert resp.status_code == 200
@@ -605,7 +576,9 @@ def test_group_member_expiration_settings():
     assert expiration_settings["maxDurationInSeconds"] == max_duration_in_seconds
 
     # Reset group member expiration settings to initial state
-    expiration_settings = TEST_SINGLETON.ctx.multipass.reset_group_member_expiration_settings(TEST_GROUP_ID)
+    expiration_settings = TEST_SINGLETON.ctx.multipass.reset_group_member_expiration_settings(
+        TEST_SINGLETON.simple_group.id
+    )
 
     assert expiration_settings["maxExpiration"] is None
     assert expiration_settings["maxDurationInSeconds"] is None

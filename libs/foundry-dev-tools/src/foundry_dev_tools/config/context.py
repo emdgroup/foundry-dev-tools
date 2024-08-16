@@ -22,7 +22,9 @@ from foundry_dev_tools.clients import (
 )
 from foundry_dev_tools.config.config import Config, get_config_dict, parse_credentials_config, parse_general_config
 from foundry_dev_tools.resources.dataset import Dataset
+from foundry_dev_tools.resources.group import Group
 from foundry_dev_tools.resources.resource import Resource
+from foundry_dev_tools.resources.user import User
 from foundry_dev_tools.utils.config import entry_point_fdt_api_client
 
 if TYPE_CHECKING:
@@ -250,6 +252,27 @@ class FoundryContext:
             **_kwargs: not used in base class
         """
         return Resource.from_path(self, path, decoration=decoration)
+
+    def get_user_info(self) -> User:
+        """Returns the user's info."""
+        return User.me(self)
+
+    def create_group(
+        self,
+        name: str,
+        organization_rids: set[api_types.OrganizationRid],
+        /,
+        *,
+        description: str | None = None,
+    ) -> Group:
+        """Create new multipass group.
+
+        Args:
+            name: the name the group should receive on creation
+            organization_rids: a set of organization identifiers the group will belong to
+            description: an optional group description
+        """
+        return Group.create(self, name, organization_rids, description=description)
 
     def __repr__(self) -> str:
         return (
