@@ -54,14 +54,14 @@ pixi run --environment ci docker-login && pixi run --environment ci docker-push-
 ## Deploy Lambda with CloudFormation
 
 Note, that the TPA credentials will be stored in the Lambda environment variables.
-If your AWS Account is shared it is recommended to leverate AWS Secrets Manager.
+If your AWS Account is shared it is recommended to leverage AWS Secrets Manager.
 
 Export your TPA Credentials and Foundry Hostname in the shell session
 
 ```shell
- export  FOUNDRY_STACK_HOSTNAME="<stack.palantirfoundry.com>" \
-export FOUNRDY_TPA_CLIENT_ID="<client_id>" \
-export FOUNDRY_TPA_CLIENT_SECRET="<client_secret>"
+ export  FOUNDRY_STACK_HOSTNAME="stack.palantirfoundry.com" \
+export FOUNRDY_TPA_CLIENT_ID="client_id" \
+export FOUNDRY_TPA_CLIENT_SECRET="client_secret"
 ```
 
 Deploy the Cloudformation Template
@@ -73,9 +73,9 @@ pixi run --environment ci cfn-deploy-lambda
 If your Lambda should run in a VPC to reach Foundry, pass the VPC Id and Subnet Ids as well:
 
 ```shell
-VPC_ID="<vpc-123456>" \
-SUBNET_ID1="<subnet-12345>" \
-SUBNET_ID2="<subnet-12345>" \
+VPC_ID="vpc-123456" \
+SUBNET_ID1="subnet-12345" \
+SUBNET_ID2="subnet-12345" \
 pixi run --environment ci cfn-deploy-lambda
 ```
 
@@ -84,6 +84,6 @@ pixi run --environment ci cfn-deploy-lambda
 The lambda will move the object to the dataset that you specify as TARGET_DATASET_RID.
 
 ```shell
-TARGET_DATASET_RID="<ri.foundry.main.dataset.1234>" \
+TARGET_DATASET_RID="ri.foundry.main.dataset.1234" \
 pixi run --environment ci upload-sample-object
 ```

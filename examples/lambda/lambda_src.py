@@ -1,12 +1,15 @@
-import boto3
-from foundry_dev_tools import FoundryContext, Config
+# ruff: noqa
+"""A Lambda function that copies objects from a Bucket to a Dataset."""
 
-# This will make sure config is only loaded from environment variables
-ctx = FoundryContext(config=Config())
+import boto3
+
+from foundry_dev_tools import FoundryContext
+
+ctx = FoundryContext()
 print(f"Running as user {ctx.multipass.get_user_info()['username']}")
 
 fdt_s3_client = ctx.s3.get_boto3_client()
-source_s3_client = boto3.client('s3')
+source_s3_client = boto3.client("s3")
 
 
 def lambda_handler(event, context):
@@ -22,4 +25,4 @@ def lambda_handler(event, context):
 
         response = source_s3_client.get_object(Bucket=bucket_name, Key=object_key)
 
-        fdt_s3_client.upload_fileobj(response['Body'], dataset_rid, dataset_path)
+        fdt_s3_client.upload_fileobj(response["Body"], dataset_rid, dataset_path)
