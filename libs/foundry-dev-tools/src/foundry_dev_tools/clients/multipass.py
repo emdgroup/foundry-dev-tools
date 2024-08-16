@@ -57,11 +57,11 @@ class MultipassClient(APIClient):
 
     api_name = "multipass"
 
-    def get_user_info(self) -> dict:
+    def get_user_info(self) -> api_types.User:
         """Returns the json dict from the :py:meth:`foundry_dev_tools.clients.multipass.MultipassClient.api_me` API.
 
         Returns:
-            dict:
+            api_types.User:
 
         .. code-block:: python
 
@@ -299,7 +299,7 @@ class MultipassClient(APIClient):
     def add_group_manager_managers(
         self,
         group_id: api_types.GroupId,
-        manager_managers: set[api_types.PrincipalId] | None = None,
+        manager_managers: set[api_types.PrincipalId],
     ) -> requests.Response:
         """Assign principals as manager managers for the specified group.
 
@@ -312,7 +312,7 @@ class MultipassClient(APIClient):
     def add_group_member_managers(
         self,
         group_id: api_types.GroupId,
-        member_managers: set[api_types.PrincipalId] | None = None,
+        member_managers: set[api_types.PrincipalId],
     ) -> requests.Response:
         """Assign principals as member managers for the specified group.
 
@@ -325,7 +325,7 @@ class MultipassClient(APIClient):
     def remove_group_manager_managers(
         self,
         group_id: api_types.GroupId,
-        manager_managers: set[api_types.PrincipalId] | None = None,
+        manager_managers: set[api_types.PrincipalId],
     ) -> requests.Response:
         """Withdraw the provided principals from the manager managers for the specified group.
 
@@ -338,7 +338,7 @@ class MultipassClient(APIClient):
     def remove_group_member_managers(
         self,
         group_id: api_types.GroupId,
-        member_managers: set[api_types.PrincipalId] | None = None,
+        member_managers: set[api_types.PrincipalId],
     ) -> requests.Response:
         """Withdraw the provided principals from the member managers for the specified group.
 
@@ -597,15 +597,15 @@ class MultipassClient(APIClient):
     def reset_group_member_expiration_settings(
         self,
         group_id: api_types.GroupId,
-    ) -> bool:
+    ) -> api_types.GroupMemberExpirationSettings:
         """Reset the group member expiration settings for the specified group.
 
         Args:
             group_id: The identifier of the group for which to restore the initial state of the expiration settings
 
         Returns:
-            bool:
-                indicator whether the group member expiration settings have successfully been reset
+            api_types.GroupMemberExpirationSettings:
+                the updated group member expiration settings
         """
         resp = self.api_update_group_member_expiration_settings(
             group_id, max_expiration=None, max_duration_in_seconds=None
