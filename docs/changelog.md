@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.1] - 2024-08-19
+
+## Fixed
+  - app service regression in 2.1.0
+
 ## [2.1.0] - 2024-08-15
 
 ## Added
@@ -245,6 +250,8 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.1]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.0...v2.1.1
+[2.1.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v1.4.3...v1.5.0
