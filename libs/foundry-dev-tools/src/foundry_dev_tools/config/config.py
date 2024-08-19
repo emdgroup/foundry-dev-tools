@@ -192,7 +192,10 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
     # decide which will be the token provider used
     token_provider_name = _find_token_provider(profile_credentials) or _find_token_provider(default_credentials)
     if not token_provider_name:
-        raise MISSING_TP_ERROR
+        if "APP_SERVICE_TS" in os.environ:
+            token_provider_name = "app_service"  # noqa: S105
+        else:
+            raise MISSING_TP_ERROR
     # merge the profile config with the non-prefixed config
     return_config = {}
     merged_config = merge_dicts(config.get("config", {}), profile_config.get("config", {}))

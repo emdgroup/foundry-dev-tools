@@ -66,18 +66,33 @@ oauth = { client_id = "get_config_dict_client_id" }
         assert config.get_config_dict()["credentials"]["oauth"]["scopes"] == "one:scope,two:scope"
 
 
-def test_parse_credentials_config(mock_config_location):
-    with pytest.raises(MissingCredentialsConfigError):
-        config.parse_credentials_config({})
+def test_parse_credentials_config(mock_config_location: dict[Path, None]):
+    path_list = list(mock_config_location)
+    user_config = path_list[1]
 
+    user_config.write_text("")
     with pytest.raises(MissingCredentialsConfigError):
-        config.parse_credentials_config({"credentials": {}})
+        config.parse_credentials_config(config.get_config_dict())
 
+    user_config.write_text("""
+                               [credentials]
+                           """)
     with pytest.raises(MissingFoundryHostError):
-        config.parse_credentials_config({"credentials": {"no_domain": 1}})
+        config.parse_credentials_config(config.get_config_dict())
 
+    user_config.write_text("""
+                               [credentials]
+                               no_domain = 1
+                           """)
+    with pytest.raises(MissingFoundryHostError):
+        config.parse_credentials_config(config.get_config_dict())
+
+    user_config.write_text("""
+                               [credentials]
+                               domain = "example.com"
+                           """)
     with pytest.raises(TokenProviderConfigError, match="To authenticate with Foundry you need a TokenProvider"):
-        config.parse_credentials_config({"credentials": {"domain": "example.com"}})
+        config.parse_credentials_config(config.get_config_dict())
     with pytest.raises(
         TokenProviderConfigError,
         match="The token provider implementation example does not exist",
@@ -95,27 +110,33 @@ def test_parse_credentials_config(mock_config_location):
     with mock.patch("foundry_dev_tools.config.config.check_init") as check_init_mock:
         # return the dict 'kwargs'
         check_init_mock.side_effect = lambda *args, **kwargs: args[2]  # noqa: ARG005
-        config.parse_credentials_config(
-            {"credentials": {"domain": "example.com", "jwt": "test"}},
-        )
+        user_config.write_text("""
+                                   [credentials]
+                                   domain = "example.com"
+                                   jwt = "test"
+                               """)
+        config.parse_credentials_config(config.get_config_dict())
         check_init_mock.assert_called_with(
             JWTTokenProvider,
             "credentials",
             {"host": Host("example.com"), "jwt": "test"},
         )
-        config.parse_credentials_config(
-            {
-                "credentials": {
-                    "domain": "example.com",
-                    "oauth": {"client_id": "test"},
-                },
-            },
-        )
+        user_config.write_text("""
+                                   [credentials]
+                                   domain = "example.com"
+                                   oauth = {client_id = "test"}
+                               """)
+        config.parse_credentials_config(config.get_config_dict())
         check_init_mock.assert_called_with(
             OAuthTokenProvider,
             "credentials",
             {"host": Host("example.com"), "client_id": "test"},
         )
+
+    user_config.write_text("""
+                               [credentials]
+                               domain = "example.com"
+                           """)
     with (
         mock.patch.dict(os.environ, {"APP_SERVICE_TS": "1"}),
         pytest.raises(
@@ -123,4 +144,4 @@ def test_parse_credentials_config(mock_config_location):
             match="Could not get Foundry token from flask/dash/streamlit headers.",
         ),
     ):
-        config.parse_credentials_config({"credentials": {"domain": "example.com"}})
+        config.parse_credentials_config(config.get_config_dict())
