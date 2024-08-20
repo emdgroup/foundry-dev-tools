@@ -417,7 +417,7 @@ def test_group_administrations():
         "you need permissions to manage groups in organizations!"
     ),
 )
-def test_group_member_administration():
+def test_group_member_administration():  # noqa: PLR0915
     # Retrieve the viewer and editor group from TEST_SINGLETON project groups
     viewer_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_VIEWER]
     editor_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_EDITOR]
@@ -455,6 +455,25 @@ def test_group_member_administration():
     assert viewer_group.id in group_id_members_mapping
     assert any(member["principalId"] == editor_group.id for member in group_id_members_mapping[viewer_group.id])
     assert any(member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[viewer_group.id])
+
+    # When querying for groups check that editor and viewer are contained in the list
+    resp = TEST_SINGLETON.ctx.multipass.api_get_groups()
+
+    assert resp.status_code == 200
+
+    groups = resp.json()["groups"]
+
+    assert any(group["id"] == editor_group.id for group in groups)
+    assert any(group["id"] == viewer_group.id for group in groups)
+
+    # Assert that user is member of editor group and viewer group
+    is_editor_member = TEST_SINGLETON.ctx.multipass.is_member_of_group(editor_group.id)
+
+    assert is_editor_member
+
+    is_viewer_member = TEST_SINGLETON.ctx.multipass.is_member_of_group(viewer_group.id)
+
+    assert is_viewer_member
 
     # Assert that users of viewer group contain at least all known users of the viewer group but no groups
     resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_users(viewer_group.id)
