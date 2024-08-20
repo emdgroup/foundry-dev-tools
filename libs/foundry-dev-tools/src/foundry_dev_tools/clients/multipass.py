@@ -1031,6 +1031,33 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_get_groups(self, **kwargs) -> requests.Response:
+        """Returns all groups for which the user is immediate or indirect member of the group.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which includes a list of all groups
+                for which the user is immediate or indirect member
+        """
+        return self.api_request("GET", "me/groups", **kwargs)
+
+    def is_member_of_group(self, group_id: api_types.GroupId) -> bool:
+        """Returns whether user is immediate or indirect member of the specified group.
+
+        Args:
+            group_id: The identifier of the group for which to check whether the user is a member
+
+        Returns:
+            bool:
+                Indicates whether the user is member of the group
+        """
+        groups = self.api_get_groups().json()["groups"]
+
+        return any(group["id"] == group_id for group in groups)
+
     def get_tokens(
         self,
         token_type: api_types.TokenType | None = None,
