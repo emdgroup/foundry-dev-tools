@@ -56,6 +56,9 @@ RoleId = str
 FolderRid = str
 """A compass folder resource identifier."""
 
+JobSpecRid = str
+"""A jobspec resource identifier."""
+
 ProjectRid = str
 """A compass project root folder resource identifier."""
 
@@ -477,3 +480,60 @@ MoveResourcesOption = Literal["ALLOW_MOVING_TO_HIDDEN", "REMOVE_ROLE_GRANTS", "D
 
 ImportType = Literal["EXTERNAL", "FILE_SYSTEM"]
 """Foundry import types as indicator for Compass-tracked (file-system) respectively non-Compass-tracked (external) resources."""  # noqa: E501
+
+
+class DatasetsJobSpecSelection(TypedDict):
+    """Foundry DatasetsJobSpecSelection API object."""
+
+    datasetRids: list[DatasetRid]
+    isRequired: bool
+
+
+class JobSpecJobSpecsSelection(TypedDict):
+    """Foundry JobSpecJobSpecsSelection API object."""
+
+    jobSpecRids: list[JobSpecRid]
+    isRequired: bool
+
+
+class UpstreamJobSpecSelection(TypedDict):
+    """Foundry UpstreamJobSpecSelection API object."""
+
+    datasetRids: list[DatasetRid]
+    datasetRidsToIgnore: list[DatasetRid]
+
+
+class ConnectingJobSpecSelection(TypedDict):
+    """Foundry ConnectingJobSpecSelection API object."""
+
+    upstreamDatasetRids: list[DatasetRid]
+    downstreamDatasetRids: list[DatasetRid]
+    datasetRidsToIgnore: list[DatasetRid]
+
+
+ExceededDurationMode = Literal["CANCEL", "RETRY"]
+"""Foundry ExceededDurationMode."""
+
+InputFailureStrategy = Literal["CONTINUE", "FAIL"]
+"""Foundry InputFailureStrategy.
+
+CONTINUE: Will attempt to continue running the job, requesting that the input manager resolve the dataset properties
+    of the input dataset as if the failed job had never run
+FAIL: will fail the job when one of its inputs fails
+"""
+
+
+class InputStrategy(TypedDict):
+    """Foundry InputStrategy API object."""
+
+    inputDatasetRid: DatasetRid
+    failureStrategy: InputFailureStrategy
+
+
+OutputQueueStrategy = Literal["QUEUE_UP", "SUPERSEDE"]
+"""Foundry OutputQueueingStrategy.
+
+QUEUE_UP: The new job is placed into the queue for the output
+SUPERSEDE: The new job is placed into the queue for the output and a cancellation signal is sent to the running job
+    and the other queued jobs to pop them off the queue and stop execution
+"""
