@@ -195,75 +195,39 @@ class Build2Client(APIClient):
     def submit_dataset_build(
         self,
         dataset_rid: api_types.DatasetRid,
-        submission_id: str | None = None,
-        build_group_rid: str | None = None,
         branch: api_types.DatasetBranch = "master",
-        branch_fallbacks: set[api_types.DatasetBranch] | None = None,
-        force_build: bool | None = None,
-        ignore_build_policy: bool | None = False,
-        finish_on_failure: bool | None = None,
-        num_run_job_attempts: int | None = None,
-        force_retry: bool | None = None,
-        retry_backoff_duration: int | None = None,
-        build_parameters: dict[str, Any] | None = None,
-        suppress_notifications: bool | None = None,
-        exceeded_duration_mode: api_types.ExceededDurationMode | None = None,
-        input_failure_strategies: list[api_types.InputStrategy] | None = None,
-        output_queue_strategy: api_types.OutputQueueStrategy | None = None,
-    ) -> requests.Response:
+        force_build: bool | None = False,
+    ) -> dict:
         """Submit a dataset build.
 
         Args:
             dataset_rid: The resource identifier of the dataset to build
-            submission_id: Optional submission identifier to uniquely identify a new build submission
-            build_group_rid: Specify in order to join a build group which serves as a collector
-                acting as if all the builds sharing the same build group were submitted as a single build
             branch: The branch that all jobs in this build are run on. Defaults to `master` if not specified
-            branch_fallbacks: Fallback branches to use when resolving dataset properties for input specs
             force_build: When set to 'True', will ignore staleness checking when running this build
-                and runs all job specs regardless of whether they are stale
-            ignore_build_policy: When set to 'True', will allow for jobs to be run
-                even if their build policy is not satisfied
-            finish_on_failure: When set to 'True', will abort all other jobs and finish the build
-                if any single job fails
-            num_run_job_attempts: The maximum number of attempts a job should be run when it fails
-                due to a retryable error. If a value <= 1 is specified, jobs will never be retried.
-            force_retry: When set to 'True', all errors will be treated as retryable.
-                The maximum number of retry attempts is strictly given by `num_run_job_attempts`
-            retry_backoff_duration: The duration in seconds to wait before attempting to run a job again.
-                If not present, jobs will be retried immediately
-            build_parameters: Parameters to apply to every job in the build
-                which typically serve as "configuration" for the workers
-            suppress_notifications: When set to 'True', the user will not receive a notification
-                when the build is complete
-            exceeded_duration_mode: The action taken when job with custom expiration has expired. Defaults to 'CANCEL'
-                if not provided at all
-            input_failure_strategies: Overwrites the strategy for each input dataset in case its build fails.
-            output_queue_strategy: Defines the output queueing behaviour of the jobs that are created by this build.
-                Defaults to 'QUEUE_UP' for builds with BatchVariant job specs and 'SUPERSEDE'
-                for builds with LongRunningVariant job specs.
+                and runs all job specs regardless of whether they are stale. Defaults to 'False'
 
         Returns:
-            requests.Response:
-                the response contains a json which returns information to the previously submitted dataset build
+            dict:
+
+        .. code-block:: python
+
+           {
+                "isNewSubmission": "<submission-id>",
+                "buildRid": "<...>",
+                "buildGroupRid": "<build-group-rid>",
+                "jobsCreated": {
+                    "<job-spec-rid>": "<job-rid>",
+                    ...
+                },
+                "jobsInOtherBuilds": {
+                    "<job-spec-rid>": "<job-rid>",
+                    ...
+                }
+           }
+
         """
         datasets_job_spec_selections = [{"datasetRids": [dataset_rid], "isRequired": True}]
 
         return self.api_submit_build(
-            datasets_job_spec_selections=datasets_job_spec_selections,
-            submission_id=submission_id,
-            build_group_rid=build_group_rid,
-            branch=branch,
-            branch_fallbacks=branch_fallbacks,
-            force_build=force_build,
-            ignore_build_policy=ignore_build_policy,
-            finish_on_failure=finish_on_failure,
-            num_run_job_attempts=num_run_job_attempts,
-            force_retry=force_retry,
-            retry_backoff_duration=retry_backoff_duration,
-            build_parameters=build_parameters,
-            suppress_notifications=suppress_notifications,
-            exceeded_duration_mode=exceeded_duration_mode,
-            input_failure_strategies=input_failure_strategies,
-            output_queue_strategy=output_queue_strategy,
-        )
+            datasets_job_spec_selections=datasets_job_spec_selections, branch=branch, force_build=force_build
+        ).json()
