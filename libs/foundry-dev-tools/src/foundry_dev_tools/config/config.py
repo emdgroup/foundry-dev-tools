@@ -227,7 +227,9 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
         try:
             tp_name, tp_config = credentials_config.popitem()
             # make it possible to do jwt = "eyJ" instead of jwt = {jwt="eyJ"}
-            if not isinstance(tp_config, dict):
+            if tp_config is None or len(tp_config) == 0:
+                tp_config = {}
+            elif not isinstance(tp_config, dict):
                 tp_config = {tp_name: tp_config}
         except KeyError:
             tp_name, tp_config = None, None
