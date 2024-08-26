@@ -21,10 +21,9 @@ from foundry_dev_tools.clients import (
     schema_inference,
 )
 from foundry_dev_tools.config.config import Config, get_config_dict, parse_credentials_config, parse_general_config
+from foundry_dev_tools.helpers.multipass import Group, User
 from foundry_dev_tools.resources.dataset import Dataset
-from foundry_dev_tools.resources.group import Group
 from foundry_dev_tools.resources.resource import Resource
-from foundry_dev_tools.resources.user import User
 from foundry_dev_tools.utils.config import entry_point_fdt_api_client
 
 if TYPE_CHECKING:

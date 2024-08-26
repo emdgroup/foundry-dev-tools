@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from foundry_dev_tools import resources
+from foundry_dev_tools.helpers import multipass
 
 if TYPE_CHECKING:
     import sys
@@ -56,8 +56,8 @@ class Principal(ABC):
 
         # Users contain the 'username' attribute while groups only specify a 'name' attribute
         if "username" in json:
-            inst = resources.User._create_instance(context, json)  # noqa: SLF001
+            inst = multipass.User._create_instance(context, json)  # noqa: SLF001
         else:
-            inst = resources.Group._create_instance(context, json)  # noqa: SLF001
+            inst = multipass.Group._create_instance(context, json)  # noqa: SLF001
 
         return inst

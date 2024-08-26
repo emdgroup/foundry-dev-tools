@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from foundry_dev_tools.clients.api_client import APIClient
@@ -42,7 +42,8 @@ def _validate_timezone(dt: datetime, variable_name: str) -> datetime:
     if not dt.tzinfo:
         msg = (
             f"{dt.isoformat(timespec='seconds')} passed for parameter '{variable_name} is missing timezone information."
-            f"Ensure timezone is provided for datetime object. Defaults to '{timezone.utc!s}' timezone!"
+            f"Setting the timezone to '{timezone.utc!s}'."
+            f"Ensure timezone is provided for datetime object."
         )
         warnings.warn(msg)
 
@@ -51,7 +52,6 @@ def _validate_timezone(dt: datetime, variable_name: str) -> datetime:
     return dt
 
 
-# PLACEHOLDER
 class MultipassClient(APIClient):
     """To be implemented/transferred."""
 
@@ -358,32 +358,37 @@ class MultipassClient(APIClient):
         """Add principals to the specified group.
 
         Args:
-            group_ids: A set of group identifiers principals should be added to
+            group_ids: A set of group identifiers the principals should be added to
             principal_ids: The identifiers of the principals to be added to the groups
             expirations: Optional expiration settings that can be passed
                 if principals should only have temporal access to groups
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
         body = {
-            "groupIds": list(group_ids) if group_ids else None,
-            "principalIds": list(principal_ids) if principal_ids else None,
+            "groupIds": list(group_ids),
+            "principalIds": list(principal_ids),
             "expirations": {},
         }
 
-        for group_id, expiration_mapping in (expirations or {}).items():
-            for principal_id, expiration in expiration_mapping.items():
-                validated_expiration = _validate_timezone(expiration, f"expirations['{group_id}']['{principal_id}']")
+        if expirations:
+            for group_id, expiration_mapping in expirations.items():
+                group_expirations = {}
 
-                if validated_expiration <= datetime.now(validated_expiration.tzinfo):
-                    msg = (
-                        f"expiration value '{validated_expiration.isoformat(timespec='seconds')}' "
-                        f"for 'expirations['{group_id}']['{principal_id}']' must not be in past!"
+                for principal_id, expiration in expiration_mapping.items():
+                    validated_expiration = _validate_timezone(
+                        expiration, f"expirations['{group_id}']['{principal_id}']"
                     )
-                    raise ValueError(msg)
 
-                body["expirations"].setdefault(group_id, {})[principal_id] = validated_expiration.isoformat(
-                    timespec="seconds"
-                )
+                    if validated_expiration <= datetime.now(validated_expiration.tzinfo):
+                        msg = (
+                            f"expiration value '{validated_expiration.isoformat(timespec='seconds')}' "
+                            f"for 'expirations['{group_id}']['{principal_id}']' must not be in past!"
+                        )
+                        raise ValueError(msg)
+
+                    group_expirations[principal_id] = validated_expiration.isoformat(timespec="seconds")
+
+                body["expirations"][group_id] = group_expirations
 
         return self.api_request(
             "POST",
@@ -543,12 +548,17 @@ class MultipassClient(APIClient):
 
         Args:
             group_id: The identifier of the group whose expiration settings will be updated
-            max_expiration: The time in the future on which all new membership will be automatically expired
-                and no new membership can be requested after this time
+            max_expiration: The time in the future on which all memberships will be automatically expired
+                and no new memberships can be requested after this time. If not specified or set to 'None',
+                memberships will no longer expire at a certain date and it defaults to the initial state
+                where no expiration date is set for the group
             max_duration_in_seconds: When adding a new membership, it can last no longer than
                 the specified maximum duration. Expiration of existing memberships will be adjusted accordingly.
-                Value passed must be greater equal :py:const:`MINIMUM_MAX_DURATION_IN_SECONDS` and defaults to
-                :py:const:`DEFAULT_MAX_DURATION_IN_SECONDS` if it does not meet the condition
+                Value passed must be greater equal :py:const:`MINIMUM_MAX_DURATION_IN_SECONDS`
+                and defaults to :py:const:`DEFAULT_MAX_DURATION_IN_SECONDS` if it does not meet the condition.
+                If not specified or set to 'None', new memberships will no longer expire
+                after a particular maximum lifetime and will not be constrained by any maximum duration anymore.
+                It defaults to the initial state where no maximum duration is applied to the group
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
@@ -560,15 +570,11 @@ class MultipassClient(APIClient):
             now = datetime.now(max_expiration.tzinfo)
 
             if max_expiration <= now:
-                new_expiration = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-
                 msg = (
-                    f"'max_expiration' is {max_expiration.isoformat(timespec='seconds')} in past but must be in future!"
-                    f" Defaulting to {new_expiration.isoformat(timespec='seconds')}."
+                    f"Value passed for 'max_expiration' ({max_expiration.isoformat(timespec='seconds')}) "
+                    f"is in past but must be in future! Please provide an expiration date in the future!"
                 )
-                warnings.warn(msg)
-
-                max_expiration = new_expiration
+                raise ValueError(msg)
 
         if max_duration_in_seconds and max_duration_in_seconds < MINIMUM_MAX_DURATION_IN_SECONDS:
             msg = (

@@ -1,8 +1,8 @@
 import requests
-from integration.conftest import TEST_SINGLETON
-from integration.utils import skip_test_on_error
 
-from foundry_dev_tools.resources import Group, Principal, User
+from foundry_dev_tools.helpers.multipass import Group, Principal, User
+from tests.integration.conftest import TEST_SINGLETON
+from tests.integration.utils import skip_test_on_error
 
 
 @skip_test_on_error(

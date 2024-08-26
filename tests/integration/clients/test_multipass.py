@@ -9,13 +9,6 @@ from string import ascii_uppercase
 
 import pytest
 import requests
-from integration.utils import (
-    PROJECT_GROUP_ROLE_EDITOR,
-    PROJECT_GROUP_ROLE_OWNER,
-    PROJECT_GROUP_ROLE_VIEWER,
-    backoff,
-    skip_test_on_error,
-)
 
 from foundry_dev_tools.clients.multipass import (
     DEFAULT_MAX_DURATION_IN_SECONDS,
@@ -25,6 +18,13 @@ from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.errors.multipass import DuplicateGroupNameError
 from foundry_dev_tools.foundry_api_client import FoundryRestClient
 from tests.integration.conftest import TEST_SINGLETON
+from tests.integration.utils import (
+    PROJECT_GROUP_ROLE_EDITOR,
+    PROJECT_GROUP_ROLE_OWNER,
+    PROJECT_GROUP_ROLE_VIEWER,
+    backoff,
+    skip_test_on_error,
+)
 
 
 @pytest.fixture(scope="module", autouse=True)

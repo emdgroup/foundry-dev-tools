@@ -2,10 +2,10 @@ from random import choice
 from string import ascii_uppercase
 
 import requests
-from integration.conftest import TEST_SINGLETON
-from integration.utils import skip_test_on_error
 
-from foundry_dev_tools.resources import Group, User
+from foundry_dev_tools.helpers.multipass import Group, User
+from tests.integration.conftest import TEST_SINGLETON
+from tests.integration.utils import skip_test_on_error
 
 
 @skip_test_on_error(

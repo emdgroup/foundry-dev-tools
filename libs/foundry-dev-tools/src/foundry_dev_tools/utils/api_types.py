@@ -514,7 +514,11 @@ class GroupMemberExpirationSettings(TypedDict):
     """Foundry GroupMemberExpirationSettings API object."""
 
     maxExpiration: datetime | None
+    """The time in the future on which all memberships will be automatically expired."""
+
     maxDurationInSeconds: int | None
+    """The time after which membership expires when adding a principal to a group
+    or updating their membership expiration time."""
 
 
 class DatasetsJobSpecSelection(TypedDict):

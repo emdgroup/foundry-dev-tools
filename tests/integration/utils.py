@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
     import pyspark.sql
 
-    from foundry_dev_tools.resources import Group, User
+    from foundry_dev_tools.helpers.multipass import Group, User
     from foundry_dev_tools.resources.dataset import Dataset
     from foundry_dev_tools.utils import api_types
 
@@ -313,6 +313,27 @@ def backoff(
     sleep: float = INITIAL_SLEEP_TIME,
     num_retries: int = MAX_RETRIES,
 ) -> tuple[bool, T, int]:
+    """Utility function to wrap a function which should be repeatedly called until a certain condition is satisfied.
+
+    It implements the exponential backoff algorithm and repeats the function call until the condition is met
+    or the maximum number of retries has exceeded. An application would be API calls that are exposed to delay,
+    e.g. when requested changes become effective only after a short time delay. In this case it may require
+    to wait until the changes are applied before proceeding.
+
+    Args:
+        func: The actual function call to be executed and whose result is passed to the 'predicate' function to check
+        predicate: Predicate function that checks whether the result from 'func' satisfies a particular condition
+        sleep: The duration to wait until repeating 'func' again. The sleep time increases exponentially.
+            Defaults to :py:const:`INITIAL_SLEEP_TIME` if not provided.
+        num_retries: The maximum number of times to retry 'func' and check for satisfaction of the condition
+            before returning. Defaults to :py:const:`MAX_RETRIES` if not provided.
+
+    Returns:
+        tuple[bool, T, int]:
+            the function returns a bool indicating whether the condition has been finally satisfied,
+            second the result from the call to 'func', and the number of required retries at last
+
+    """
     result = func()
 
     retries = 0

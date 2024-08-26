@@ -65,35 +65,17 @@ def _register_update_member_expiration_settings(test_context_mock):
 def test_api_update_group_member_expiration_settings_max_expiration_in_past(api_request, test_context_mock):
     now_utc = datetime.now(timezone.utc)
 
-    # Assert that expiration in the past is reset to the datetime of the beginning of the next day
+    # Assert that an expiration date in the past raises a ValueError
     max_expiration = now_utc - timedelta(seconds=DEFAULT_MAX_DURATION_IN_SECONDS)
 
-    with pytest.warns():
+    with pytest.raises(ValueError):  # noqa: PT011
         test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
 
-    request_body = api_request.call_args.kwargs["json"]
-
-    expected_max_expiration = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    actual_max_expiration = datetime.strptime(request_body["maxExpiration"], "%Y-%m-%dT%H:%M:%SZ").replace(
-        tzinfo=timezone.utc
-    )
-
-    assert actual_max_expiration == expected_max_expiration
-
-    # Assert that expiration date in the moment of time is also reset to the datetime of the beginning of the next day
+    # Assert that expiration date in the moment of time also raises a ValueError
     max_expiration = now_utc
 
-    with pytest.warns():
+    with pytest.raises(ValueError):  # noqa: PT011
         test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
-
-    request_body = api_request.call_args.kwargs["json"]
-
-    expected_max_expiration = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    actual_max_expiration = datetime.strptime(request_body["maxExpiration"], "%Y-%m-%dT%H:%M:%SZ").replace(
-        tzinfo=timezone.utc
-    )
-
-    assert actual_max_expiration == expected_max_expiration
 
     # Check that max_expiration without timezone throws warning for missing timezone
     max_expiration = datetime.now() + timedelta(seconds=DEFAULT_MAX_DURATION_IN_SECONDS)  # noqa: DTZ005

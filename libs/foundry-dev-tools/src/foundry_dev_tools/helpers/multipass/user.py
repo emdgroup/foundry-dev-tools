@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from foundry_dev_tools.resources.principal import Principal
+from foundry_dev_tools.helpers.multipass.principal import Principal
 
 if TYPE_CHECKING:
     import sys
