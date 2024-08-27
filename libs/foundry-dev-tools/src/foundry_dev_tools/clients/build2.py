@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from foundry_dev_tools.clients.api_client import APIClient
 from foundry_dev_tools.errors.compass import ResourceNotFoundError
@@ -13,25 +13,35 @@ from foundry_dev_tools.utils.api_types import assert_in_literal
 if TYPE_CHECKING:
     import requests
 
+JOB_SPEC_SELECTION_TYPES = {
+    api_types.JobSpecJobSpecsSelection: "jobSpecs",
+    api_types.UpstreamJobSpecSelection: "upstream",
+    api_types.ConnectingJobSpecSelection: "connecting",
+    api_types.DatasetsJobSpecSelection: "datasets",
+}
+
 
 def _convert_job_spec_selections(
-    job_spec_selections: list[api_types.DatasetsJobSpecSelection]
-    | list[api_types.JobSpecJobSpecsSelection]
-    | list[api_types.UpstreamJobSpecSelection]
-    | list[api_types.ConnectingJobSpecSelection]
-    | None,
-    job_spec_selection_type: Literal["datasets", "jobSpecs", "upstream", "connecting"],
+    job_spec_selections: list[
+        api_types.DatasetsJobSpecSelection
+        | api_types.JobSpecJobSpecsSelection
+        | api_types.UpstreamJobSpecSelection
+        | api_types.ConnectingJobSpecSelection
+    ],
 ) -> list:
     """Converts existing job spec selections based on the provided 'job_spec_selection_type'."""
     result = []
 
-    if job_spec_selections is None:
-        return result
-
     for job_spec_selection in job_spec_selections:
-        converted_job_spec_selection = {job_spec_selection_type: job_spec_selection, "type": job_spec_selection_type}
-
-        result.append(converted_job_spec_selection)
+        for job_spec_selection_class, job_spec_selection_type in JOB_SPEC_SELECTION_TYPES.items():
+            if set(job_spec_selection.keys()) == set(job_spec_selection_class.__annotations__.keys()):
+                result.append(
+                    {
+                        job_spec_selection_type: job_spec_selection,
+                        "type": job_spec_selection_type,
+                    }
+                )
+                continue
 
     return result
 
@@ -73,10 +83,12 @@ class Build2Client(APIClient):
 
     def api_submit_build(
         self,
-        datasets_job_spec_selections: list[api_types.DatasetsJobSpecSelection] | None = None,
-        job_spec_job_spec_selections: list[api_types.JobSpecJobSpecsSelection] | None = None,
-        upstream_job_spec_selections: list[api_types.UpstreamJobSpecSelection] | None = None,
-        connecting_job_spec_selections: list[api_types.ConnectingJobSpecSelection] | None = None,
+        job_spec_selections: list[
+            api_types.DatasetsJobSpecSelection
+            | api_types.JobSpecJobSpecsSelection
+            | api_types.UpstreamJobSpecSelection
+            | api_types.ConnectingJobSpecSelection
+        ],
         submission_id: str | None = None,
         build_group_rid: str | None = None,
         branch: api_types.DatasetBranch = "master",
@@ -97,17 +109,21 @@ class Build2Client(APIClient):
         """Request to submit a build.
 
         Args:
-            datasets_job_spec_selections: A set of datasets job spec selections for which the build service
-                will determine the job specs to run, based on the dataset rids provided
-            job_spec_job_spec_selections: A set of job spec job spec selections for which the build service
-                will directly run the specified job spec rids
-            upstream_job_spec_selections: A set of upstream job spec selections for which downstream dataset rids
-                can be defined to start from. A separate list of dataset rids to ignore can be specified as well
-                in order to prevent further exploration of the dependency graph on the given dataset rids
-            connecting_job_spec_selections: A set of connecting job spec selections for which the build service
-                will determine the job specs in between the list of upstream and downstream dataset rids.
-                Additionally, a list for ignoring dataset rids can be passed along
-                on which to prevent further exploration of the dependency graph
+            job_spec_selections: A set of job spec selection for which the build service will determine the job specs
+                to run based off of the information provided in the selection.
+                There are several types of job spec selections to choose from:
+                    (a) :py:class:`~foundry_dev_tools.utils.api_types.DatasetsJobSpecSelection`: The build service
+                        will determine the job specs to run, based on the dataset rids provided
+                    (b) :py:class:`~foundry_dev_tools.utils.api_types.JobSpecJobSpecsSelection`: The build service
+                        will directly run the specified job spec rids
+                    (c) :py:class:`~foundry_dev_tools.utils.api_types.UpstreamJobSpecSelection`:
+                        A list of downstream dataset rids can be defined to start from searching for job specs.
+                        A separate list of dataset rids to ignore can be specified as well in order
+                        to prevent further exploration of the dependency graph on the given dataset rids
+                    (d) :py:class:`~foundry_dev_tools.utils.api_types.ConnectingJobSpecSelection`: The build service
+                        will determine the job specs in between the list of upstream and downstream dataset rids.
+                        Additionally, a list of dataset rids to ignore can be passed along
+                        on which to prevent further exploration of the dependency graph
             submission_id: Optional submission identifier to uniquely identify a new build submission
             build_group_rid: Specify in order to join a build group which serves as a collector
                 acting as if all the builds sharing the same build group were submitted as a single build
@@ -154,17 +170,7 @@ class Build2Client(APIClient):
         if output_queue_strategy:
             assert_in_literal(output_queue_strategy, api_types.OutputQueueStrategy, "output_queue_strategy")
 
-        datasets_job_spec_selections = _convert_job_spec_selections(datasets_job_spec_selections, "datasets")
-        job_spec_job_spec_selections = _convert_job_spec_selections(job_spec_job_spec_selections, "jobSpecs")
-        upstream_job_spec_selections = _convert_job_spec_selections(upstream_job_spec_selections, "upstream")
-        connecting_job_spec_selections = _convert_job_spec_selections(connecting_job_spec_selections, "connecting")
-
-        job_spec_selections = (
-            datasets_job_spec_selections
-            + job_spec_job_spec_selections
-            + upstream_job_spec_selections
-            + connecting_job_spec_selections
-        )
+        job_spec_selections = _convert_job_spec_selections(job_spec_selections)
 
         body = {
             "jobSpecSelections": job_spec_selections,
@@ -229,5 +235,5 @@ class Build2Client(APIClient):
         datasets_job_spec_selections = [{"datasetRids": [dataset_rid], "isRequired": True}]
 
         return self.api_submit_build(
-            datasets_job_spec_selections=datasets_job_spec_selections, branch=branch, force_build=force_build
+            job_spec_selections=datasets_job_spec_selections, branch=branch, force_build=force_build
         ).json()
