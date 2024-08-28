@@ -117,7 +117,36 @@ pdm install
 pdm run live
 ```
 
+# Release procedure
 
+1. When creating a release the first thing to do is create a changelog entry, preferably in the same PR as the feature that was added.
+   The changelog follows the [keep a changelog](https://keepachangelog.com/en/1.0.0/) format. (Don't forget to add the tag URL at the bottom.)
+   Commit the changelog with the following commit message `feat: release v9.9.9`, this should be ideally the last commit before the tag is created.
+   For example: https://github.com/emdgroup/foundry-dev-tools/commit/5e7a9c217c5784c9ae3b127357216282f4ef5d9a
+
+2. After the PR has been merged, wait for all tests to pass on the main branch.
+
+3. Locally pull the latest main branch, and then create a git tag with the version e.g. `git tag v9.9.9`.
+   We follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and prefix it with a `v`
+   ```text
+   Given a version number MAJOR.MINOR.PATCH, increment the:
+      1. MAJOR version when you make incompatible API changes
+      2. MINOR version when you add functionality in a backward compatible manner
+      3. PATCH version when you make backward compatible bug fixes
+   ```
+
+4. Push the tag via `git push --tags`
+
+5. Wait for the release pipeline to finish, check that the newest version is available on pypi. [foundry-dev-tools](https://pypi.org/project/foundry-dev-tools) and [foundry-dev-tools-transforms](https://pypi.org/project/foundry-dev-tools-transforms)
+
+6. Then create a 'release' on GitHub (https://github.com/emdgroup/foundry-dev-tools/releases) "Draft a new release", choose your tag, use the tag as a title, and copy the contents of the changelog for this version into the description, for example: https://github.com/emdgroup/foundry-dev-tools/releases/tag/v2.0.1
+
+7. We also publish packages on conda-forge, we have one feedstock for each package [foundry-dev-tools-feedstock](https://github.com/conda-forge/foundry-dev-tools-feedstock) and [foundry-dev-tools-transforms-feedstock](https://github.com/conda-forge/foundry-dev-tools-transforms-feedstock)
+   Normally a GitHub bot automatically checks for new releases on PyPI, creates a PR and if everything passes the tests, it will be automatically merged.
+   But in the case that the release needs to be done ASAP, you can manually create a PR, by copying the SHA256 sum for the `.tar.gz` file from the pypi files page e.g. https://pypi.org/project/foundry-dev-tools/#files
+   Then replace the version and the sha256sum in the conda recipe for both packages (both packages have different hashes), open a PR and wait for the Pipelines to run, if you already have permissions for the feedstock then you can directly merge it, otherwise you will need to contact one of maintainers listed in the conda recipe yaml.
+
+   
 [PDM]: https://pdm-project.org/
 [pre-commit]: https://pre-commit.com/
 [black]: https://github.com/psf/black
