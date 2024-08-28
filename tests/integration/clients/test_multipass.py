@@ -178,7 +178,7 @@ def test_update_group():
     status_code_to_skip=requests.codes.forbidden,
     skip_message="To test integration for multipass tpa, you need permissions to manage third party applications!",
 )
-def test_crud_inner():
+def test_tpa():
     client = FoundryRestClient()
     user_info = client.get_user_info()
     organization_rid = user_info["attributes"]["multipass:organization-rid"][0]
@@ -269,21 +269,54 @@ def test_crud_inner():
     client.delete_third_party_application(client_id=client_id)
 
 
-def test_user_information_and_principal_endpoints():
+@skip_test_on_error(
+    status_code_to_skip=requests.codes.forbidden,
+    skip_message=(
+        "To test integration for user and principal endpoints, "
+        "you need permissions to manage groups in organizations!"
+    ),
+)
+def test_user_and_principal_endpoints():
     # Retrieve user information
     user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
 
-    user_id = user_info["id"]
-
-    # Get multiple principals at once
-    resp = TEST_SINGLETON.ctx.multipass.api_get_principals({user_id})
+    # Get principal from user id
+    resp = TEST_SINGLETON.ctx.multipass.api_get_principals({TEST_SINGLETON.user.id})
 
     assert resp.status_code == 200
 
-    user = next((principal for principal in resp.json() if principal["id"] == user_id), None)
+    user = next((principal for principal in resp.json() if principal["id"] == TEST_SINGLETON.user.id), None)
 
     assert user
     assert user_info == user
+
+    # Add user to simple group
+    resp = TEST_SINGLETON.ctx.multipass.api_add_group_members(
+        {TEST_SINGLETON.simple_group.id}, {TEST_SINGLETON.user.id}
+    )
+
+    assert resp.status_code == 204
+
+    # Retrieve all groups of user and assert it contains simple group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_groups_of_user()
+
+    assert resp.status_code == 200
+
+    groups = resp.json()["groups"]
+
+    assert any(group["id"] == TEST_SINGLETON.simple_group.id for group in groups)
+
+    # Assert that user is member of simple group
+    is_simple_group_member = TEST_SINGLETON.ctx.multipass.is_member_of_group(TEST_SINGLETON.simple_group.id)
+
+    assert is_simple_group_member
+
+    # Remove user from simple group again
+    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(
+        TEST_SINGLETON.simple_group.id, {TEST_SINGLETON.user.id}
+    )
+
+    assert resp.status_code == 204
 
 
 @skip_test_on_error(
@@ -417,7 +450,7 @@ def test_group_administrations():
         "you need permissions to manage groups in organizations!"
     ),
 )
-def test_group_member_administration():  # noqa: PLR0915
+def test_group_member_administration():
     # Retrieve the viewer and editor group from TEST_SINGLETON project groups
     viewer_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_VIEWER]
     editor_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_EDITOR]
@@ -456,25 +489,6 @@ def test_group_member_administration():  # noqa: PLR0915
     assert any(member["principalId"] == editor_group.id for member in group_id_members_mapping[viewer_group.id])
     assert any(member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[viewer_group.id])
 
-    # When querying for groups check that editor and viewer are contained in the list
-    resp = TEST_SINGLETON.ctx.multipass.api_get_groups_of_user()
-
-    assert resp.status_code == 200
-
-    groups = resp.json()["groups"]
-
-    assert any(group["id"] == editor_group.id for group in groups)
-    assert any(group["id"] == viewer_group.id for group in groups)
-
-    # Assert that user is member of editor group and viewer group
-    is_editor_member = TEST_SINGLETON.ctx.multipass.is_member_of_group(editor_group.id)
-
-    assert is_editor_member
-
-    is_viewer_member = TEST_SINGLETON.ctx.multipass.is_member_of_group(viewer_group.id)
-
-    assert is_viewer_member
-
     # Assert that users of viewer group contain at least all known users of the viewer group but no groups
     resp = TEST_SINGLETON.ctx.multipass.api_get_all_group_users(viewer_group.id)
 
@@ -488,6 +502,17 @@ def test_group_member_administration():  # noqa: PLR0915
 
     assert all(user in users for user in user_members)
     assert not any(group in users for group in group_members)
+
+    # Check that the list of groups of the editor group contains the viewer group
+    resp = TEST_SINGLETON.ctx.multipass.api_get_principals_groups_all({editor_group.id})
+
+    assert resp.status_code == 200
+
+    resp_body = resp.json()
+
+    assert editor_group.id in resp_body["containingGroupIdsByPrincipalId"]
+    assert len(resp_body["containingGroupIdsByPrincipalId"][editor_group.id]) == 1
+    assert resp_body["containingGroupIdsByPrincipalId"][editor_group.id][0] == viewer_group.id
 
     # Remove editor group as member from viewer group
     resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(viewer_group.id, {editor_group.id})
@@ -569,6 +594,13 @@ def test_group_member_expiration():
 
     assert resp.status_code == 200
     assert TEST_SINGLETON.simple_group.id not in resp.json()["expirationsByGroupId"]
+
+    # Remove user from simple group again
+    resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(
+        TEST_SINGLETON.simple_group.id, {TEST_SINGLETON.user.id}
+    )
+
+    assert resp.status_code == 204
 
 
 @skip_test_on_error(
