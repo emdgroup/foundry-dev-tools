@@ -127,6 +127,10 @@ pdm run live
 2. After the PR has been merged, wait for all tests to pass on the main branch.
 
 3. Locally pull the latest main branch, and then create a git tag with the version e.g. `git tag v9.9.9`.
+   ```{note}
+   Only users with the roles "Repository admin" or "Maintain" can push/create these tags.
+   ``` 
+
    We follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and prefix it with a `v`
    ```text
    Given a version number MAJOR.MINOR.PATCH, increment the:
