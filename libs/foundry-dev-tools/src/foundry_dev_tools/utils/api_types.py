@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict, get_args
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 def assert_in_literal(option, literal, variable_name) -> None:  # noqa: ANN001
@@ -59,6 +62,9 @@ FolderRid = str
 JobSpecRid = str
 """A jobspec resource identifier."""
 
+OrganizationRid = str
+"""An organization resource identifier."""
+
 ProjectRid = str
 """A compass project root folder resource identifier."""
 
@@ -67,6 +73,9 @@ FoundrySchema = dict[str, Any]
 
 FoundryTransaction = Literal["SNAPSHOT", "UPDATE", "APPEND", "DELETE"]
 """Foundry transaction types."""
+
+GroupId = str
+"""A group identifier on Foundry"""
 
 SqlDialect = Literal["ANSI", "SPARK"]
 """The SQL Dialect for Foundry SQL queries."""
@@ -153,6 +162,9 @@ TokenId = str
 
 TokenType = Literal["USER_GENERATED"]
 """The type of a token."""
+
+UserId = str
+"""An identifier for an user on foundry."""
 
 
 class Attribution(TypedDict):
@@ -480,6 +492,33 @@ MoveResourcesOption = Literal["ALLOW_MOVING_TO_HIDDEN", "REMOVE_ROLE_GRANTS", "D
 
 ImportType = Literal["EXTERNAL", "FILE_SYSTEM"]
 """Foundry import types as indicator for Compass-tracked (file-system) respectively non-Compass-tracked (external) resources."""  # noqa: E501
+
+
+class User(TypedDict):
+    """Foundry multipass user."""
+
+    id: UserId
+    username: str
+    attributes: dict[str, list[str]]
+
+
+class Group(TypedDict):
+    """Foundry multipass group."""
+
+    id: GroupId
+    name: str
+    attributes: dict[str, list[str]]
+
+
+class GroupMemberExpirationSettings(TypedDict):
+    """Foundry GroupMemberExpirationSettings API object."""
+
+    maxExpiration: datetime | None
+    """The time in the future on which all memberships will be automatically expired."""
+
+    maxDurationInSeconds: int | None
+    """The time after which membership expires when adding a principal to a group
+    or updating their membership expiration time."""
 
 
 class DatasetsJobSpecSelection(TypedDict):

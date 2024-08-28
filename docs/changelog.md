@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.3] - 2024-08-28
+
+## Added
+  - more API endpoints for MultipassClient for managing groups (https://emdgroup.github.io/foundry-dev-tools/api/foundry_dev_tools.clients.multipass.html#foundry_dev_tools.clients.multipass.MultipassClient)
+  - extending Build2Client by API endpoint to submit builds (https://emdgroup.github.io/foundry-dev-tools/api/foundry_dev_tools.clients.build2.html#foundry_dev_tools.clients.build2.Build2Client)
+  - object oriented multipass helper classes such as Group, User and Principal (https://emdgroup.github.io/foundry-dev-tools/api/foundry_dev_tools.helpers.multipass.html)
+
 ## [2.1.2] - 2024-08-23
 
 ## Fixed
@@ -256,6 +263,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.3]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.0.1...v2.1.0
