@@ -95,8 +95,53 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_get_groups_of_user(self, **kwargs) -> requests.Response:
+        """Returns all groups for which the user is immediate or indirect member of the group.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which includes a list of all groups
+                for which the user is immediate or indirect member
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "id": "<group-id>"
+                    "name": "<group-name>"
+                    "attributes": {
+                        "multipass:realm": ["palantir-internal-realm"],
+                        "multipass:organization": ["<your-org>"],
+                        "multipass:organization-rid": ["ri.multipass..organization. ..."],
+                        "multipass:realm-name": ["Palantir Internal"],
+                    }
+                },
+                ...
+            ]
+        """
+        return self.api_request("GET", "me/groups", **kwargs)
+
+    def is_member_of_group(self, group_id: api_types.GroupId) -> bool:
+        """Returns whether user is immediate or indirect member of the specified group.
+
+        Args:
+            group_id: The identifier of the group for which to check whether the user is a member
+
+        Returns:
+            bool:
+                Indicates whether the user is member of the group
+        """
+        groups = self.api_get_groups_of_user().json()["groups"]
+
+        return any(group["id"] == group_id for group in groups)
+
     def api_get_principals(self, principal_ids: set[api_types.PrincipalId], **kwargs) -> requests.Response:
-        """Returns the principal information for the provided principal identifiers.
+        """Returns principal information for the provided principal identifiers.
 
         Args:
             principal_ids: A set of principal identifiers for which to gather information
@@ -105,6 +150,21 @@ class MultipassClient(APIClient):
         Returns:
             requests.Response:
                 the response contains a json which is a list of principals along with some principal-related information
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "id": "<principal-id>"
+                    <"name", "username">: "..."
+                    "attributes": {
+                        ...
+                    }
+                },
+                ...
+            ]
         """
         return self.api_request(
             "POST",
@@ -123,14 +183,31 @@ class MultipassClient(APIClient):
         """Create a new multipass group.
 
         Args:
-            name: The name the group should receive on creation
+            name: The name the group should receive upon creation
             organization_rids: A set of organization identifiers the group will belong to
             description: An optional group description
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
             requests.Response:
-                the response contains a json which is the newly created project itself
+                the response contains a json which is the newly created multipass group
+
+        See below for the structure
+
+        .. code-block:: python
+
+            {
+                'id': '<...>',
+                'name': '<name>',
+                'attributes': {
+                    'multipass:realm': ['palantir-internal-realm'],
+                    'multipass:organization': ['<your-org>'],
+                    'multipass:organization-rid': <organization_rids>,
+                    'multipass:realm-name': ['Palantir Internal'],
+                    ...
+                }
+            }
+
         """
         body = {"groupName": name, "organizationRids": list(organization_rids)}
 
@@ -143,9 +220,10 @@ class MultipassClient(APIClient):
         """Returns the multipass group information.
 
         Args:
-            group_id: multipass principal id
+            group_id: The identifier of the group which to retrieve
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
+        See below for the structure
 
         .. code-block:: python
 
@@ -153,10 +231,11 @@ class MultipassClient(APIClient):
                 'id': '<id>',
                 'name': '<groupname>',
                 'attributes': {
-                'multipass:realm': ['palantir-internal-realm'],
-                'multipass:organization': ['<your-org>'],
-                'multipass:organization-rid': ['ri.multipass..organization.<...>'],
-                'multipass:realm-name': ['Palantir Internal']
+                    'multipass:realm': ['palantir-internal-realm'],
+                    'multipass:organization': ['<your-org>'],
+                    'multipass:organization-rid': ['ri.multipass..organization.<...>'],
+                    'multipass:realm-name': ['Palantir Internal']
+                }
             }
 
         """
@@ -176,14 +255,30 @@ class MultipassClient(APIClient):
 
         Returns:
             requests.Response:
-                the response contains a json which is the updated group
+                the response contains a json which is the updated multipass group
+
+        See below for the structure
+
+        .. code-block:: python
+
+            {
+                'id': '<id>',
+                'name': '<groupname>',
+                'attributes': {
+                    'multipass:realm': ['palantir-internal-realm'],
+                    'multipass:organization': ['<your-org>'],
+                    'multipass:organization-rid': ['ri.multipass..organization.<...>'],
+                    'multipass:realm-name': ['Palantir Internal']
+                }
+            }
+
         """
         body = {"multipass:description": [group_description]}
 
         return self.api_request("PUT", f"administration/groups/{group_id}", json=body, **kwargs)
 
     def api_rename_group(self, group_id: api_types.GroupId, new_group_name: str, **kwargs) -> requests.Response:
-        """Rename a group.
+        """Rename a multipass group.
 
         Args:
             group_id: identifier of the group for which to update its name
@@ -194,6 +289,27 @@ class MultipassClient(APIClient):
             requests.Response:
                 the response contains a json which consists of an entry for the renamed or original group
                 and a group which serves as alias group, keeping the old name and directing to the new group
+
+        See below for the structure
+
+        .. code-block:: python
+
+            {
+                "renamedGroup": {
+                    "id": "<group_id>",
+                    "name": "<new_group_name>",
+                    "attributes": {
+                        ...
+                    }
+                },
+                "aliasGroup": {
+                    "id": "...",
+                    "name": "<old-group-name>",
+                    "attributes": {
+                        ...
+                    }
+                },
+            }
         """
         body = {"groupName": new_group_name}
 
@@ -208,7 +324,7 @@ class MultipassClient(APIClient):
         """Deletes multipass group.
 
         Args:
-            group_id: the multipass principal id to delete
+            group_id: the identifier of the group which to delete
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
         return self.api_request(
@@ -222,7 +338,7 @@ class MultipassClient(APIClient):
         group_id: api_types.GroupId,
         **kwargs,
     ) -> requests.Response:
-        """Returns the principals of a group who can add and remove members and who can grant the right to manage group permissions to others.
+        """Returns the manager managers of a group who can add and remove members and who can grant the right to manage group permissions to others.
 
         Args:
             group_id: The identifier of the group for which to retrieve the manager managers
@@ -231,6 +347,21 @@ class MultipassClient(APIClient):
         Returns:
             requests.Response:
                 the response contains a json which is a list of principals being manager managers
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "id": "<principal-id>"
+                    <"name", "username">: "..."
+                    "attributes": {
+                        ...
+                    }
+                },
+                ...
+            ]
         """  # noqa: E501
         return self.api_request(
             "GET",
@@ -243,7 +374,7 @@ class MultipassClient(APIClient):
         group_id: api_types.GroupId,
         **kwargs,
     ) -> requests.Response:
-        """Returns the principals of a group who can add and remove members.
+        """Returns the member managers of a group who can add and remove members.
 
         Args:
             group_id: The identifier of the group for which to retrieve the member managers
@@ -252,6 +383,21 @@ class MultipassClient(APIClient):
         Returns:
             requests.Response:
                 the response contains a json which is a list of principals being manager managers
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "id": "<principal-id>"
+                    <"name", "username">: "..."
+                    "attributes": {
+                        ...
+                    }
+                },
+                ...
+            ]
         """
         return self.api_request(
             "GET",
@@ -405,7 +551,7 @@ class MultipassClient(APIClient):
         """Returns Groups that a principal (user or group) is member of.
 
         Args:
-            principal_ids: The identifiers of the principals to be added to the groups
+            principal_ids: The identifiers of the principals for which to return the groups
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
@@ -447,7 +593,23 @@ class MultipassClient(APIClient):
 
         Returns:
             requests.Response:
-                the response contains a json which is a list of principals who are members of the specified group
+                the response contains a json which is a list of principals
+                who are immediate members of the specified group
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "id": "<principal-id>"
+                    <"name", "username">: "..."
+                    "attributes": {
+                        ...
+                    }
+                },
+                ...
+            ]
         """
         return self.api_request(
             "GET",
@@ -473,6 +635,23 @@ class MultipassClient(APIClient):
             requests.Response:
                 the response contains a json which is a mapping between the group id and the associated principal ids
                 who are members of the given group
+
+        See below for the structure
+
+        .. code-block:: python
+
+            {
+                "membersByGroupId": {
+                    "<group-id>": [
+                        {
+                            "principalId": "<principal-id>",
+                            "principalType": <"USER", "GROUP">
+                        },
+                        ...
+                    ],
+                    ...
+                }
+            }
         """  # noqa: D205
         body = {"groupIds": list(group_ids)}
         return self.api_request(
@@ -487,18 +666,32 @@ class MultipassClient(APIClient):
         group_id: api_types.GroupId,
         **kwargs,
     ) -> requests.Response:
-        """Get all members of a group, immediate and indirect and also traverse groups where the user has no view membership permissions on.
+        """Get all user members of a group, immediate and indirect and also traverse groups where the user has no view membership permissions on.
 
         Similar to :py:meth:`~MultipassClient.api_get_all_group_members` but broader context by capturing all members
         and even those which the user does not have membership permissions to view.
 
         Args:
-            group_id: The group id for which to retrieve all users
+            group_id: The group identifier for which to retrieve all users
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
             requests.Response:
                 the response contains a json which is a list of user principals
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "id": "<multipass-id>",
+                    "username": "<username>",
+                    "attributes": {
+                        "<attribute-name": [...]
+                    },
+                }
+            ]
         """  # noqa: E501
         return self.api_request(
             "GET",
@@ -528,7 +721,7 @@ class MultipassClient(APIClient):
         group_ids: set[api_types.GroupId],
         **kwargs,
     ) -> requests.Response:
-        """Get the expiration for the members of the specified group identifiers.
+        """Get the expiration for members of the specified group identifiers.
 
         Request no more than 100 group identifiers!
 
@@ -540,6 +733,22 @@ class MultipassClient(APIClient):
             requests.Response:
                 the response contains a json which is a mapping between the group id and the associated principals
                 along their expiration datetime
+
+        See below for the structure
+
+        .. code-block:: python
+
+            {
+                "expirationsByGroupId": {
+                    "<group-id>": {
+                        "<principal-id>": {
+                            "expiration": "..."
+                        },
+                        ...
+                    },
+                    ...
+                }
+            }
         """
         body = {"groupIds": list(group_ids)}
 
@@ -565,6 +774,15 @@ class MultipassClient(APIClient):
             requests.Response:
                 the response contains a json which is a mapping between the group identifiers
                 and their respective expiration settings
+
+        See below for the structure
+
+        .. code-block:: python
+
+            {
+                "maxExpiration": "...",
+                "maxDurationInSeconds": "..."
+            }
         """
         body = {"groupIds": list(group_ids)}
         return self.api_request(
@@ -587,14 +805,14 @@ class MultipassClient(APIClient):
             group_id: The identifier of the group whose expiration settings will be updated
             max_expiration: The time in the future on which all memberships will be automatically expired
                 and no new memberships can be requested after this time. If not specified or set to 'None',
-                memberships will no longer expire at a certain date and it defaults to the initial state
+                memberships will no longer expire at a certain date, and it defaults to the initial state
                 where no expiration date is set for the group
             max_duration_in_seconds: When adding a new membership, it can last no longer than
                 the specified maximum duration. Expiration of existing memberships will be adjusted accordingly.
                 Value passed must be greater equal :py:const:`MINIMUM_MAX_DURATION_IN_SECONDS`
                 and defaults to :py:const:`DEFAULT_MAX_DURATION_IN_SECONDS` if it does not meet the condition.
                 If not specified or set to 'None', new memberships will no longer expire
-                after a particular maximum lifetime and will not be constrained by any maximum duration anymore.
+                after a particular maximum lifetime and not be constrained by any maximum duration anymore.
                 It defaults to the initial state where no maximum duration is applied to the group
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
@@ -655,6 +873,52 @@ class MultipassClient(APIClient):
         )
 
         return resp.json()
+
+    def api_get_all_organizations(
+        self,
+        **kwargs,
+    ) -> requests.Response:
+        """Returns a list of all organizations the user can view.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which is a list of organizations and their associated properties
+
+        See below for the structure
+
+        .. code-block:: python
+
+            [
+                {
+                    "rid": "ri.multipass..organization. ...",
+                    "displayName": "<org-name>",
+                    "description": "<org-description>",
+                    "crossOrganizationPermissions": {
+                        "<cross-organization-rid>": {
+                            "allowDiscoverUsers": "...",
+                            "allowDiscoverGroups": "...",
+                            "allowAccessCategories": "..."
+                        },
+                        ...
+                    },
+                    "administrators": {
+                        "<principal-id>": [<"METADATA", "USER", "GROUP", "VIEW_GROUP_MEMBERSHIP", "UNMARK", "ADMIN",
+                            "USER", "MARKING_CATEGORY">]
+                    },
+                    "markingId": "<marking-id>",
+                    "host": "<host-id>"
+                },
+                ...
+            ]
+        """
+        return self.api_request(
+            "GET",
+            "organizations/all",
+            **kwargs,
+        )
 
     def api_create_third_party_application(
         self,
@@ -983,7 +1247,7 @@ class MultipassClient(APIClient):
         )
 
     def api_revoke_token(self, token_id: api_types.TokenId, **kwargs) -> requests.Response:
-        """Issue a new token generated by the user.
+        """Revoke the user-generated token for the specified token identifier.
 
         Args:
             token_id: The identifier of the token that should be revoked
@@ -1011,7 +1275,7 @@ class MultipassClient(APIClient):
         page_token: int | None = None,
         **kwargs,
     ) -> requests.Response:
-        """Issue a new token generated by the user.
+        """Returns a list of all tokens generated by the user.
 
         Args:
             token_type: Only tokens of this type will be returned
@@ -1074,39 +1338,12 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
-    def api_get_groups(self, **kwargs) -> requests.Response:
-        """Returns all groups for which the user is immediate or indirect member of the group.
-
-        Args:
-            **kwargs: gets passed to :py:meth:`APIClient.api_request`
-
-        Returns:
-            requests.Response:
-                the response contains a json which includes a list of all groups
-                for which the user is immediate or indirect member
-        """
-        return self.api_request("GET", "me/groups", **kwargs)
-
-    def is_member_of_group(self, group_id: api_types.GroupId) -> bool:
-        """Returns whether user is immediate or indirect member of the specified group.
-
-        Args:
-            group_id: The identifier of the group for which to check whether the user is a member
-
-        Returns:
-            bool:
-                Indicates whether the user is member of the group
-        """
-        groups = self.api_get_groups().json()["groups"]
-
-        return any(group["id"] == group_id for group in groups)
-
     def get_tokens(
         self,
         token_type: api_types.TokenType | None = None,
         limit: int = DEFAULT_TOKEN_PAGE_SIZE,
     ) -> Iterator[dict]:
-        """Issue a new token generated by the user (automatic pagination).
+        """Returns a list of all tokens generated by the user (automatic pagination).
 
         Args:
             token_type: Only tokens of this type will be returned
@@ -1133,25 +1370,6 @@ class MultipassClient(APIClient):
 
         Returns:
             requests.Response:
-                the response contains the remaining lifetime of the token until it expires
+                the response contains the remaining lifetime (in seconds) of the token until it expires
         """
         return self.api_request("GET", "token/ttl")
-
-    def api_get_all_organizations(
-        self,
-        **kwargs,
-    ) -> requests.Response:
-        """Returns a list of all organizations the user can view.
-
-        Args:
-            **kwargs: gets passed to :py:meth:`APIClient.api_request`
-
-        Returns:
-            requests.Response:
-                the response contains a json which is a list of organizations and their associated properties
-        """
-        return self.api_request(
-            "GET",
-            "organizations/all",
-            **kwargs,
-        )

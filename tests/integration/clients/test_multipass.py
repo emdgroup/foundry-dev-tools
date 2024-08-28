@@ -457,7 +457,7 @@ def test_group_member_administration():  # noqa: PLR0915
     assert any(member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[viewer_group.id])
 
     # When querying for groups check that editor and viewer are contained in the list
-    resp = TEST_SINGLETON.ctx.multipass.api_get_groups()
+    resp = TEST_SINGLETON.ctx.multipass.api_get_groups_of_user()
 
     assert resp.status_code == 200
 
