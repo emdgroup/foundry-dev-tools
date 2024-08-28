@@ -397,6 +397,43 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_get_principals_groups_all(
+        self,
+        principal_ids: set[api_types.PrincipalId],
+        **kwargs,
+    ) -> requests.Response:
+        """Returns Groups that a principal (user or group) is member of.
+
+        Args:
+            principal_ids: The identifiers of the principals to be added to the groups
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                the response contains a json which is a dict in the following shape:
+                   {
+                        "containingGroupIdsByPrincipalId": {
+                            "<requestedPrincipalId>": ["<group1>", ...]
+                        },
+                        "groups": [
+                            {
+                                "id": "<group1>",
+                                "name": "<group1Name>"
+                            }
+                        ]
+                   }
+        """
+        body = {
+            "principalIds": list(principal_ids),
+        }
+
+        return self.api_request(
+            "POST",
+            "administration/principals/bulk/groups/all",
+            json=body,
+            **kwargs,
+        )
+
     def api_get_immediate_group_members(
         self,
         group_id: api_types.GroupId,
