@@ -19,6 +19,12 @@ TEST_GROUP_ID = "abcdef01-2345-6789-abcd-ef0123456789"
 TEST_USER_ID = "a9b8c7d6-e5f4-3210-0f1e-2d3c4b5a6789"
 
 
+def mock_generate_ttl(expiration_date) -> float:
+    t_now = datetime.now(tz=timezone.utc)
+
+    return (expiration_date - t_now).total_seconds()
+
+
 @freeze_time("0s")
 @patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
 def test_api_add_group_members_expirations(api_request, test_context_mock):
@@ -41,28 +47,24 @@ def test_api_add_group_members_expirations(api_request, test_context_mock):
     with pytest.warns():
         test_context_mock.multipass.api_add_group_members({TEST_GROUP_ID}, {TEST_USER_ID}, expirations)
 
-    max_expiration = datetime.fromisoformat(
+    max_expiration_actual = datetime.fromisoformat(
         api_request.call_args.kwargs["json"]["expirations"][TEST_GROUP_ID][TEST_USER_ID]
     )
     max_expiration_expected = max_expiration.replace(tzinfo=timezone.utc)
 
-    assert max_expiration == max_expiration_expected
+    assert max_expiration_actual == max_expiration_expected
 
 
-@pytest.fixture()
-def _register_update_member_expiration_settings(test_context_mock):
+@freeze_time("0s")
+@patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
+def test_api_update_group_member_expiration_settings_max_expiration_in_past(api_request, test_context_mock):
     test_context_mock.mock_adapter.register_uri(
-        "POST",
+        "PUT",
         re.compile(
             re.escape(build_api_url(TEST_HOST.url, "multipass", "groups/member-expiration-settings/groups/")) + "/.*"
         ),
     )
 
-
-@freeze_time("0s")
-@pytest.mark.usefixtures(_register_update_member_expiration_settings.__name__)
-@patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
-def test_api_update_group_member_expiration_settings_max_expiration_in_past(api_request, test_context_mock):
     now_utc = datetime.now(timezone.utc)
 
     # Assert that an expiration date in the past raises a ValueError
@@ -77,11 +79,20 @@ def test_api_update_group_member_expiration_settings_max_expiration_in_past(api_
     with pytest.raises(ValueError):  # noqa: PT011
         test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
 
-    # Check that max_expiration without timezone throws warning for missing timezone
+    # Check that max_expiration without timezone throws warning for missing timezone and replaces with utc timezone
     max_expiration = datetime.now() + timedelta(seconds=DEFAULT_MAX_DURATION_IN_SECONDS)  # noqa: DTZ005
 
     with pytest.warns():
         test_context_mock.multipass.api_update_group_member_expiration_settings(TEST_GROUP_ID, max_expiration)
+
+    request_body = api_request.call_args.kwargs["json"]
+
+    expected_max_expiration = max_expiration.replace(tzinfo=timezone.utc, microsecond=0)
+    actual_max_expiration = datetime.strptime(request_body["maxExpiration"], "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+    assert actual_max_expiration == expected_max_expiration
 
 
 @pytest.mark.parametrize(
@@ -91,14 +102,13 @@ def test_api_update_group_member_expiration_settings_max_expiration_in_past(api_
         datetime.now(timezone.utc) + timedelta(seconds=DEFAULT_MAX_DURATION_IN_SECONDS),
     ],
 )
-@pytest.mark.usefixtures(_register_update_member_expiration_settings.__name__)
 @patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
 def test_api_update_group_member_expiration_settings_different_timezones(
     api_request, max_expiration, test_context_mock
 ):
     # Check whether different time zones are handled correctly
     test_context_mock.mock_adapter.register_uri(
-        "POST",
+        "PUT",
         re.compile(
             re.escape(build_api_url(TEST_HOST.url, "multipass", "groups/member-expiration-settings/groups/")) + "/.*"
         ),
@@ -117,9 +127,15 @@ def test_api_update_group_member_expiration_settings_different_timezones(
     assert actual_max_expiration == expected_max_expiration
 
 
-@pytest.mark.usefixtures(_register_update_member_expiration_settings.__name__)
 @patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
 def test_api_update_group_member_expiration_settings_invalid_max_durations(api_request, test_context_mock):
+    test_context_mock.mock_adapter.register_uri(
+        "PUT",
+        re.compile(
+            re.escape(build_api_url(TEST_HOST.url, "multipass", "groups/member-expiration-settings/groups/")) + "/.*"
+        ),
+    )
+
     # Choose invalid max duration that will be reset to default value
     invalid_max_duration = MINIMUM_MAX_DURATION_IN_SECONDS - 1
     with pytest.warns():
@@ -136,11 +152,17 @@ def test_api_update_group_member_expiration_settings_invalid_max_durations(api_r
 @pytest.mark.parametrize(
     "max_duration_in_seconds", [MINIMUM_MAX_DURATION_IN_SECONDS, choice(range(DEFAULT_MAX_DURATION_IN_SECONDS))]
 )
-@pytest.mark.usefixtures(_register_update_member_expiration_settings.__name__)
 @patch("foundry_dev_tools.clients.api_client.APIClient.api_request")
 def test_api_update_group_member_expiration_settings_valid_max_durations(
     api_request, max_duration_in_seconds, test_context_mock
 ):
+    test_context_mock.mock_adapter.register_uri(
+        "PUT",
+        re.compile(
+            re.escape(build_api_url(TEST_HOST.url, "multipass", "groups/member-expiration-settings/groups/")) + "/.*"
+        ),
+    )
+
     test_context_mock.multipass.api_update_group_member_expiration_settings(
         TEST_GROUP_ID, max_duration_in_seconds=max_duration_in_seconds
     )
@@ -195,12 +217,6 @@ def test_get_tokens(test_context_mock):
     assert len(tokens) == 3
     assert not any(token == "other_token" for token in tokens)  # noqa: S105
     assert test_context_mock.mock_adapter.call_count == 2
-
-
-def mock_generate_ttl(expiration_date) -> float:
-    t_now = datetime.now(tz=timezone.utc)
-
-    return (expiration_date - t_now).total_seconds()
 
 
 def test_api_get_ttl(test_context_mock, foundry_token_expiration_date):

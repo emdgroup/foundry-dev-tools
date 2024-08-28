@@ -455,7 +455,7 @@ def test_group_member_administration():
     viewer_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_VIEWER]
     editor_group = TEST_SINGLETON.project_groups[PROJECT_GROUP_ROLE_EDITOR]
 
-    # Add user as member to test group
+    # Add user as member to editor group
     resp = TEST_SINGLETON.ctx.multipass.api_add_group_members({editor_group.id}, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
@@ -537,7 +537,7 @@ def test_group_member_administration():
         member["principalId"] == TEST_SINGLETON.user.id for member in group_id_members_mapping[viewer_group.id]
     )
 
-    # Remove user from editor group again
+    # Remove user from editor group
     resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(editor_group.id, {TEST_SINGLETON.user.id})
 
     assert resp.status_code == 204
@@ -595,7 +595,7 @@ def test_group_member_expiration():
     assert resp.status_code == 200
     assert TEST_SINGLETON.simple_group.id not in resp.json()["expirationsByGroupId"]
 
-    # Remove user from simple group again
+    # Remove user from simple group
     resp = TEST_SINGLETON.ctx.multipass.api_remove_group_members(
         TEST_SINGLETON.simple_group.id, {TEST_SINGLETON.user.id}
     )
