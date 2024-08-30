@@ -116,6 +116,10 @@ def find_project_config_file(project_directory: Path | None = None, use_git: boo
     else:
         git_directory = git_toplevel_dir(project_directory, use_git=use_git)
     if not git_directory:
+        cwd_config = Path.cwd().joinpath(PROJECT_CFG_FILE_NAME)
+        # return config in current directory only if it exists
+        if cwd_config.exists():
+            return cwd_config
         return None
 
     return git_directory.joinpath(PROJECT_CFG_FILE_NAME)
