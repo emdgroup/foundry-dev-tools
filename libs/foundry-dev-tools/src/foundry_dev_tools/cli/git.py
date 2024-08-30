@@ -3,7 +3,7 @@
 import os
 import re
 import subprocess
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import click
 from rich.console import Console
@@ -65,9 +65,9 @@ def _git_clone_cli(ctx: FoundryContext, console: Console, repo: str, path: str |
     if repo_id is None:
         return
     repo_object = ctx.get_resource(repo_id)
-    clone_url = f"{ctx.host.scheme}://{ctx.host.domain}/stemma/git/{repo_id}/{repo_object.name}"
+    clone_url = f"{ctx.host.scheme}://{ctx.host.domain}" + quote(f"/stemma/git/{repo_id}/{repo_object.name}")
 
-    _path = "" if path is None else path
+    _path = repo_object.name if path is None else path
     console.print(f"Executing git clone {clone_url} {path}")
     if _path:
         os.execvp("git", ["git", "clone", clone_url, _path])  # noqa: S606

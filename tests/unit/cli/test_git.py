@@ -1,6 +1,7 @@
 from functools import partial
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, _Call, patch
+from urllib.parse import quote
 
 from pytest_mock.plugin import MockerFixture
 from rich.console import Console
@@ -74,7 +75,7 @@ def test_parse_repo(test_context_mock, mocker: MockerFixture):
 @patch("foundry_dev_tools.cli.git.subprocess.check_output")
 @patch("foundry_dev_tools.cli.git.os.execvp")
 def test_git_clone_cli(mock_execvp: MagicMock, mock_check_output: MagicMock, mocker, test_context_mock):
-    repo_name = "test-repo"
+    repo_name = "test repo"
     test_context_mock.mock_adapter.register_uri(
         "GET",
         build_api_url(test_context_mock.host.url, "compass", f"resources/{REPO_RID}"),
@@ -164,7 +165,7 @@ def test_git_clone_cli(mock_execvp: MagicMock, mock_check_output: MagicMock, moc
                     [
                         "git",
                         "clone",
-                        f"{test_context_mock.host.url}/stemma/git/{REPO_RID}/{repo_name}",
+                        f"{test_context_mock.host.url}/stemma/git/{REPO_RID}/{quote(repo_name)}",
                         ".",
                     ],
                 ),
@@ -185,7 +186,8 @@ def test_git_clone_cli(mock_execvp: MagicMock, mock_check_output: MagicMock, moc
                     [
                         "git",
                         "clone",
-                        f"{test_context_mock.host.url}/stemma/git/{REPO_RID}/{repo_name}",
+                        f"{test_context_mock.host.url}/stemma/git/{REPO_RID}/{quote(repo_name)}",
+                        repo_name,
                     ],
                 ),
                 {},
