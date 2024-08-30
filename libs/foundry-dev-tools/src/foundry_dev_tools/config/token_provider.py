@@ -171,7 +171,7 @@ class OAuthTokenProvider(CachedTokenProvider):
             resp = requests.request(
                 "POST",
                 f"{self.host.url}/multipass/api/oauth2/token",
-                data={"grant_type": "client_credentials", "scope": self.scopes}
+                data={"grant_type": "client_credentials", "scope": " ".join(self.scopes)}
                 if self.scopes
                 else {"grant_type": "client_credentials"},
                 headers={

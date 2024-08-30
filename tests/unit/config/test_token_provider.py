@@ -94,6 +94,17 @@ def test_oauth_token_provider(mocker: MockerFixture):
     request_mock.assert_called_once()
     assert cc_tok == "token"
 
+    request_mock.reset_mock()
+
+    tp_cc_multiple_scopes = MockOAuthTokenProvider(
+        "client_id", "client_secret", grant_type="client_credentials", scopes=["scope1", "scope2"]
+    )
+    assert tp_cc_multiple_scopes.scopes == ["scope1", "scope2"]
+
+    tp_cc_multiple_scopes_tok = tp_cc_multiple_scopes.token
+    assert request_mock.call_args_list[0][1]["data"]["scope"] == "scope1 scope2"
+    assert tp_cc_multiple_scopes_tok == "token"
+
 
 def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, foundry_client_secret):
     ctx = FoundryMockContext(
