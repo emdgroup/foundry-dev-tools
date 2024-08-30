@@ -98,19 +98,24 @@ def path_from_path_or_str(path: Path | PathLike[str] | str) -> Path:
     return Path(path)
 
 
-def find_project_config_file(project_directory: Path | None = None, use_git: bool = False) -> Path | None:
+def find_project_config_file(
+    project_directory: Path | None = None, use_git: bool = False, check_caller_file: bool = True
+) -> Path | None:
     """Get the project config file in a git repo.
 
     Args:
         project_directory: the path to a (sub)directory of a git repo,
             otherwise checks caller filename directory and working directory
         use_git: passed to :py:meth:git_toplevel_dir
+        check_caller_file: if the directory of the current executed python script should be checked
 
     Returns:
         Path | None: Path to the project config or None if no file was found
     """
     if project_directory is None:
-        git_directory = git_toplevel_dir(Path(inspect.stack()[-1].filename).parent, use_git=use_git)
+        git_directory = None
+        if check_caller_file:
+            git_directory = git_toplevel_dir(Path(inspect.stack()[-1].filename).parent, use_git=use_git)
         if git_directory is None:
             git_directory = git_toplevel_dir(Path.cwd(), use_git=use_git)
     else:

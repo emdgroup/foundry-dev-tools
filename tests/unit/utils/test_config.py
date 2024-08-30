@@ -1,11 +1,15 @@
 import os
+import shutil
+import subprocess
+from pathlib import Path
 from unittest import mock
 
+import py.path
 import pytest
 
 from foundry_dev_tools.config.config import get_config_dict
 from foundry_dev_tools.errors.config import FoundryConfigError
-from foundry_dev_tools.utils.config import check_init
+from foundry_dev_tools.utils.config import PROJECT_CFG_FILE_NAME, check_init, find_project_config_file
 
 
 def test_check_init():
@@ -81,3 +85,26 @@ def test_get_environment_variable_config(fs):
         result = get_config_dict()
     # v2 takes precedence
     assert result == {"credentials": {"domain": "domain", "jwt": "jwt_value"}}
+
+
+def test_find_project_config_file(tmpdir: py.path.LocalPath, git_env: dict, monkeypatch):
+    toplevel = Path(tmpdir)
+    monkeypatch.chdir(toplevel)
+    toplevel_conf_path = toplevel.joinpath(PROJECT_CFG_FILE_NAME)
+    subprocess.check_call(["git", "init"], cwd=toplevel)
+    assert toplevel_conf_path == find_project_config_file(check_caller_file=False)
+    sub = toplevel.joinpath("sub")
+    sub.mkdir()
+    monkeypatch.chdir(sub)
+    assert toplevel_conf_path == find_project_config_file(check_caller_file=False)
+
+    # remove git directory
+    shutil.rmtree(toplevel.joinpath(".git"))
+
+    assert (
+        find_project_config_file(check_caller_file=False) is None
+    )  # no project config file present, don't return anything
+    cwd_conf_path = sub.joinpath(PROJECT_CFG_FILE_NAME)
+    cwd_conf_path.touch()
+
+    assert cwd_conf_path == find_project_config_file(check_caller_file=False)
