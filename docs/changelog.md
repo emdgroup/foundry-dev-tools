@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.4] - 2024-08-30
+## Added
+  - check current working directory too in find_project_config_file
+
 ## [2.1.3] - 2024-08-28
 
 ## Added
@@ -263,6 +267,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.4]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.3...v2.1.4
 [2.1.3]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.0...v2.1.1
