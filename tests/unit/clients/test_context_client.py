@@ -1,6 +1,7 @@
 import time
 from unittest import mock
 
+import requests
 from requests_mock import ANY
 
 from foundry_dev_tools.__about__ import __version__
@@ -40,3 +41,11 @@ def test_context_http_client(test_context_mock, foundry_client_id):
     for token in tokens:
         req = test_context_mock.client.request("GET", "http+mock://test_oauth_token").request
         assert req.headers["Authorization"] == f"Bearer {token}"
+
+
+def test_retry_on_connection_error(test_context_mock):
+    response_mock = mock.Mock()
+    with mock.patch("requests.Session.request") as m:
+        m.side_effect = [requests.exceptions.ConnectionError(), response_mock]
+        response = test_context_mock.client.request("GET", "test_call_args")
+        assert response is response_mock
