@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import numbers
 import os
+import time
+import typing
 from typing import TYPE_CHECKING, Literal
 
 import requests
@@ -32,6 +34,40 @@ if TYPE_CHECKING:
     from foundry_dev_tools.config.context import FoundryContext
 
 DEFAULT_TIMEOUT = (60, None)
+LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.DEBUG)
+
+
+def retry(times: int, exceptions: tuple[Exception]) -> typing.Callable:
+    """Retry Decorator.
+
+    Code Copied from https://stackoverflow.com/a/64030200
+
+    Retries the wrapped function/method `times` times if the exceptions listed
+    in ``exceptions`` are thrown
+    :param times: The number of times to repeat the wrapped function/method
+    :type times: Int
+    :param Exceptions: Lists of exceptions that trigger a retry attempt
+    :type Exceptions: Tuple of Exceptions
+    """
+
+    def decorator(func: typing.Callable) -> typing.Callable:
+        def newfn(*args, **kwargs) -> typing.Callable:
+            attempt = 0
+            while attempt < times:
+                try:
+                    return func(*args, **kwargs)
+                except exceptions:  # noqa: PERF203
+                    LOGGER.debug(
+                        "Exception thrown when attempting to run %s, attempt " "%d of %d", func, attempt, times
+                    )
+                    time.sleep(0.1)
+                    attempt += 1
+            return func(*args, **kwargs)
+
+        return newfn
+
+    return decorator
 
 
 class ContextHTTPClient(requests.Session):
@@ -43,11 +79,10 @@ class ContextHTTPClient(requests.Session):
         if self.context.config.requests_ca_bundle:
             self.verify = os.fspath(self.context.config.requests_ca_bundle)
         self.auth = lambda r: self.context.token_provider.requests_auth_handler(r)
-        self._logger = logging.getLogger(__name__)
-        self._logger.setLevel(logging.DEBUG)
         self._counter = 0
         self.headers = {"User-Agent": f"foundry-dev-tools/{__version__}/python-requests"}
 
+    @retry(times=3, exceptions=requests.exceptions.ConnectionError)
     def request(
         self,
         method: str | bytes,
@@ -93,7 +128,7 @@ class ContextHTTPClient(requests.Session):
             verify = rcab
         if self.context.config.debug:
             self._counter = count = self._counter + 1
-            self._logger.debug(f"(r{count}) Making {method!s} request to {url!s}")  # noqa: G004
+            LOGGER.debug(f"(r{count}) Making {method!s} request to {url!s}")  # noqa: G004
 
         if isinstance(timeout, numbers.Number):
             # add default connect timeout if timeout is a number
@@ -121,10 +156,11 @@ class ContextHTTPClient(requests.Session):
             json=json,
         )
         if self.context.config.debug:
-            self._logger.debug(
+            LOGGER.debug(
                 f"(r{count}) Got response status={response.status_code}, "  # noqa: G004
                 f"content_type={response.headers.get('content-type')}, "
-                f"content_length={response.headers.get('content-length')}",
+                f"content_length={response.headers.get('content-length')}, "
+                f"Server-Timing={response.headers.get('Server-Timing')}",
             )
         raise_foundry_api_error(response, error_handling)
         return response
