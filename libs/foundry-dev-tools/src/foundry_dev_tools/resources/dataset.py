@@ -797,7 +797,9 @@ class Dataset(resource.Resource):
 
     def _get_repr_dict(self) -> dict:
         d = super()._get_repr_dict()
-        d["branch"] = d["branch"]["id"]
+        if not hasattr(self, "branch"):
+            self.branch = self._context.catalog.api_get_branch(self.rid, "master").json()
+        d["branch"] = self.branch["id"]
         return d
 
 
