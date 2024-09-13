@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.6] - 2024-09-13
+## Added:
+  - Retry request 3 times on ConnectionError
+## Fixed
+  - quote repository name in git clone url
+  - fix printing of Datasets instantiated by ctx.get_resource(rid)
+
 ## [2.1.5] - 2024-08-30
 ## Fixed
   - properly pass scopes to multipass endpoint in client_credentials flow
