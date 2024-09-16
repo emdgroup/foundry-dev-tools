@@ -29,6 +29,13 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
     ds2 = Dataset.from_rid(TEST_SINGLETON.ctx, ds.rid)
     assert ds2.path == ds.path
 
+    # test getting the dataset via .get_resource
+    ds3 = TEST_SINGLETON.ctx.get_resource(ds.rid)
+    assert ds3.path == ds.path
+    assert ds3.branch == ds.branch
+    # test for the branch attribute missing bug
+    ds3.__repr__()
+
     assert ds.get_last_transaction() is None
 
     ds.start_transaction()
