@@ -259,6 +259,8 @@ class DataProxyClient(APIClient):
         """
         local_path = output_directory.joinpath(foundry_file_path)
         local_path.parent.mkdir(exist_ok=True, parents=True)
+        if local_path.exists():
+            return local_path
         resp = self.api_get_file_in_view(
             dataset_rid,
             view,
