@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 class Dataset(resource.Resource):
     """Helper class for datasets."""
 
-    branch: api_types.Branch
+    _branch: api_types.Branch = None
     _transaction: api_types.Transaction | None = None
     __created__: bool | None = None
     rid_start: ClassVar[str] = "ri.foundry.main.dataset"
@@ -54,6 +54,22 @@ class Dataset(resource.Resource):
             )
             raise RuntimeError(msg)
         super().__init__(*args, **kwargs)
+
+    @property
+    def branch(self) -> api_types.Branch:
+        """The branch of the dataset.
+
+        If self._branch is not set, and the default "master" branch does not exist, it will be created.
+        """
+        if not self._branch:
+            # create branch with default name, if the branch is not set
+            # (e.g. when created via get_resource or directly instantiated)
+            self.switch_branch("master", create_branch_if_not_exists=True)
+        return self._branch
+
+    @branch.setter
+    def branch(self, branch: api_types.DatasetBranch):
+        self._branch = branch
 
     @classmethod
     def from_rid(
@@ -85,16 +101,12 @@ class Dataset(resource.Resource):
         if isinstance(branch, dict):
             inst.branch = branch
         else:
-            try:
-                inst.branch = context.catalog.api_get_branch(rid, branch).json()
-            except BranchNotFoundError:
-                if create_branch_if_not_exists:
-                    inst.branch = context.catalog.api_create_branch(
-                        dataset_rid=rid,
-                        branch_id=branch,
-                        parent_ref=parent_ref,
-                        parent_branch_id=parent_branch_id,
-                    ).json()
+            inst.switch_branch(
+                branch=branch,
+                create_branch_if_not_exists=create_branch_if_not_exists,
+                parent_ref=parent_ref,
+                parent_branch_id=parent_branch_id,
+            )
         return inst
 
     @classmethod
@@ -128,16 +140,12 @@ class Dataset(resource.Resource):
         """
         try:
             inst = super().from_path(context, path, **kwargs)
-            try:
-                inst.branch = context.catalog.api_get_branch(inst.rid, branch).json()
-            except BranchNotFoundError:
-                if create_branch_if_not_exists:
-                    inst.branch = context.catalog.api_create_branch(
-                        dataset_rid=inst.rid,
-                        branch_id=branch,
-                        parent_ref=parent_ref,
-                        parent_branch_id=parent_branch_id,
-                    ).json()
+            inst.switch_branch(
+                branch=branch,
+                create_branch_if_not_exists=create_branch_if_not_exists,
+                parent_ref=parent_ref,
+                parent_branch_id=parent_branch_id,
+            )
             inst.__created__ = False
         except ResourceNotFoundError:
             if create_if_not_exist:
@@ -160,14 +168,9 @@ class Dataset(resource.Resource):
         See :py:meth:`~foundry_dev_tools.clients.catalog.CatalogClient.api_create_dataset`.
         """
         rid = context.catalog.api_create_dataset(path).json()["rid"]
-        branch = context.catalog.api_create_branch(
-            rid,
-            branch,
-            parent_ref=parent_ref,
-            parent_branch_id=parent_branch_id,
-        ).json()
 
-        inst = cls.from_rid(context, rid, branch=branch)
+        inst = cls.from_rid(context, rid)
+        inst.switch_branch(branch=branch, parent_ref=parent_ref, parent_branch_id=parent_branch_id)
         inst.__created__ = True
         return inst
 
@@ -177,7 +180,7 @@ class Dataset(resource.Resource):
         parent_ref: api_types.TransactionRid | None = None,
         parent_branch_id: api_types.DatasetBranch | None = None,
     ) -> Self:
-        """Creates a branch on a dataset.
+        """Creates a branch on a dataset and switches to it.
 
         Args:
             branch: the branch to create
@@ -195,15 +198,29 @@ class Dataset(resource.Resource):
     def switch_branch(
         self,
         branch: api_types.DatasetBranch,
+        create_branch_if_not_exists: bool = False,
+        parent_ref: api_types.TransactionRid | None = None,
+        parent_branch_id: api_types.DatasetBranch | None = None,
     ) -> Self:
         """Switch to another branch.
 
-        Branch needs to exist.
-
         Args:
             branch: the name of the branch to switch to
+            create_branch_if_not_exists: create branch if branch does not exist,
+                branch always will be created if resource does not exist
+            parent_ref: optionally the transaction off which the branch will be based
+                (only used if branch needs to be created)
+            parent_branch_id: optionally a parent branch name, otherwise a root branch
+                (only used if branch needs to be created)
+
         """
-        self.branch = self.get_branch(branch)
+        try:
+            self.branch = self.get_branch(branch)
+        except BranchNotFoundError:
+            if create_branch_if_not_exists:
+                self.create_branch(branch=branch, parent_ref=parent_ref, parent_branch_id=parent_branch_id)
+            else:
+                raise
         return self
 
     def get_branch(self, branch: api_types.DatasetBranch) -> api_types.Branch:
@@ -797,8 +814,6 @@ class Dataset(resource.Resource):
 
     def _get_repr_dict(self) -> dict:
         d = super()._get_repr_dict()
-        if not hasattr(self, "branch"):
-            self.branch = self._context.catalog.api_get_branch(self.rid, "master").json()
         d["branch"] = self.branch["id"]
         return d
 

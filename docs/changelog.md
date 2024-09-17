@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.7] - 2024-09-16
+
+## Fixed
+  - fix uninitialized branch attribute for Dataset class (#73)
+
 ## [2.1.6] - 2024-09-13
+
 ## Added:
   - Retry request 3 times on ConnectionError
 ## Fixed
@@ -13,10 +19,12 @@ and this project adheres to [Semantic Versioning].
   - fix printing of Datasets instantiated by ctx.get_resource(rid)
 
 ## [2.1.5] - 2024-08-30
+
 ## Fixed
   - properly pass scopes to multipass endpoint in client_credentials flow
 
 ## [2.1.4] - 2024-08-30
+
 ## Added
   - check current working directory too in find_project_config_file
 
@@ -278,6 +286,8 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.7]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.6...v2.1.7
+[2.1.6]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.5...v2.1.6
 [2.1.5]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.4...v2.1.5
 [2.1.4]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.3...v2.1.4
 [2.1.3]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.2...v2.1.3
