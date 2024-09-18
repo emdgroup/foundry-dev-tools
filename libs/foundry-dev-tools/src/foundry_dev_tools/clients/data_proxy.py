@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from itertools import repeat
@@ -258,6 +259,7 @@ class DataProxyClient(APIClient):
             Path: local file path
         """
         local_path = output_directory.joinpath(foundry_file_path)
+
         local_path.parent.mkdir(exist_ok=True, parents=True)
         if local_path.exists():
             return local_path
@@ -267,10 +269,11 @@ class DataProxyClient(APIClient):
             foundry_file_path,
             stream=True,
         )
-        with local_path.open(mode="wb+") as out_file:
+
+        with tempfile.NamedTemporaryFile(mode='wb+') as out_file:
             resp.raw.decode_content = True
             shutil.copyfileobj(resp.raw, out_file)
-
+        shutil.move(out_file.name, local_path)
         return local_path
 
     def download_dataset_files(
