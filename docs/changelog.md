@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.9] - 2024-10-08
+
+## Changed
+  - Allow direct import of `Transform` from `transforms.api`
+
 ## [2.1.8] - 2024-09-25
 
 ## Fixed
@@ -291,6 +296,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.9]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.8...v2.1.9
 [2.1.8]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.7...v2.1.8
 [2.1.7]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.6...v2.1.7
 [2.1.6]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.5...v2.1.6
