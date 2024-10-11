@@ -114,6 +114,7 @@ class Resource:
         disableInheritedPermissions: api_types.DisableInheritedPermissionsType | None = None,  # noqa: N803
         propagatePermissions: bool | None = None,  # noqa: N803
         resourceLevelRoleGrantsAllowed: bool | None = None,  # noqa: N803
+        **kwargs,
     ):
         self.rid = rid
         self.name = name
@@ -153,6 +154,7 @@ class Resource:
         self.disable_inherited_permissions = disableInheritedPermissions
         self.propagate_permissions = propagatePermissions
         self.resource_level_role_grants_allowed = resourceLevelRoleGrantsAllowed
+        self._kwargs = kwargs
 
     @classmethod
     def _create_class(

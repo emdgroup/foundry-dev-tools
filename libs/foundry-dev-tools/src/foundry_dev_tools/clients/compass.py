@@ -1093,7 +1093,18 @@ class CompassClient(APIClient):
 
         Args:
             rid: resource identifier, for the resource for which roles will be updated
-            grant_patches: the role grants that should be patched
+            grant_patches: list of role grants that should be patched.
+                grant_patches have the following structure
+                [{
+                    "patchOperation": "ADD" | "REMOVE",
+                    "roleGrant": {
+                        "role": roleset_id,
+                        "principal": {
+                            "id": multipass_id,
+                            "type": "USER" | "GROUP" | "EVERYONE"
+                        }
+                    }
+                }]
             disable_inherited_permissions_for_principals: patch role grants for the provided inherited permissions
             disable_inherited_permissions: disable inherited permissions
             **kwargs: gets passed to :py:meth:`APIClient.api_request`

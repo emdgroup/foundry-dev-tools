@@ -15,19 +15,20 @@ from transforms.api._decorators import (
     transform_pandas,
     transform_polars,
 )
-from transforms.api._transform import TransformContext
+from transforms.api._transform import Transform, TransformContext
 
 __all__ = (
     "Input",
     "Output",
     "Markings",
     "OrgMarkings",
+    "configure",
+    "incremental",
+    "lightweight",
+    "transform",
     "transform_df",
     "transform_pandas",
-    "transform",
-    "lightweight",
     "transform_polars",
+    "Transform",
     "TransformContext",
-    "incremental",
-    "configure",
 )
