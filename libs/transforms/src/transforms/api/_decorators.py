@@ -16,6 +16,7 @@ from transforms.api._transform import Transform
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pandas as pd
     import polars as pl
 
 
@@ -188,7 +189,7 @@ def transform_df(output: Output, **inputs: Input) -> Callable[[Callable], Transf
     return _transform_df
 
 
-def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable], Transform]:
+def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable[..., pd.DataFrame]], Transform]:
     """Register the wrapped compute function as a Pandas transform.
 
     The ``transform_pandas`` decorator is used to construct a :class:`Transform` object from
@@ -213,7 +214,7 @@ def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable], Tr
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_pandas(compute_func: Callable) -> Transform:
+    def _transform_pandas(compute_func: Callable[..., pd.DataFrame]) -> Transform:
         return Transform(compute_func, {"output": output}, inputs=inputs, decorator="pandas")
 
     return _transform_pandas
