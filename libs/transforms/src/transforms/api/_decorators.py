@@ -113,7 +113,7 @@ def lightweight(
     return _lightweight if _maybe_transform is None else _lightweight(_maybe_transform)
 
 
-def transform_polars(output: Output, **inputs) -> Callable[[Callable], Transform]:
+def transform_polars(output: Output, **inputs: Input) -> Callable[[Callable], Transform]:
     """Register the wrapped compute function as a Polars transform.
 
     Note:
@@ -154,7 +154,7 @@ def transform_polars(output: Output, **inputs) -> Callable[[Callable], Transform
     return _transform_polars
 
 
-def transform_df(output: Output, **inputs) -> Callable[[Callable], Transform]:
+def transform_df(output: Output, **inputs: Input) -> Callable[[Callable], Transform]:
     """Register the wrapped compute function as a dataframe transform.
 
     The ``transform_df`` decorator is used to construct a :class:`Transform` object from
@@ -186,7 +186,7 @@ def transform_df(output: Output, **inputs) -> Callable[[Callable], Transform]:
     return _transform_df
 
 
-def transform_pandas(output: Output, **inputs) -> Callable[[Callable], Transform]:
+def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable], Transform]:
     """Register the wrapped compute function as a Pandas transform.
 
     The ``transform_pandas`` decorator is used to construct a :class:`Transform` object from
