@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import polars as pl
+    import pyspark.sql
 
 
 def lightweight(
@@ -157,7 +158,7 @@ def transform_polars(output: Output, **inputs: Input) -> Callable[[Callable[...,
     return _transform_polars
 
 
-def transform_df(output: Output, **inputs: Input) -> Callable[[Callable], Transform]:
+def transform_df(output: Output, **inputs: Input) -> Callable[[Callable[..., pyspark.sql.DataFrame]], Transform]:
     """Register the wrapped compute function as a dataframe transform.
 
     The ``transform_df`` decorator is used to construct a :class:`Transform` object from
@@ -183,7 +184,7 @@ def transform_df(output: Output, **inputs: Input) -> Callable[[Callable], Transf
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_df(compute_func: Callable) -> Transform:
+    def _transform_df(compute_func: Callable[..., pyspark.sql.DataFrame]) -> Transform:
         return Transform(compute_func, {"output": output}, inputs=inputs, decorator="spark")
 
     return _transform_df
