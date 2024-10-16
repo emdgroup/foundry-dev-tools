@@ -16,6 +16,8 @@ from transforms.api._transform import Transform
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import polars as pl
+
 
 def lightweight(
     _maybe_transform: Transform | None = None,
@@ -113,7 +115,7 @@ def lightweight(
     return _lightweight if _maybe_transform is None else _lightweight(_maybe_transform)
 
 
-def transform_polars(output: Output, **inputs: Input) -> Callable[[Callable], Transform]:
+def transform_polars(output: Output, **inputs: Input) -> Callable[[Callable[..., pl.DataFrame]], Transform]:
     """Register the wrapped compute function as a Polars transform.
 
     Note:
@@ -143,7 +145,7 @@ def transform_polars(output: Output, **inputs: Input) -> Callable[[Callable], Tr
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_polars(compute_function: Callable) -> Transform:
+    def _transform_polars(compute_function: Callable[..., pl.DataFrame]) -> Transform:
         return Transform(
             compute_function,
             outputs={"output": output},
