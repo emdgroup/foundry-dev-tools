@@ -221,7 +221,7 @@ def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable[...,
     return _transform_pandas
 
 
-def transform(**kwargs) -> Callable[[Callable[..., None]], Transform]:
+def transform(**kwargs: Input | Output) -> Callable[[Callable[..., None]], Transform]:
     """Wrap up a compute function as a Transform object.
 
     >>> from transforms.api import transform, Input, Output
