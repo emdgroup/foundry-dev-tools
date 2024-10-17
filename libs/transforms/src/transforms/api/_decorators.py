@@ -221,7 +221,7 @@ def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable[...,
     return _transform_pandas
 
 
-def transform(**kwargs) -> Callable[[Callable], Transform]:
+def transform(**kwargs) -> Callable[[Callable[..., None]], Transform]:
     """Wrap up a compute function as a Transform object.
 
     >>> from transforms.api import transform, Input, Output
@@ -243,7 +243,7 @@ def transform(**kwargs) -> Callable[[Callable], Transform]:
         The compute function is responsible for writing data to its outputs.
     """
 
-    def _transform(compute_func: Callable) -> Transform:
+    def _transform(compute_func: Callable[..., None]) -> Transform:
         return Transform(
             compute_func,
             outputs={k: v for k, v in kwargs.items() if isinstance(v, Output)},
