@@ -16,6 +16,10 @@ from transforms.api._transform import Transform
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pandas as pd
+    import polars as pl
+    import pyspark.sql
+
 
 def lightweight(
     _maybe_transform: Transform | None = None,
@@ -113,7 +117,7 @@ def lightweight(
     return _lightweight if _maybe_transform is None else _lightweight(_maybe_transform)
 
 
-def transform_polars(output: Output, **inputs) -> Callable[[Callable], Transform]:
+def transform_polars(output: Output, **inputs: Input) -> Callable[[Callable[..., pl.DataFrame]], Transform]:
     """Register the wrapped compute function as a Polars transform.
 
     Note:
@@ -143,7 +147,7 @@ def transform_polars(output: Output, **inputs) -> Callable[[Callable], Transform
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_polars(compute_function: Callable) -> Transform:
+    def _transform_polars(compute_function: Callable[..., pl.DataFrame]) -> Transform:
         return Transform(
             compute_function,
             outputs={"output": output},
@@ -154,7 +158,7 @@ def transform_polars(output: Output, **inputs) -> Callable[[Callable], Transform
     return _transform_polars
 
 
-def transform_df(output: Output, **inputs) -> Callable[[Callable], Transform]:
+def transform_df(output: Output, **inputs: Input) -> Callable[[Callable[..., pyspark.sql.DataFrame]], Transform]:
     """Register the wrapped compute function as a dataframe transform.
 
     The ``transform_df`` decorator is used to construct a :class:`Transform` object from
@@ -180,13 +184,13 @@ def transform_df(output: Output, **inputs) -> Callable[[Callable], Transform]:
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_df(compute_func: Callable) -> Transform:
+    def _transform_df(compute_func: Callable[..., pyspark.sql.DataFrame]) -> Transform:
         return Transform(compute_func, {"output": output}, inputs=inputs, decorator="spark")
 
     return _transform_df
 
 
-def transform_pandas(output: Output, **inputs) -> Callable[[Callable], Transform]:
+def transform_pandas(output: Output, **inputs: Input) -> Callable[[Callable[..., pd.DataFrame]], Transform]:
     """Register the wrapped compute function as a Pandas transform.
 
     The ``transform_pandas`` decorator is used to construct a :class:`Transform` object from
@@ -211,13 +215,13 @@ def transform_pandas(output: Output, **inputs) -> Callable[[Callable], Transform
         **inputs (Input): kwargs comprised of named :class:`Input` specs.
     """
 
-    def _transform_pandas(compute_func: Callable) -> Transform:
+    def _transform_pandas(compute_func: Callable[..., pd.DataFrame]) -> Transform:
         return Transform(compute_func, {"output": output}, inputs=inputs, decorator="pandas")
 
     return _transform_pandas
 
 
-def transform(**kwargs) -> Callable[[Callable], Transform]:
+def transform(**kwargs: Input | Output) -> Callable[[Callable[..., None]], Transform]:
     """Wrap up a compute function as a Transform object.
 
     >>> from transforms.api import transform, Input, Output
@@ -239,7 +243,7 @@ def transform(**kwargs) -> Callable[[Callable], Transform]:
         The compute function is responsible for writing data to its outputs.
     """
 
-    def _transform(compute_func: Callable) -> Transform:
+    def _transform(compute_func: Callable[..., None]) -> Transform:
         return Transform(
             compute_func,
             outputs={k: v for k, v in kwargs.items() if isinstance(v, Output)},
