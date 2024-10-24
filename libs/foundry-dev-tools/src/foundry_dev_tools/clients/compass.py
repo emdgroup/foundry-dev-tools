@@ -1082,10 +1082,11 @@ class CompassClient(APIClient):
         return self.api_get_resource_roles(rids).json()
 
     def api_update_project_roles(
-        self
+        self,
         project_rid: api_types.Rid,
-        role_grant_patches: set[api_types.RoleGrantPatch] | None = None
-    ):
+        role_grant_patches: set[api_types.RoleGrantPatch] | None = None,
+        **kwargs,
+    ) -> requests.Response:
         """Updates the role grants for a project resource.
 
         Args:
@@ -1108,7 +1109,7 @@ class CompassClient(APIClient):
         body = {}
 
         if role_grant_patches is not None:
-            body["roleGrantPatches"] = list(grant_patches)
+            body["roleGrantPatches"] = list(role_grant_patches)
 
         return self.api_request(
             "POST",
@@ -1116,6 +1117,7 @@ class CompassClient(APIClient):
             json=body,
             **kwargs,
         )
+
 
     def api_update_resource_roles(
         self,
