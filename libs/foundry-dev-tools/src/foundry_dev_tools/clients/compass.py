@@ -1081,6 +1081,42 @@ class CompassClient(APIClient):
         """
         return self.api_get_resource_roles(rids).json()
 
+    def api_update_project_roles(
+        self,
+        project_rid: api_types.Rid,
+        role_grant_patches: set[api_types.RoleGrantPatch] | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Updates the role grants for a project resource.
+
+        Args:
+            project_rid: resource identifier, for the resource for which roles will be updated
+            role_grant_patches: list of role grants that should be patched.
+                grant_patches have the following structure
+                [{
+                    "patchOperation": "ADD" | "REMOVE",
+                    "roleGrant": {
+                        "role": roleset_id,
+                        "principal": {
+                            "id": multipass_id,
+                            "type": "USER" | "GROUP" | "EVERYONE"
+                        }
+                    }
+                }]
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        body = {}
+
+        if role_grant_patches is not None:
+            body["roleGrantPatches"] = list(role_grant_patches)
+
+        return self.api_request(
+            "POST",
+            f"hierarchy/projects/{project_rid}",
+            json=body,
+            **kwargs,
+        )
+
     def api_update_resource_roles(
         self,
         rid: api_types.Rid,
@@ -1089,7 +1125,10 @@ class CompassClient(APIClient):
         disable_inherited_permissions: bool | None = None,
         **kwargs,
     ) -> requests.Response:
-        """Updates the role grants for a resource.
+        """Updates the role grants for a resource (non-project).
+
+        This endpoint cannot be used for projects or service project resources.
+        To update roles on a project, use api_update_project_roles().
 
         Args:
             rid: resource identifier, for the resource for which roles will be updated
