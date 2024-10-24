@@ -1105,7 +1105,6 @@ class CompassClient(APIClient):
                 }]
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-
         body = {}
 
         if role_grant_patches is not None:
@@ -1148,7 +1147,6 @@ class CompassClient(APIClient):
             disable_inherited_permissions: disable inherited permissions
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-
         body = {}
 
         if grant_patches is not None:
