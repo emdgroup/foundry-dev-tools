@@ -1118,7 +1118,6 @@ class CompassClient(APIClient):
             **kwargs,
         )
 
-
     def api_update_resource_roles(
         self,
         rid: api_types.Rid,
@@ -1149,6 +1148,7 @@ class CompassClient(APIClient):
             disable_inherited_permissions: disable inherited permissions
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
+
         body = {}
 
         if grant_patches is not None:
