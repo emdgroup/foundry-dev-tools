@@ -1128,8 +1128,8 @@ class CompassClient(APIClient):
         **kwargs,
     ) -> requests.Response:
         """Updates the role grants for a resource (non-project).
-        This endpoint cannot be used for projects or service project resources. 
-        To update roles on a project, use api_update_project_roles(). 
+        This endpoint cannot be used for projects or service project resources.
+        To update roles on a project, use api_update_project_roles().
 
         Args:
             rid: resource identifier, for the resource for which roles will be updated
