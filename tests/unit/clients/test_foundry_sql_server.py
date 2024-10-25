@@ -5,6 +5,7 @@ import pytest
 
 from foundry_dev_tools.errors.sql import (
     FoundrySqlQueryClientTimedOutError,
+    FoundrySqlQueryFailedError,
     FoundrySqlSerializationFormatNotImplementedError,
 )
 from foundry_dev_tools.utils.clients import build_api_url
@@ -60,3 +61,63 @@ def test_read_arrow_optional_polars(test_context_mock):
     pa_table = arrow_stream.read_all()
     df = pl.from_arrow(pa_table)
     assert df.shape == (1, 1)
+
+
+def test_exception(mocker, test_context_mock):
+    mocker.patch("time.sleep")  # we do not want to wait 500 ms in a test ;)
+
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "queries/execute"),
+        json={"queryId": "6941e90b-7a18-4ee9-8e82-63b64d7a7bde", "status": {"type": "running", "running": {}}},
+    )
+
+    test_context_mock.mock_adapter.register_uri(
+        "GET",
+        re.compile(re.escape(build_api_url(TEST_HOST.url, "foundry-sql-server", "")) + "queries/[^/]*/status"),
+        json={
+            "status": {
+                "type": "failed",
+                "failed": {
+                    "errorMessage": "org.apache.spark.sql.AnalysisException: ",
+                    "failureReason": "FAILED_TO_EXECUTE",
+                },
+            }
+        },
+    )
+    with pytest.raises(FoundrySqlQueryFailedError) as exception:
+        test_context_mock.foundry_sql_server.query_foundry_sql(
+            "SELECT notExistingColumn FROM `ri.foundry.main.dataset.249d2faf-4dcb-490b-9de5-3ae1160e8fbf`",
+            timeout=0.001,
+        )
+    assert exception.value.error_message == "org.apache.spark.sql.AnalysisException: "
+
+
+def test_exception_unknown_json(mocker, test_context_mock):
+    mocker.patch("time.sleep")  # we do not want to wait 500 ms in a test ;)
+
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "queries/execute"),
+        json={"queryId": "6941e90b-7a18-4ee9-8e82-63b64d7a7bde", "status": {"type": "running", "running": {}}},
+    )
+
+    test_context_mock.mock_adapter.register_uri(
+        "GET",
+        re.compile(re.escape(build_api_url(TEST_HOST.url, "foundry-sql-server", "")) + "queries/[^/]*/status"),
+        json={
+            "status": {
+                "type": "failed",
+                "unknownKey": {
+                    "errorMessage": "org.apache.spark.sql.AnalysisException: ",
+                    "failureReason": "FAILED_TO_EXECUTE",
+                },
+            }
+        },
+    )
+    with pytest.raises(FoundrySqlQueryFailedError) as exception:
+        test_context_mock.foundry_sql_server.query_foundry_sql(
+            "SELECT notExistingColumn FROM `ri.foundry.main.dataset.249d2faf-4dcb-490b-9de5-3ae1160e8fbf`",
+            timeout=0.001,
+        )
+    assert exception.value.error_message == ""
