@@ -10,9 +10,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, overload
 
-import polars as pl
-import polars.dataframe.frame
-
 from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.dataset import (
     BranchNotFoundError,
@@ -34,6 +31,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import pandas.core.frame
+    import polars.dataframe.frame
     import pyarrow as pa
     import pyspark.sql
 
@@ -561,12 +559,13 @@ class Dataset(resource.Resource):
         """
         with self.transaction_context(transaction_type=transaction_type):
             from foundry_dev_tools._optional.pandas import pd
+            from foundry_dev_tools._optional.polars import pl
 
             # TODO needed?
             # to be backwards compatible to most readers, that expect files
             # to be under spark/
             folder = str(round(time.time() * 1000)) if transaction_type == "APPEND" else "spark"
-            if not pd.__fake__ and isinstance(df, pd.DataFrame | pl.DataFrame):
+            if not (pd.__fake__ or pl.__fake__) and isinstance(df, pd.DataFrame | pl.DataFrame):
                 buf = io.BytesIO()
                 parquet_compression = "snappy"
                 schema_flavor = "spark"
@@ -780,6 +779,11 @@ class Dataset(resource.Resource):
 
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
+        try:
+            import polars as pl
+        except ImportError as e:
+            msg = "The optional 'polars' package is not installed. Please install it to use the 'to_polars' method"
+            raise ImportError(msg) from e
         return pl.from_arrow(self.to_arrow())
 
     @contextmanager
