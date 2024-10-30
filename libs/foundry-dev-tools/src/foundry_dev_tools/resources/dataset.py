@@ -10,6 +10,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, overload
 
+import polars as pl
+import polars.dataframe.frame
+
 from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.dataset import (
     BranchNotFoundError,
@@ -536,7 +539,7 @@ class Dataset(resource.Resource):
 
     def save_dataframe(
         self,
-        df: pandas.core.frame.DataFrame | pyspark.sql.DataFrame,
+        df: pandas.core.frame.DataFrame | polars.dataframe.frame.DataFrame | pyspark.sql.DataFrame,
         transaction_type: api_types.FoundryTransaction = "SNAPSHOT",
         foundry_schema: api_types.FoundrySchema | None = None,
     ) -> Self:
@@ -547,7 +550,7 @@ class Dataset(resource.Resource):
         Creates SNAPSHOT transactions by default.
 
         Args:
-            df: A pyspark  or pandas DataFrame to upload
+            df: A pyspark, pandas or polars DataFrame to upload
             dataset_path_or_rid: path or rid of the dataset in which the object should be stored.
             branch: Branch of the dataset in which the object should be stored
             exists_ok: By default, this method creates a new dataset.
@@ -563,14 +566,28 @@ class Dataset(resource.Resource):
             # to be backwards compatible to most readers, that expect files
             # to be under spark/
             folder = str(round(time.time() * 1000)) if transaction_type == "APPEND" else "spark"
-            if not pd.__fake__ and isinstance(df, pd.DataFrame):
+            if not pd.__fake__ and isinstance(df, pd.DataFrame | pl.DataFrame):
                 buf = io.BytesIO()
-                df.to_parquet(
-                    buf,
-                    compression="snappy",
-                    flavor="spark",
-                    index=False,
-                )
+                parquet_compression = "snappy"
+                schema_flavor = "spark"
+
+                if isinstance(df, pd.DataFrame):
+                    # write pandas dataframe as parquet to buffer
+                    df.to_parquet(
+                        buf,
+                        compression=parquet_compression,
+                        flavor=schema_flavor,
+                        index=False,
+                    )
+                else:
+                    # write polars dataframe as parquet to buffer
+                    df.write_parquet(
+                        buf,
+                        compression=parquet_compression,
+                        use_pyarrow=True,
+                        pyarrow_options={"flavor": schema_flavor},
+                    )
+
                 buf.seek(0)  # go to beginning of file
                 self.put_file(
                     folder + "/dataset.parquet",
@@ -757,6 +774,13 @@ class Dataset(resource.Resource):
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
         return self.query_foundry_sql("SELECT *", return_type="pandas")
+
+    def to_polars(self) -> polars.dataframe.frame.DataFrame:
+        """Get dataset as a :py:class:`polars.DataFrame`.
+
+        Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
+        """
+        return pl.from_arrow(self.to_arrow())
 
     @contextmanager
     def transaction_context(
