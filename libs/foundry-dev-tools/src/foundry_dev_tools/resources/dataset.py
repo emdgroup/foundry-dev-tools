@@ -565,9 +565,10 @@ class Dataset(resource.Resource):
             # to be backwards compatible to most readers, that expect files
             # to be under spark/
             folder = str(round(time.time() * 1000)) if transaction_type == "APPEND" else "spark"
+            parquet_compression = "snappy"
+
             if not (pd.__fake__ or pl.__fake__) and isinstance(df, pd.DataFrame | pl.DataFrame):
                 buf = io.BytesIO()
-                parquet_compression = "snappy"
                 schema_flavor = "spark"
 
                 if isinstance(df, pd.DataFrame):
@@ -595,7 +596,7 @@ class Dataset(resource.Resource):
             else:
                 with tempfile.TemporaryDirectory() as path:
                     p_path = Path(path)
-                    df.write.format("parquet").option("compression", "snappy").save(
+                    df.write.format("parquet").option("compression", parquet_compression).save(
                         path=path,
                         mode="overwrite",
                     )
