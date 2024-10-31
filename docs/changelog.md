@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning].
 
 ## Added
   - Update project roles via compass-API (#80)
+  - Add error message to SQL Exception (#82)
   
 ## [2.1.9] - 2024-10-08
 
