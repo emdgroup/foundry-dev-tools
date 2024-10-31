@@ -1,6 +1,8 @@
 import pandas as pd
+import polars as pl
 import pytest
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal as pd_assert_frame_equal
+from polars.testing import assert_frame_equal as pl_assert_frame_equal
 from pyspark.testing import assertDataFrameEqual
 
 from foundry_dev_tools.errors.compass import ResourceNotFoundError
@@ -85,11 +87,16 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
 
     # test save_dataframe
     df = pd.DataFrame({"a": [0], "b": [1]})
-    pd_spark_df = pd.DataFrame({"a": [1], "b": [0]})
+    polars_df = pl.DataFrame({"a": [1], "b": [2]})
+    pd_spark_df = pd.DataFrame({"a": [1], "b": [0]})  # create slightly different dataframe
     spark_df = spark_session.createDataFrame(pd_spark_df)  # create slightly different dataframe
 
     ds.save_dataframe(df)
-    assert_frame_equal(df, ds.to_pandas())
+    pd_assert_frame_equal(df, ds.to_pandas())
+
+    ds_polars_branch = TEST_SINGLETON.ctx.get_dataset(ds.rid, branch="polars")
+    ds_polars_branch.save_dataframe(polars_df)
+    pl_assert_frame_equal(polars_df, ds_polars_branch.to_polars())
 
     ds_spark_branch = TEST_SINGLETON.ctx.get_dataset(ds.rid, branch="spark")
     ds_spark_branch.save_dataframe(spark_df)

@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import pandas.core.frame
+    import polars.dataframe.frame
     import pyarrow as pa
     import pyspark.sql
 
@@ -536,7 +537,7 @@ class Dataset(resource.Resource):
 
     def save_dataframe(
         self,
-        df: pandas.core.frame.DataFrame | pyspark.sql.DataFrame,
+        df: pandas.core.frame.DataFrame | polars.dataframe.frame.DataFrame | pyspark.sql.DataFrame,
         transaction_type: api_types.FoundryTransaction = "SNAPSHOT",
         foundry_schema: api_types.FoundrySchema | None = None,
     ) -> Self:
@@ -547,7 +548,7 @@ class Dataset(resource.Resource):
         Creates SNAPSHOT transactions by default.
 
         Args:
-            df: A pyspark  or pandas DataFrame to upload
+            df: A pyspark, pandas or polars DataFrame to upload
             dataset_path_or_rid: path or rid of the dataset in which the object should be stored.
             branch: Branch of the dataset in which the object should be stored
             exists_ok: By default, this method creates a new dataset.
@@ -558,19 +559,35 @@ class Dataset(resource.Resource):
         """
         with self.transaction_context(transaction_type=transaction_type):
             from foundry_dev_tools._optional.pandas import pd
+            from foundry_dev_tools._optional.polars import pl
 
             # TODO needed?
             # to be backwards compatible to most readers, that expect files
             # to be under spark/
             folder = str(round(time.time() * 1000)) if transaction_type == "APPEND" else "spark"
-            if not pd.__fake__ and isinstance(df, pd.DataFrame):
+            parquet_compression = "snappy"
+
+            if not (pd.__fake__ or pl.__fake__) and isinstance(df, pd.DataFrame | pl.DataFrame):
                 buf = io.BytesIO()
-                df.to_parquet(
-                    buf,
-                    compression="snappy",
-                    flavor="spark",
-                    index=False,
-                )
+                schema_flavor = "spark"
+
+                if isinstance(df, pd.DataFrame):
+                    # write pandas dataframe as parquet to buffer
+                    df.to_parquet(
+                        buf,
+                        compression=parquet_compression,
+                        flavor=schema_flavor,
+                        index=False,
+                    )
+                else:
+                    # write polars dataframe as parquet to buffer
+                    df.write_parquet(
+                        buf,
+                        compression=parquet_compression,
+                        use_pyarrow=True,
+                        pyarrow_options={"flavor": schema_flavor},
+                    )
+
                 buf.seek(0)  # go to beginning of file
                 self.put_file(
                     folder + "/dataset.parquet",
@@ -579,7 +596,7 @@ class Dataset(resource.Resource):
             else:
                 with tempfile.TemporaryDirectory() as path:
                     p_path = Path(path)
-                    df.write.format("parquet").option("compression", "snappy").save(
+                    df.write.format("parquet").option("compression", parquet_compression).save(
                         path=path,
                         mode="overwrite",
                     )
@@ -757,6 +774,18 @@ class Dataset(resource.Resource):
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
         return self.query_foundry_sql("SELECT *", return_type="pandas")
+
+    def to_polars(self) -> polars.dataframe.frame.DataFrame:
+        """Get dataset as a :py:class:`polars.DataFrame`.
+
+        Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
+        """
+        try:
+            import polars as pl
+        except ImportError as e:
+            msg = "The optional 'polars' package is not installed. Please install it to use the 'to_polars' method"
+            raise ImportError(msg) from e
+        return pl.from_arrow(self.to_arrow())
 
     @contextmanager
     def transaction_context(
