@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [Unreleased]
+
+## Fixed
+- `save_dataframe` incorrectly interacting with optional modules pandas or polars
+
 ## [2.1.10] - 2024-10-31
 
 ## Changed
