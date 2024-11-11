@@ -567,11 +567,13 @@ class Dataset(resource.Resource):
             folder = str(round(time.time() * 1000)) if transaction_type == "APPEND" else "spark"
             parquet_compression = "snappy"
 
-            if not (pd.__fake__ or pl.__fake__) and isinstance(df, pd.DataFrame | pl.DataFrame):
+            use_pandas = not pd.__fake__ and isinstance(df, pd.DataFrame)
+            use_polars = not pl.__fake__ and isinstance(df, pl.DataFrame)
+            if use_pandas or use_polars:
                 buf = io.BytesIO()
                 schema_flavor = "spark"
 
-                if isinstance(df, pd.DataFrame):
+                if use_pandas:
                     # write pandas dataframe as parquet to buffer
                     df.to_parquet(
                         buf,
