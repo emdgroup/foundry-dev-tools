@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
-## [Unreleased]
+## [2.1.11]
 
 ## Fixed
 - `save_dataframe` incorrectly interacting with optional modules pandas or polars
@@ -311,6 +311,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.11]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.10...v2.1.11
 [2.1.10]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.9...v2.1.10
 [2.1.9]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.8...v2.1.9
 [2.1.8]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.7...v2.1.8
