@@ -15,7 +15,7 @@ from transforms.api._decorators import (
     transform_pandas,
     transform_polars,
 )
-from transforms.api._transform import Transform, TransformContext
+from transforms.api._transform import Transform, TransformContext, TransformInput, TransformOutput
 
 __all__ = (
     "Input",
@@ -31,4 +31,6 @@ __all__ = (
     "transform_polars",
     "Transform",
     "TransformContext",
+    "TransformInput",
+    "TransformOutput",
 )
