@@ -112,6 +112,10 @@ def test_monster_integration_test():  # noqa: PLR0915
 
     TEST_SINGLETON.v1_client.commit_transaction(ds["rid"], transaction_rid)
 
+    files = TEST_SINGLETON.ctx.catalog.list_dataset_files(dataset_rid=ds["rid"], end_ref=branch, page_size=1)
+
+    assert len(files) == 3
+
     schema = {
         "fieldSchemaList": [
             {"type": "INTEGER", "name": "col1", "customMetadata": {}},

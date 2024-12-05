@@ -27,6 +27,7 @@ class CatalogClient(APIClient):
         page_size: int = 1000,
         logical_path: api_types.PathInDataset | None = None,
         page_start_logical_path: api_types.PathInDataset | None = None,
+        start_transaction_rid: api_types.TransactionRid | None = None,
         include_open_exclusive_transaction: bool = False,
         exclude_hidden_files: bool = False,
         temporary_credentials_auth_token: str | None = None,
@@ -43,6 +44,8 @@ class CatalogClient(APIClient):
                 (a slash is added to the end of logicalPath if necessary and a prefix-match is performed)
             page_start_logical_path: if specified page starts at the given path,
                 otherwise at the beginning of the file list
+            start_transaction_rid: if a startTransactionRid is given, the view starting at the startTransactionRid
+                and ending at the endRef is returned
             include_open_exclusive_transaction: if files added in open transaction should be returned
                 as well in the response
             exclude_hidden_files: if hidden files should be excluded (e.g. _log files)
@@ -62,7 +65,7 @@ class CatalogClient(APIClient):
                     ]
         """
 
-        def _inner_get(next_page_token: str | None = None) -> dict:
+        def _inner_get(page_start_logical_path: str | None = None) -> dict:
             return self.api_get_dataset_view_files3(
                 dataset_rid=dataset_rid,
                 end_ref=end_ref,
@@ -71,14 +74,17 @@ class CatalogClient(APIClient):
                 page_start_logical_path=page_start_logical_path,
                 include_open_exclusive_transaction=include_open_exclusive_transaction,
                 exclude_hidden_files=exclude_hidden_files,
-                start_transaction_rid=next_page_token,
+                start_transaction_rid=start_transaction_rid,
                 temporary_credentials_auth_token=temporary_credentials_auth_token,
             ).json()
 
         result: list[dict] = []
-        batch_result = {"nextPageToken": ""}
-        while batch_result["nextPageToken"] is not None:
-            batch_result = _inner_get(next_page_token=batch_result["nextPageToken"])
+        first_result = _inner_get(page_start_logical_path=page_start_logical_path)
+        result.extend(first_result["values"])
+        next_page_token = first_result.get("nextPageToken", None)
+        while next_page_token is not None:
+            batch_result = _inner_get(page_start_logical_path=next_page_token)
+            next_page_token = batch_result.get("nextPageToken", None)
             result.extend(batch_result["values"])  # type: ignore[arg-type]
         return result
 
@@ -110,7 +116,8 @@ class CatalogClient(APIClient):
             include_open_exclusive_transaction: if files added in open transaction should be returned
                 as well in the response
             exclude_hidden_files: if hidden files should be excluded (e.g. _log files)
-            start_transaction_rid: start transaction rid
+            start_transaction_rid: if a startTransactionRid is given, the view starting at the startTransactionRid
+                and ending at the endRef is returned
             temporary_credentials_auth_token: to generate temporary credentials for presigned URLs
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
