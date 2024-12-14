@@ -1192,7 +1192,7 @@ class MultipassClient(APIClient):
                 "resources": resources,
                 "markingIds": marking_ids,
                 "grantTypes": grant_types,
-                "require_consent": require_consent,
+                "requireConsent": require_consent,
             },
             **kwargs,
         )
