@@ -748,8 +748,12 @@ class Dataset(resource.Resource):
         >>> ds = ctx.get_dataset_by_path("/path/to/dataset")
         >>> ds.query_foundry_sql("SELECT * WHERE a=1")
         """  # noqa: E501
+        # This is a quick fix. Foundry Sql Server seems to decide that
+        # "FROM `rid` SELECT *" is not direct read eligible.
+        # tracking: ri.issues.main.issue.da8272ca-9e78-4100-af3f-6ac40aaecf51
+        query_string = f"SELECT * FROM `{self.rid}`" if query == "SELECT *" else f"FROM `{self.rid}` {query}"  # noqa: S608
         return self._context.foundry_sql_server.query_foundry_sql(
-            f"FROM `{self.rid}` {query}",
+            query=query_string,
             return_type=return_type,
             branch=self.branch["id"],
             sql_dialect=sql_dialect,
