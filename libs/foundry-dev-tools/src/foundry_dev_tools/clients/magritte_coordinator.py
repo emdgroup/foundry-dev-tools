@@ -9,11 +9,11 @@ from foundry_dev_tools.clients.api_client import APIClient
 if TYPE_CHECKING:
     import requests
 
-    from foundry_dev_tools.utils import api_types
+    from foundry_dev_tools.utils.api_types import FolderRid, NetworkEgressPolicyRid, Rid, SourceRid
 
 
 class MagritteCoordinatorClient(APIClient):
-    """The mothership that controls remote Magritte agents."""
+    """The mothership that controls remote Magritte agents and cloud runtimes."""
 
     api_name = "magritte-coordinator"
 
@@ -36,8 +36,20 @@ class MagritteCoordinatorClient(APIClient):
         return self.api_get_oidc_metadata().json()["issuer"]
 
     def api_add_source_v3(
-        self, config: dict, description: dict, runtime_platform_request: dict, parent_rid: api_types.FolderRid, **kwargs
+        self, config: dict, description: dict, runtime_platform_request: dict, parent_rid: FolderRid, **kwargs
     ) -> requests.Response:
+        """Low level method to add a new source to Data Connection.
+
+        Use a high level method like :py:meth:`MagritteCoordinatorClient.create_s3_direct_source`
+        for easier usage.
+
+        Args:
+            config: Source Config, individual format for each supported Source.
+            description: Textual description field.
+            runtime_platform_request: For Direct Connect { "cloud": {"networkEgresses": []}, "type": "cloud" }
+            parent_rid: Rid of the parent Compass folder.
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
         return self.api_request(
             "POST",
             "source-store/source/v3",
@@ -52,7 +64,7 @@ class MagritteCoordinatorClient(APIClient):
 
     def api_update_source_v2(
         self,
-        source_rid: api_types.Rid,
+        source_rid: Rid,
         updated_source_config: dict | None = None,
         patch_cloud_runtime_platform: dict | None = None,
         **kwargs,
@@ -102,3 +114,150 @@ class MagritteCoordinatorClient(APIClient):
             json=payload,
             **kwargs,
         )
+
+    def create_s3_direct_source(
+        self,
+        name: str,
+        parent_rid: FolderRid,
+        url: str,
+        description: str | None = "",
+        region: str | None = None,
+        catalog: dict | None = None,
+        sts_role_configuration: dict | None = None,
+        network_egress_policies: set[Rid] | None = None,
+        **source_kwargs,
+    ) -> str:
+        """Create a new Source of type s3-direct. Only supports Direct Connect sources.
+
+        Args:
+            name: Name of the Source in Compass
+            parent_rid: Rid of the parent Compass folder.
+            url: S3 Url, e.g. s3://bucket-name
+            description: Textual description field.
+            region: AWS Region of the bucket.
+            catalog: Catalog Integration for Iceberg Tables.
+            sts_role_configuration: sts role configuration for Assuming a role to connect to the bucket.
+            network_egress_policies: Network Egress Policies required to connect to the bucket.
+            source_kwargs: Any other arguments get added to the "source" key of the payload.
+        """
+        payload = {
+            "source": {
+                "type": "s3-direct",
+                "url": url,
+                **({"region": region} if region else {}),
+                **({"catalog": catalog} if catalog else {}),
+                **({"stsRoleConfiguration": sts_role_configuration} if sts_role_configuration else {}),
+                **source_kwargs,
+            }
+        }
+        network_egress_policies = network_egress_policies or set()
+
+        response = self.api_add_source_v3(
+            config=payload,
+            description={"name": name, "description": description},
+            runtime_platform_request={
+                "cloud": {"networkEgresses": list(network_egress_policies)},
+                "type": "cloud",
+            },
+            parent_rid=parent_rid,
+        )
+        return response.json()
+
+    def get_source_config(self, source_rid: SourceRid) -> dict:
+        """Returns the configuration of a Source."""
+        return self.api_bulk_get_source_config(source_rids={source_rid}).json()[source_rid]
+
+    def api_bulk_get_source_config(self, source_rids: set[SourceRid], **kwargs) -> requests.Response:
+        """Returns the configuration of a multiple sources."""
+        return self.api_request(
+            "POST",
+            "source-store/sources/config/bulk",
+            json=list(source_rids),
+            **kwargs,
+        )
+
+    def get_source_description(self, source_rid: SourceRid) -> dict:
+        """Returns the description of a Source.
+
+        Returns:
+            dictionary with example payload:
+            {'apiName': None, 'description': 'the desc.', 'name': 'source-name', 'type': 's3-direct'}
+        """
+        return self.api_bulk_get_source_description(source_rids={source_rid}).json()[source_rid]
+
+    def api_bulk_get_source_description(self, source_rids: set[SourceRid], **kwargs) -> requests.Response:
+        """Returns the description of multiple Sources."""
+        return self.api_request(
+            "POST",
+            "source-store/sources/description/bulk",
+            json=list(source_rids),
+            **kwargs,
+        )
+
+    def api_get_runtime_platform(self, source_rid: SourceRid, **kwargs) -> requests.Response:
+        """Get runtime platform information for a source.
+
+        Returns:
+            response: example format {
+                "type": "cloud",
+                "cloud": {
+                    "credential": {
+                        "credentialId": "ri.credential..credential.7ddaaa49-1337-1337-a0c0-8b621fa30364",
+                        "secretNames": []
+                    },
+                    "networkEgressPolicies": {
+                        "networkEgressPolicies": []
+                    },
+                    "cloudIdentity": null,
+                    "oidcRuntime": null
+                }
+            }
+
+        """
+        return self.api_request(
+            "GET",
+            f"source-store/v2/source/{source_rid}/runtimePlatform",
+            **kwargs,
+        )
+
+    def set_network_egress_policies(self, source_rid: SourceRid, network_egress_policies: set[NetworkEgressPolicyRid]):
+        """Sets the network egress policies for a source, overwrites all pre-existing egress policies."""
+        _ = self.api_update_source_v2(
+            source_rid=source_rid,
+            patch_cloud_runtime_platform={"updatedNetworkEgresses": list(network_egress_policies)},
+        )
+
+    def get_network_egress_policies(self, source_rid: SourceRid) -> list[NetworkEgressPolicyRid]:
+        """Returns list of network egress policies for a source."""
+        runtime_platform = self.api_get_runtime_platform(source_rid=source_rid)
+        return runtime_platform.json()["cloud"]["networkEgressPolicies"]["networkEgressPolicies"]
+
+    def add_network_egress_policy(self, source_rid: SourceRid, network_egress_policy_rid: NetworkEgressPolicyRid):
+        """Adds a single egress policy to a source. Additive operation."""
+        existing_egress_policies = self.get_network_egress_policies(source_rid=source_rid)
+        existing_egress_policies.append(network_egress_policy_rid)
+        self.set_network_egress_policies(source_rid=source_rid, network_egress_policies=set(existing_egress_policies))
+
+    def delete_network_egress_policy(self, source_rid: SourceRid, network_egress_policy_rid: NetworkEgressPolicyRid):
+        """Deletes a single egress policy from a source."""
+        existing_egress_policies = self.get_network_egress_policies(source_rid=source_rid)
+        existing_egress_policies.remove(network_egress_policy_rid)
+        self.set_network_egress_policies(source_rid=source_rid, network_egress_policies=set(existing_egress_policies))
+
+    def enable_oidc_runtime(self, source_rid: SourceRid):
+        """Enables OpenID Connect (OIDC) in (S3) Source."""
+        _ = self.api_update_source_v2(
+            source_rid=source_rid,
+            patch_cloud_runtime_platform={"patchOidcRuntime": {"oidcRuntime": {"audience": "sts.amazonaws.com"}}},
+        )
+
+    def disable_oidc_runtime(self, source_rid: SourceRid):
+        """Disables OpenID Connect (OIDC) in (S3) Source."""
+        _ = self.api_update_source_v2(
+            source_rid=source_rid,
+            patch_cloud_runtime_platform={"patchOidcRuntime": {"oidcRuntime": None}},
+        )
+
+    # Enable Export
+    # Enable Code Import
+    # Create Snowflake Source

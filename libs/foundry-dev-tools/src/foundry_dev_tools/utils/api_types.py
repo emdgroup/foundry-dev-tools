@@ -68,6 +68,15 @@ OrganizationRid = str
 ProjectRid = str
 """A compass project root folder resource identifier."""
 
+SourceRid = str
+"""A magritte source resource identifier."""
+
+TableRid = str
+"""A virtual table resource identifier."""
+
+NetworkEgressPolicyRid = str
+"""A virtual table resource identifier."""
+
 # TODO further typing?
 FoundrySchema = dict[str, Any]
 
