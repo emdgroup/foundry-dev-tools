@@ -37,6 +37,10 @@ INTEGRATION_TEST_COMPASS_ROOT_RID = os.getenv(
     "INTEGRATION_TEST_COMPASS_ROOT_RID",
     "ri.compass.main.folder.abd54c7b-7e3f-4653-89fc-b25988ea3f71",
 )
+INTEGRATION_TEST_EGRESS_POLICY_RID = os.getenv(
+    "INTEGRATION_TEST_EGRESS_POLICY_RID",
+    "ri.resource-policy-manager.global.network-egress-policy.6daea7b2-9ba8-4630-944b-57ea61b9537a",
+)
 
 INTEGRATION_TEST_PROJECT_RID = "ri.compass.main.folder.f94fc087-6068-4e66-ac27-978fce7b9d9d"
 """The rid of `ls-use-case-foundry-devtools-dev-workspace` project."""
