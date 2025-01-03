@@ -5,10 +5,7 @@ import pytest
 
 from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
-from tests.integration.utils import (
-    INTEGRATION_TEST_COMPASS_ROOT_RID,
-    INTEGRATION_TEST_EGRESS_POLICY_RID,
-)
+from tests.integration.utils import INTEGRATION_TEST_COMPASS_ROOT_RID, INTEGRATION_TEST_EGRESS_POLICY_RID, MARKING_ID
 
 
 @pytest.fixture()
@@ -181,3 +178,31 @@ def test_code_import_restrictions(empty_s3_source):
     assert response.status_code == 200
     as_json = response.json()
     assert len(as_json["results"][empty_s3_source]["enabled"]) == 0
+
+
+def test_export_toggles(empty_s3_source):
+    client = TEST_SINGLETON.ctx.magritte_coordinator
+
+    response = client.api_update_export_state_for_source(source_rid=empty_s3_source, is_enabled=True)
+    assert response.status_code == 200
+    assert response.json() == {"isEnabled": True, "exportableMarkings": [], "isEnabledWithoutMarkingsValidation": False}
+
+    response = client.api_add_exportable_markings_for_source(
+        source_rid=empty_s3_source, exportable_markings=[MARKING_ID]
+    )
+    assert response.status_code == 200
+    assert response.json() == {"exportableMarkingsAdded": [MARKING_ID], "exportableMarkingsLackingPermissions": []}
+
+    response = client.api_remove_exportable_markings_for_source(
+        source_rid=empty_s3_source, markings_to_remove=[MARKING_ID]
+    )
+    assert response.status_code == 200
+    assert response.json() == {"isEnabled": True, "exportableMarkings": [], "isEnabledWithoutMarkingsValidation": False}
+
+    response = client.api_update_export_state_for_source(source_rid=empty_s3_source, is_enabled=False)
+    assert response.status_code == 200
+    assert response.json() == {
+        "isEnabled": False,
+        "exportableMarkings": [],
+        "isEnabledWithoutMarkingsValidation": False,
+    }

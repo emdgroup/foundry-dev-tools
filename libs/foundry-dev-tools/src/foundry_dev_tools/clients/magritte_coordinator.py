@@ -9,7 +9,14 @@ from foundry_dev_tools.clients.api_client import APIClient
 if TYPE_CHECKING:
     import requests
 
-    from foundry_dev_tools.utils.api_types import CodeResourceType, FolderRid, NetworkEgressPolicyRid, Rid, SourceRid
+    from foundry_dev_tools.utils.api_types import (
+        CodeResourceType,
+        FolderRid,
+        MarkingId,
+        NetworkEgressPolicyRid,
+        Rid,
+        SourceRid,
+    )
 
 
 class MagritteCoordinatorClient(APIClient):
@@ -309,5 +316,69 @@ class MagritteCoordinatorClient(APIClient):
         )
 
     # Enable Export
-    # Enable Code Import
+    def api_get_export_state_for_source(self, source_rid: SourceRid, **kwargs) -> requests.Response:
+        """Returns the current export config of a source.
+
+        Returns:
+            example format {
+                "isEnabled": True,
+                "exportableMarkings": ["marking_id"],
+                "isEnabledWithoutMarkingsValidation": False
+            }
+        """
+        return self.api_request(
+            "GET",
+            f"export-control/state/{source_rid}",
+            **kwargs,
+        )
+
+    def api_update_export_state_for_source(
+        self,
+        source_rid: SourceRid,
+        is_enabled: bool,
+        is_enabled_without_markings_validation: bool | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Updates Export config for a source.
+
+        Args:
+            source_rid: Magritte Source Rid.
+            is_enabled: Whether the export is allowed or not.
+            is_enabled_without_markings_validation: Whether export without marking validation is allowed or not.
+            kwargs: any additional keyword arguments are passed to the requests library.
+        """
+        payload = {"isEnabled": is_enabled}
+        if is_enabled_without_markings_validation is not None:
+            payload["isEnabledWithoutMarkingsValidation"] = is_enabled_without_markings_validation
+        return self.api_request(
+            "POST",
+            f"export-control/state/{source_rid}",
+            json=payload,
+            **kwargs,
+        )
+
+    def api_add_exportable_markings_for_source(
+        self, source_rid: SourceRid, exportable_markings: list[MarkingId], **kwargs
+    ) -> requests.Response:
+        """Adds exportable markings for a source."""
+        return self.api_request(
+            "POST",
+            f"export-control/markings/{source_rid}",
+            json={"exportableMarkings": exportable_markings},
+            **kwargs,
+        )
+
+    def api_remove_exportable_markings_for_source(
+        self, source_rid: SourceRid, markings_to_remove: list[MarkingId], **kwargs
+    ) -> requests.Response:
+        """Remove exportable markings for a source."""
+        return self.api_request(
+            "DELETE",
+            f"export-control/markings/{source_rid}",
+            json={"markingsToRemove": markings_to_remove},
+            **kwargs,
+        )
+
     # Create Snowflake Source
+
+    # Enable External oAuth on Snowflake Source
