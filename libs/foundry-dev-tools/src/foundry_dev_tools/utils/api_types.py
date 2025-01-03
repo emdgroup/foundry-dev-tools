@@ -175,6 +175,9 @@ TokenType = Literal["USER_GENERATED"]
 UserId = str
 """An identifier for an user on foundry."""
 
+CodeResourceType = Literal["stemmaRepository", "computeModule", "eddiePipeline"]
+"""Code Resource type."""
+
 
 class Attribution(TypedDict):
     """User and timestamp for resource creation."""

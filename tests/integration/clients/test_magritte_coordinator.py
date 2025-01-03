@@ -148,3 +148,36 @@ def test_add_oidc_config(empty_s3_source):
         source_rid=source_rid, network_egress_policy_rid=INTEGRATION_TEST_EGRESS_POLICY_RID
     )
     assert client.get_network_egress_policies(source_rid=source_rid) == [INTEGRATION_TEST_EGRESS_POLICY_RID]
+
+
+def test_code_import_restrictions(empty_s3_source):
+    client = TEST_SINGLETON.ctx.magritte_coordinator
+
+    client.enable_code_imports(source_rid=empty_s3_source, to_enable=["stemmaRepository"])
+
+    response = client.api_bulk_get_usage_restrictions_for_source(source_rids=[empty_s3_source])
+    assert response.status_code == 200
+    as_json = response.json()
+    assert as_json["results"][empty_s3_source]["enabled"][0]["stemmaRepository"] == {}
+
+    client.enable_code_imports(source_rid=empty_s3_source, to_enable=["eddiePipeline"])
+
+    response = client.api_bulk_get_usage_restrictions_for_source(source_rids=[empty_s3_source])
+    assert response.status_code == 200
+    as_json = response.json()
+    assert len(as_json["results"][empty_s3_source]["enabled"]) == 2
+
+    client.restrict_code_imports(source_rid=empty_s3_source, to_restrict=["stemmaRepository"])
+
+    response = client.api_bulk_get_usage_restrictions_for_source(source_rids=[empty_s3_source])
+    assert response.status_code == 200
+    as_json = response.json()
+    assert len(as_json["results"][empty_s3_source]["enabled"]) == 1
+    assert as_json["results"][empty_s3_source]["enabled"][0]["eddiePipeline"] == {}
+
+    client.restrict_code_imports(source_rid=empty_s3_source, to_restrict=["eddiePipeline"])
+
+    response = client.api_bulk_get_usage_restrictions_for_source(source_rids=[empty_s3_source])
+    assert response.status_code == 200
+    as_json = response.json()
+    assert len(as_json["results"][empty_s3_source]["enabled"]) == 0

@@ -9,7 +9,7 @@ from foundry_dev_tools.clients.api_client import APIClient
 if TYPE_CHECKING:
     import requests
 
-    from foundry_dev_tools.utils.api_types import FolderRid, NetworkEgressPolicyRid, Rid, SourceRid
+    from foundry_dev_tools.utils.api_types import CodeResourceType, FolderRid, NetworkEgressPolicyRid, Rid, SourceRid
 
 
 class MagritteCoordinatorClient(APIClient):
@@ -256,6 +256,56 @@ class MagritteCoordinatorClient(APIClient):
         _ = self.api_update_source_v2(
             source_rid=source_rid,
             patch_cloud_runtime_platform={"patchOidcRuntime": {"oidcRuntime": None}},
+        )
+
+    def api_modify_source_usage_restrictions(self, source_rid: SourceRid, payload: dict, **kwargs) -> requests.Response:
+        """Update usage restrictions for a source.
+
+        Args:
+            source_rid: the source to modify usage restrictions for
+            payload: the payload to modify the usage restrictions for, example:
+                {"toRestrict": [], "toEnable": [{"type": "stemmaRepository", "stemmaRepository": {}}]}
+            kwargs: any additional keyword arguments are passed to the requests library.
+
+        """
+        return self.api_request(
+            "PUT",
+            f"code-resource-source-import/sources/{source_rid}/usage-restrictions",
+            json=payload,
+            **kwargs,
+        )
+
+    def enable_code_imports(self, source_rid: SourceRid, to_enable: list[CodeResourceType]):
+        """Enable code import on Magritte Source.
+
+        Args:
+            source_rid: Magritte Source Rid.
+            to_enable: Pick from "stemmaRepository", "computeModule", "eddiePipeline"
+        """
+        base_payload = {"toRestrict": [], "toEnable": []}
+        for entry in to_enable:
+            base_payload["toEnable"].append({"type": entry, entry: {}})
+        self.api_modify_source_usage_restrictions(source_rid=source_rid, payload=base_payload)
+
+    def restrict_code_imports(self, source_rid: SourceRid, to_restrict: list[CodeResourceType]):
+        """Restrict code import on Magritte Source.
+
+        Args:
+            source_rid: Magritte Source Rid.
+            to_restrict: Pick from "stemmaRepository", "computeModule", "eddiePipeline"
+        """
+        base_payload = {"toRestrict": [], "toEnable": []}
+        for entry in to_restrict:
+            base_payload["toRestrict"].append({"type": entry, entry: {}})
+        self.api_modify_source_usage_restrictions(source_rid=source_rid, payload=base_payload)
+
+    def api_bulk_get_usage_restrictions_for_source(self, source_rids: list[SourceRid], **kwargs) -> requests.Response:
+        """Get information about which types of code resources allow the import of the requested sources."""
+        return self.api_request(
+            "PUT",
+            "code-resource-source-import/sources/usage-restrictions/bulk",
+            json={"sourceRids": source_rids},
+            **kwargs,
         )
 
     # Enable Export
