@@ -46,8 +46,8 @@ class TablesClient(APIClient):
         name: str,
         parent_rid: FolderRid,
         connection_rid: SourceRid,
-        glue_table: str,
-        glue_database: str,
+        table: str,
+        database: str,
         skip_validation: bool = False,
     ) -> dict:
         """Creates a Virtual Table backed by the Glue Catalog.
@@ -56,14 +56,47 @@ class TablesClient(APIClient):
             name: The name of the table. This will be the name of the compass resource.
             parent_rid: The parent Rid of the compass resource.
             connection_rid: The rid of the compass Source.
-            glue_table: The name of the table in glue.
-            glue_database: The name of the database in glue.
+            table: The name of the table in glue.
+            database: The name of the database in glue.
             skip_validation: If true, skips the validation of the table. Default is False.
 
         """
         upstream_config = {
             "type": "glue",
-            "glue": {"connectionRid": connection_rid, "relation": {"table": glue_table, "database": glue_database}},
+            "glue": {"connectionRid": connection_rid, "relation": {"table": table, "database": database}},
+        }
+        return self.api_create_table(
+            name=name, parent_rid=parent_rid, upstream_config=upstream_config, skip_validation=skip_validation
+        ).json()
+
+    def create_snowflake_table(
+        self,
+        name: str,
+        parent_rid: FolderRid,
+        connection_rid: SourceRid,
+        database: str,
+        schema: str,
+        table: str,
+        skip_validation: bool = False,
+    ) -> dict:
+        """Creates a Virtual Table on a Snowflake Source.
+
+        Args:
+            name: The name of the table. This will be the name of the compass resource.
+            parent_rid: The parent Rid of the compass resource.
+            connection_rid: The rid of the compass Source.
+            table: The name of the table in snowflake.
+            database: The name of the database Snowflake.
+            schema: The name of the schema in Snowflake.
+            skip_validation: If true, skips the validation of the table. Default is False.
+
+        """
+        upstream_config = {
+            "type": "snowflake",
+            "snowflake": {
+                "connectionRid": connection_rid,
+                "relation": {"table": table, "database": database, "schema": schema},
+            },
         }
         return self.api_create_table(
             name=name, parent_rid=parent_rid, upstream_config=upstream_config, skip_validation=skip_validation

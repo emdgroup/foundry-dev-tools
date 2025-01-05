@@ -108,7 +108,7 @@ def test_add_oidc_config(empty_s3_source):
     source_rid = empty_s3_source
 
     # enable OIDC
-    client.enable_oidc_runtime(source_rid=source_rid)
+    client.enable_s3_oidc_runtime(source_rid=source_rid)
 
     # Set Network Egress
     client.set_network_egress_policies(
@@ -128,7 +128,7 @@ def test_add_oidc_config(empty_s3_source):
         "subject": source_rid,
     }
 
-    client.disable_oidc_runtime(source_rid=source_rid)
+    client.disable_s3_oidc_runtime(source_rid=source_rid)
 
     runtime_platform = client.api_get_runtime_platform(source_rid=source_rid)
     assert runtime_platform.status_code == 200
@@ -206,3 +206,52 @@ def test_export_toggles(empty_s3_source):
         "exportableMarkings": [],
         "isEnabledWithoutMarkingsValidation": False,
     }
+
+
+def test_snowflake():
+    client = TEST_SINGLETON.ctx.magritte_coordinator
+    # Create a new S3 Direct source
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+    name = "fdt-test-snowflake_" + rnd
+    account_identifier = "account1"
+    source_rid = client.create_snowflake_source(
+        name=name, parent_rid=INTEGRATION_TEST_COMPASS_ROOT_RID, account_identifier=account_identifier
+    )
+
+    # enable OIDC
+    client.enable_snowflake_external_oauth(source_rid=source_rid)
+
+    # Set Network Egress
+    client.set_network_egress_policies(
+        source_rid=source_rid,
+        network_egress_policies={INTEGRATION_TEST_EGRESS_POLICY_RID},
+    )
+    runtime_platform = client.api_get_runtime_platform(source_rid=source_rid)
+    assert runtime_platform.status_code == 200
+    as_json = runtime_platform.json()
+    assert as_json["cloud"]["networkEgressPolicies"]["networkEgressPolicies"] == [INTEGRATION_TEST_EGRESS_POLICY_RID]
+
+    oidc_issuer = client.get_oidc_issuer()
+    assert as_json["type"] == "cloud"
+    assert as_json["cloud"]["oidcRuntime"] == {
+        "audience": f"https://{account_identifier}.snowflakecomputing.com",
+        "issuer": oidc_issuer,
+        "subject": source_rid,
+    }
+
+    client.disable_snowflake_external_oauth(source_rid=source_rid)
+
+    runtime_platform = client.api_get_runtime_platform(source_rid=source_rid)
+    assert runtime_platform.status_code == 200
+    as_json = runtime_platform.json()
+    assert as_json["cloud"]["oidcRuntime"] is None
+    assert as_json["cloud"]["networkEgressPolicies"]["networkEgressPolicies"] == [INTEGRATION_TEST_EGRESS_POLICY_RID]
+
+    config = client.get_source_config(source_rid=source_rid)
+
+    assert config["source"]["config"]["auth"] == {
+        "basic": {"username": "", "password": "{{SNOWFLAKE_BASIC_AUTH_PASSWORD}}"},
+        "type": "basic",
+    }
+
+    TEST_SINGLETON.ctx.compass.api_delete_permanently(rids={source_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"})
