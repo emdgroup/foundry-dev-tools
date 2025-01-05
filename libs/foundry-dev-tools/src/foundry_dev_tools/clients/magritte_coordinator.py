@@ -251,14 +251,14 @@ class MagritteCoordinatorClient(APIClient):
         existing_egress_policies.remove(network_egress_policy_rid)
         self.set_network_egress_policies(source_rid=source_rid, network_egress_policies=set(existing_egress_policies))
 
-    def enable_oidc_runtime(self, source_rid: SourceRid):
+    def enable_s3_oidc_runtime(self, source_rid: SourceRid):
         """Enables OpenID Connect (OIDC) in (S3) Source."""
         _ = self.api_update_source_v2(
             source_rid=source_rid,
             patch_cloud_runtime_platform={"patchOidcRuntime": {"oidcRuntime": {"audience": "sts.amazonaws.com"}}},
         )
 
-    def disable_oidc_runtime(self, source_rid: SourceRid):
+    def disable_s3_oidc_runtime(self, source_rid: SourceRid):
         """Disables OpenID Connect (OIDC) in (S3) Source."""
         _ = self.api_update_source_v2(
             source_rid=source_rid,
@@ -379,6 +379,89 @@ class MagritteCoordinatorClient(APIClient):
             **kwargs,
         )
 
-    # Create Snowflake Source
+    def create_snowflake_source(
+        self,
+        name: str,
+        parent_rid: FolderRid,
+        account_identifier: str,
+        description: str | None = "",
+        role: str | None = None,
+        db: str | None = None,
+        schema: str | None = None,
+        warehouse: str | None = None,
+        network_egress_policies: set[Rid] | None = None,
+    ) -> str:
+        """Create a new Source of type snowflake. Only supports Direct Connect sources.
 
-    # Enable External oAuth on Snowflake Source
+        Args:
+            name: Name of the Source in Compass
+            parent_rid: Rid of the parent Compass folder.
+            account_identifier: https://docs.snowflake.com/en/user-guide/admin-account-identifier.html
+            description: Textual description field.
+            role: The default access control role to use in the Snowflake session initiated by the driver
+            db: The default database to use once connected
+            schema: The default schema to use once connected
+            warehouse: The virtual warehouse to use once connected
+            network_egress_policies: Network Egress Policies required to connect to the Snowflake Account.
+                Front-door plus internal stage bucket is usually required.
+
+        """
+        payload = {
+            "source": {
+                "type": "snowflake",
+                "config": {
+                    "connection": {
+                        "accountIdentifier": account_identifier,
+                        **({"role": role} if role else {}),
+                        **({"db": db} if db else {}),
+                        **({"schema": schema} if schema else {}),
+                        **({"warehouse": warehouse} if warehouse else {}),
+                    },
+                    "auth": {
+                        "basic": {"username": "", "password": "{{SNOWFLAKE_BASIC_AUTH_PASSWORD}}"},
+                        "type": "basic",
+                    },
+                },
+            }
+        }
+        network_egress_policies = network_egress_policies or set()
+
+        response = self.api_add_source_v3(
+            config=payload,
+            description={"name": name, "description": description},
+            runtime_platform_request={
+                "cloud": {"networkEgresses": list(network_egress_policies)},
+                "type": "cloud",
+            },
+            parent_rid=parent_rid,
+        )
+        return response.json()
+
+    def enable_snowflake_external_oauth(self, source_rid: SourceRid):
+        """Enables external OAuth (OIDC) in (Snowflake) Source."""
+        config = self.get_source_config(source_rid=source_rid)["source"]
+
+        account_identifier = config["config"]["connection"]["accountIdentifier"]
+        config["config"]["auth"] = {"externalOauth": {}, "type": "externalOauth"}
+        _ = self.api_update_source_v2(
+            source_rid=source_rid,
+            updated_source_config=config,
+            patch_cloud_runtime_platform={
+                "patchOidcRuntime": {
+                    "oidcRuntime": {"audience": f"https://{account_identifier}.snowflakecomputing.com"}
+                }
+            },
+        )
+
+    def disable_snowflake_external_oauth(self, source_rid: SourceRid):
+        """Disables external OAuth (OIDC) in (Snowflake) Source."""
+        config = self.get_source_config(source_rid=source_rid)["source"]
+        config["config"]["auth"] = {
+            "basic": {"username": "", "password": "{{SNOWFLAKE_BASIC_AUTH_PASSWORD}}"},
+            "type": "basic",
+        }
+        _ = self.api_update_source_v2(
+            source_rid=source_rid,
+            updated_source_config=config,
+            patch_cloud_runtime_platform={"patchOidcRuntime": {"oidcRuntime": None}},
+        )
