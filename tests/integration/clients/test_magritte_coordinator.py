@@ -7,6 +7,8 @@ from foundry_dev_tools.utils import api_types
 from tests.integration.conftest import TEST_SINGLETON
 from tests.integration.utils import INTEGRATION_TEST_COMPASS_ROOT_RID, INTEGRATION_TEST_EGRESS_POLICY_RID, MARKING_ID
 
+SNOWFLAKE_TEST_ACCOUNT_IDENTIFIER = "fdt-integration-test-account1"
+
 
 @pytest.fixture()
 def empty_s3_source() -> api_types.SourceRid:
@@ -20,7 +22,26 @@ def empty_s3_source() -> api_types.SourceRid:
 
     yield source_rid
 
-    # Delete test folder
+    # Delete test source
+    response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
+        rids={source_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
+    )
+    assert response.status_code == 200
+
+
+@pytest.fixture()
+def empty_snowflake_source() -> api_types.SourceRid:
+    # Create a new Snowflake
+    client = TEST_SINGLETON.ctx.magritte_coordinator
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+    name = "fdt-test-snowflake_" + rnd
+    source_rid = client.create_snowflake_source(
+        name=name, parent_rid=INTEGRATION_TEST_COMPASS_ROOT_RID, account_identifier=SNOWFLAKE_TEST_ACCOUNT_IDENTIFIER
+    )
+
+    yield source_rid
+
+    # Delete test source
     response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
         rids={source_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
     )
@@ -208,15 +229,9 @@ def test_export_toggles(empty_s3_source):
     }
 
 
-def test_snowflake():
+def test_snowflake(empty_snowflake_source):
     client = TEST_SINGLETON.ctx.magritte_coordinator
-    # Create a new S3 Direct source
-    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
-    name = "fdt-test-snowflake_" + rnd
-    account_identifier = "account1"
-    source_rid = client.create_snowflake_source(
-        name=name, parent_rid=INTEGRATION_TEST_COMPASS_ROOT_RID, account_identifier=account_identifier
-    )
+    source_rid = empty_snowflake_source
 
     # enable OIDC
     client.enable_snowflake_external_oauth(source_rid=source_rid)
@@ -234,7 +249,7 @@ def test_snowflake():
     oidc_issuer = client.get_oidc_issuer()
     assert as_json["type"] == "cloud"
     assert as_json["cloud"]["oidcRuntime"] == {
-        "audience": f"https://{account_identifier}.snowflakecomputing.com",
+        "audience": f"https://{SNOWFLAKE_TEST_ACCOUNT_IDENTIFIER}.snowflakecomputing.com",
         "issuer": oidc_issuer,
         "subject": source_rid,
     }
@@ -254,4 +269,42 @@ def test_snowflake():
         "type": "basic",
     }
 
+    TEST_SINGLETON.ctx.compass.api_delete_permanently(rids={source_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"})
+
+
+def test_snowflake_tables(empty_snowflake_source):
+    client = TEST_SINGLETON.ctx.magritte_coordinator
+    source_rid = empty_snowflake_source
+
+    client.enable_snowflake_external_oauth(source_rid=source_rid)
+
+    tables_client = TEST_SINGLETON.ctx.tables
+
+    tables = tables_client.list_tables(connection_rid=source_rid)
+    assert tables == []
+
+    table1 = tables_client.create_snowflake_table(
+        parent_rid=INTEGRATION_TEST_COMPASS_ROOT_RID,
+        connection_rid=source_rid,
+        name="fdt-test-snowflake_table" + "".join(choice(ascii_uppercase) for _ in range(5)),
+        database="test",
+        schema="test",
+        table="test1",
+        skip_validation=True,
+    )
+
+    table2 = tables_client.create_snowflake_table(
+        parent_rid=INTEGRATION_TEST_COMPASS_ROOT_RID,
+        connection_rid=source_rid,
+        name="fdt-test-snowflake_table" + "".join(choice(ascii_uppercase) for _ in range(5)),
+        database="test",
+        schema="test",
+        table="test2",
+        skip_validation=True,
+    )
+
+    tables = tables_client.list_tables(connection_rid=source_rid)
+    assert len(tables) == 2
+
+    TEST_SINGLETON.ctx.compass.api_delete_permanently(rids={table1, table2}, delete_options={"DO_NOT_REQUIRE_TRASHED"})
     TEST_SINGLETON.ctx.compass.api_delete_permanently(rids={source_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"})
