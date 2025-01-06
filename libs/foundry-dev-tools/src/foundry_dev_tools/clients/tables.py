@@ -101,3 +101,45 @@ class TablesClient(APIClient):
         return self.api_create_table(
             name=name, parent_rid=parent_rid, upstream_config=upstream_config, skip_validation=skip_validation
         ).json()
+
+    def api_list_tables(
+        self, connection_rid: SourceRid, limit: int | None = 1000, page_token: str | None = None, **kwargs
+    ) -> requests.Response:
+        """List Virtual Tables for a source."""
+        return self.api_request(
+            "GET",
+            api_path="tables",
+            params={
+                "connectionRid": connection_rid,
+                **({"limit": limit} if limit else {}),
+                **({"pageToken": page_token} if page_token else {}),
+            },
+            **kwargs,
+        )
+
+    def list_tables(self, connection_rid: SourceRid) -> list[dict]:
+        """Returns all tables for a connection/source by handling pagination.
+
+        Args:
+            connection_rid: The rid of the compass Source/Connection.
+
+        Returns:
+            a list of dicts with the following format:
+                {
+                    'rid': 'ri.tables.main.table.<...>',
+                    'upstream': {
+                        'type': '<type>',
+                        '<type>': {
+                                'connectionRid': 'ri.magritte..source.<...>',
+                                'relation': {'database': 'test', 'schema': 'test', 'table': 'test2'}
+                            }
+                    }
+                }
+        """
+        tables_response = self.api_list_tables(connection_rid=connection_rid, limit=1000)
+        response_json = tables_response.json()
+        tables = response_json["tables"]
+        while next_page_token := response_json.get("nextPageToken"):
+            response_json = self.api_list_tables(connection_rid=connection_rid, page_token=next_page_token).json()
+            tables.extend(response_json["tables"])
+        return tables
