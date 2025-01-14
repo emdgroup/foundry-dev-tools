@@ -381,7 +381,9 @@ class Dataset(resource.Resource):
         """
         kwargs.setdefault("transaction_type", "UPDATE")
         self.upload_files(
-            {str(f.relative_to(folder_path)): f for f in folder_path.rglob("*") if f.is_file()}, max_workers=max_workers
+            {str(f.relative_to(folder_path)): f for f in folder_path.rglob("*") if f.is_file()},
+            max_workers=max_workers,
+            **kwargs,
         )
         return self
 
