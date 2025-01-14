@@ -11,6 +11,7 @@ from foundry_dev_tools.clients import (
     compass,
     context_client,
     data_proxy,
+    foundry_search,
     foundry_sql_server,
     foundry_stats,
     jemma,
@@ -129,6 +130,11 @@ class FoundryContext:
     def ontologies(self) -> public_ontologies_client.OntologiesClient:
         """Returns :py:class:`foundry_dev_tools.clients.public_ontologies.OntologiesClient`."""
         return public_ontologies_client.OntologiesClient(self)
+
+    @cached_property
+    def foundry_search(self) -> foundry_search.FoundrySearchClient:
+        """Returns :py:class:`foundry_dev_tools.clients.foundry_search.FoundrySearchClient`."""
+        return foundry_search.FoundrySearchClient(self)
 
     @cached_property
     def cached_foundry_client(self) -> CachedFoundryClient:
