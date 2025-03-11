@@ -10,6 +10,7 @@ from foundry_dev_tools.errors.handling import ErrorHandlingConfig
 
 if TYPE_CHECKING:
     import requests
+    from foundry_dev_tools.utils import api_types
 
     from foundry_dev_tools.utils import api_types
 
