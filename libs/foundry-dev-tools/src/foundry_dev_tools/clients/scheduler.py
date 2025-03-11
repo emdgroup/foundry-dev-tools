@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     import requests
     from foundry_dev_tools.utils import api_types
 
-    from foundry_dev_tools.utils import api_types
 
 
 class SchedulerClient(APIClient):
@@ -21,7 +20,7 @@ class SchedulerClient(APIClient):
     api_name = "scheduler"
 
     def get_schedules_by_run_build(
-        self, rid: api_types.Rid, branch: api_types.DatasetBranch, **kwargs
+        self, rid: api_types.Rid, branch: api_types.DatasetBranch = "master", **kwargs
     ) -> requests.Response:
         """Gets the schedules of the resource dataset.
 
