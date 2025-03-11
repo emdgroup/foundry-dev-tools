@@ -19,6 +19,7 @@ from foundry_dev_tools.clients import (
     multipass,
     public_ontologies_client,
     s3_client,
+    scheduler,
     schema_inference,
     tables,
 )
@@ -96,6 +97,11 @@ class FoundryContext:
     def magritte_coordinator(self) -> magritte_coordinator.MagritteCoordinatorClient:
         """Returns :py:class:`foundry_dev_tools.clients.magritte_coordinator.MagritteCoordinatorClient`."""
         return magritte_coordinator.MagritteCoordinatorClient(self)
+
+    @cached_property
+    def scheduler(self) -> scheduler.SchedulerClient:
+        """Returns :py:class:`foundry_dev_tools.clients.scheduler.SchedulerClient`."""
+        return scheduler.SchedulerClient(self)
 
     @cached_property
     def metadata(self) -> metadata.MetadataClient:
