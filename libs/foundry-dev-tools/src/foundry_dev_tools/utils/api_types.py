@@ -178,7 +178,7 @@ UserId = str
 CodeResourceType = Literal["stemmaRepository", "computeModule", "eddiePipeline"]
 """Code Resource type."""
 
-PrincipleTypes = Literal["USER", "GROUP"]
+PrincipalTypes = Literal["USER", "GROUP"]
 """A type for a principle on foundry."""
 
 

@@ -96,20 +96,20 @@ class MultipassClient(APIClient):
         )
 
     def search(
-        self, query: str, principle_types: set[api_types.PrincipleTypes] | None = None, **kwargs
+        self, query: str, principal_types: set[api_types.PrincipalTypes] | None = None, **kwargs
     ) -> Iterator[dict]:
         """Searches for multipass principals based on a text.
 
         Args:
             query: the text string to search for
-            principle_types: set of principle types to search in, e.g. "GROUP"
+            principal_types: set of principal types to search in, e.g. "GROUP"
                 Default is GROUP and USER
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        if principle_types is None:
-            principle_types = {"USER", "GROUP"}
+        if principal_types is None:
+            principal_types = {"USER", "GROUP"}
 
-        json = {"attributeFilters": {}, "principalTypes": list(principle_types), "query": query}
+        json = {"attributeFilters": {}, "principalTypes": list(principal_types), "query": query}
 
         next_start = None
         while True:
