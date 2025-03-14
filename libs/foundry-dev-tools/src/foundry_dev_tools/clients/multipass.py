@@ -95,6 +95,32 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def search(
+        self, query: str, principle_types: set[api_types.PrincipleTypes] | None = None, **kwargs
+    ) -> Iterator[dict]:
+        """Searches for multipass principals based on a text.
+
+        Args:
+            query: the text string to search for
+            principle_types: set of principle types to search in, e.g. "GROUP"
+                Default is GROUP and USER
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        if principle_types is None:
+            principle_types = {"USER", "GROUP"}
+
+        json = {"attributeFilters": {}, "principalTypes": list(principle_types), "query": query}
+
+        next_start = None
+        while True:
+            if next_start:
+                json["pageStart"] = next_start
+
+            response_as_json = self.api_request("POST", "search/v2/search", json=json, **kwargs).json()
+            yield from response_as_json["values"]
+            if (next_start := response_as_json["nextPageToken"]) is None:
+                break
+
     def api_get_groups_of_user(self, **kwargs) -> requests.Response:
         """Returns all groups for which the user is immediate or indirect member of the group.
 
