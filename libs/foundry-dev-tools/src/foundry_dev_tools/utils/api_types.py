@@ -178,6 +178,9 @@ UserId = str
 CodeResourceType = Literal["stemmaRepository", "computeModule", "eddiePipeline"]
 """Code Resource type."""
 
+PrincipalTypes = Literal["USER", "GROUP"]
+"""A type for a principle on foundry."""
+
 
 class Attribution(TypedDict):
     """User and timestamp for resource creation."""
