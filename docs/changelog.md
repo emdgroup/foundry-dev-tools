@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.15] - 2024-12-18
+
+## Added
+- Manage Virtual Tables & associated S3 / Snowflake Source (#92)
+- Adding initial implementation of SchedulerClient (#93)
+- added search to multipass (#94)
+
 ## [2.1.14] - 2024-12-18
 
 ## Fixed
@@ -326,6 +333,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.15]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.14...v2.1.15
 [2.1.14]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.13...v2.1.14
 [2.1.13]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.12...v2.1.13
 [2.1.12]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.11...v2.1.12

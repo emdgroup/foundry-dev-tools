@@ -28,8 +28,8 @@ distribution = false
 
 [tool.pdm.dev-dependencies]
 dev = [
-  "-e file:///${PROJECT_ROOT}/../libs/transforms",
-  "-e file:///${PROJECT_ROOT}/../libs/foundry-dev-tools[s3]",
+  "-e foundry-dev-tools-transforms@file:///${PROJECT_ROOT}/../libs/transforms",
+  "-e foundry-dev-tools[s3]@file:///${PROJECT_ROOT}/../libs/foundry-dev-tools",
 
 ]
 

@@ -33,7 +33,7 @@ jobs:
           pdm install
           pdm run build
       - name: Upload docs artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: 'docs/_build/html'
 
