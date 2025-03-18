@@ -89,6 +89,11 @@ class FoundryContext:
         return jemma.JemmaClient(self)
 
     @cached_property
+    def scheduler(self) -> scheduler.SchedulerClient:
+        """Returns :py:class:`foundry_dev_tools.clients.scheduler.SchedulerClient`."""
+        return scheduler.SchedulerClient(self)
+
+    @cached_property
     def tables(self) -> tables.TablesClient:
         """Returns :py:class:`foundry_dev_tools.clients.tables.TablesClient`."""
         return tables.TablesClient(self)
