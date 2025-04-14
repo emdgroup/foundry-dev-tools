@@ -359,6 +359,19 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_delete_user(self, user_id: api_types.UserId, **kwargs) -> requests.Response:
+        """Deletes multipass user.
+
+        Args:
+            user_id: the identifier of the group which to delete
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        return self.api_request(
+            "DELETE",
+            f"administration/users/{user_id}",
+            **kwargs,
+        )
+
     def api_get_group_manager_managers(
         self,
         group_id: api_types.GroupId,
