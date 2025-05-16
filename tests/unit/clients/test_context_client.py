@@ -27,7 +27,9 @@ def test_context_http_client(test_context_mock, foundry_client_id):
 
     req = test_context_mock.client.request("POST", "http+mock://test_authorization").request
     assert req.headers["Authorization"] == f"Bearer {test_context_mock.token}"
-    assert req.headers["User-Agent"] == f"foundry-dev-tools/{__version__}/python-requests"
+    from requests import __version__ as requests_version
+
+    assert req.headers["User-Agent"] == f"foundry-dev-tools/{__version__}/python-requests/{requests_version}"
 
     tokens = ["token_from_oauth", "second_token_from_oauth"]
 
