@@ -79,14 +79,21 @@ class ContextHTTPClient(requests.Session):
             super().__init__()
             self._requests_session = super()
             self.auth = lambda r: self.context.token_provider.requests_auth_handler(r)
+            self.headers["User-Agent"] = requests.utils.default_user_agent(
+                f"foundry-dev-tools/{__version__}/python-requests"
+            )
+            if self.context.config.requests_ca_bundle:
+                self.verify = os.fspath(self.context.config.requests_ca_bundle)
         else:
             self._requests_session = requests_session_overwrite
             self._requests_session.auth = lambda r: self.context.token_provider.requests_auth_handler(r)
-        if self.context.config.requests_ca_bundle:
-            self.verify = os.fspath(self.context.config.requests_ca_bundle)
+            self._requests_session.headers["User-Agent"] = requests.utils.default_user_agent(
+                f"foundry-dev-tools/{__version__}/python-requests"
+            )
+            if self.context.config.requests_ca_bundle:
+                self._requests_session.verify = os.fspath(self.context.config.requests_ca_bundle)
 
         self._counter = 0
-        self.headers = {"User-Agent": f"foundry-dev-tools/{__version__}/python-requests"}
 
     @retry(times=3, exceptions=requests.exceptions.ConnectionError)
     def request(
