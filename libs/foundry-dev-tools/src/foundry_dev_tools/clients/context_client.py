@@ -73,12 +73,18 @@ def retry(times: int, exceptions: tuple[Exception]) -> typing.Callable:
 class ContextHTTPClient(requests.Session):
     """Requests Session with config and authentication applied."""
 
-    def __init__(self, context: FoundryContext) -> None:
+    def __init__(self, context: FoundryContext, requests_session_overwrite: requests.Session | None = None) -> None:
         self.context = context
-        super().__init__()
+        if not requests_session_overwrite:
+            super().__init__()
+            self._requests_session = super()
+            self.auth = lambda r: self.context.token_provider.requests_auth_handler(r)
+        else:
+            self._requests_session = requests_session_overwrite
+            self._requests_session.auth = lambda r: self.context.token_provider.requests_auth_handler(r)
         if self.context.config.requests_ca_bundle:
             self.verify = os.fspath(self.context.config.requests_ca_bundle)
-        self.auth = lambda r: self.context.token_provider.requests_auth_handler(r)
+
         self._counter = 0
         self.headers = {"User-Agent": f"foundry-dev-tools/{__version__}/python-requests"}
 
@@ -137,7 +143,7 @@ class ContextHTTPClient(requests.Session):
             # set to the default connect timeout if it is none
             timeout = DEFAULT_TIMEOUT
 
-        response = super().request(
+        response = self._requests_session.request(
             method,
             url,
             params=params,

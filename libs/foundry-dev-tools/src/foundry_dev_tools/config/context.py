@@ -57,7 +57,9 @@ class FoundryContext:
         else:
             self.token_provider = token_provider
             self.config = config
-        self.client = context_client.ContextHTTPClient(self)
+
+        self.client = context_client.ContextHTTPClient(self, requests_session_overwrite=self.config.requests_session)
+
         if self.config.rich_traceback:
             from rich.traceback import install
 
