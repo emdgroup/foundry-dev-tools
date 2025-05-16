@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, Literal
 
+from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
 from foundry_dev_tools.utils.clients import build_api_url, build_public_api_url
 
 if TYPE_CHECKING:
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
     )
 
     from foundry_dev_tools.config.context import FoundryContext
-    from foundry_dev_tools.errors.handling import ErrorHandlingConfig
 
 
 class APIClient:
@@ -93,7 +93,7 @@ class APIClient:
         else:
             headers = {"content-type": "application/json"}
 
-        return self.context.client.request(
+        response = self.context.client.request(
             method=method,
             url=self.api_url(api_path),
             params=params,
@@ -110,8 +110,9 @@ class APIClient:
             verify=verify,
             cert=cert,
             json=json,
-            error_handling=error_handling,
         )
+        raise_foundry_api_error(response, error_handling)
+        return response
 
 
 class PublicAPIClient:
@@ -196,7 +197,7 @@ class PublicAPIClient:
                 params["preview"] = "true"
             else:
                 params = {"preview": "true"}
-        return self.context.client.request(
+        response = self.context.client.request(
             method=method,
             url=self.api_url(api_path, version=api_version),
             params=params,
@@ -213,5 +214,6 @@ class PublicAPIClient:
             verify=verify,
             cert=cert,
             json=json,
-            error_handling=error_handling,
         )
+        raise_foundry_api_error(response, error_handling)
+        return response

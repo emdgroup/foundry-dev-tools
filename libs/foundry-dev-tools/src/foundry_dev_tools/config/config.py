@@ -32,6 +32,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from os import PathLike
 
+    import requests
+
 # compatibility for python version < 3.11
 if sys.version_info < (3, 11):
     import tomli as tomllib
@@ -54,6 +56,7 @@ class Config:
         transforms_output_folder: PathLike[str] | None = None,
         rich_traceback: bool = False,
         debug: bool = False,
+        requests_session: requests.Session | None = None,
     ) -> None:
         """Initialize the configuration.
 
@@ -76,6 +79,7 @@ class Config:
                 files are written to this folder.
             rich_traceback: enables a prettier traceback provided by the module `rich` See: https://rich.readthedocs.io/en/stable/traceback.html
             debug: enables debug logging
+            requests_session (requests.Session): Overwrite the default used requests.Session.
 
         """
         self.requests_ca_bundle = os.fspath(requests_ca_bundle) if requests_ca_bundle else None
@@ -90,6 +94,7 @@ class Config:
         self.transforms_freeze_cache = bool(transforms_freeze_cache)
         self.rich_traceback = bool(rich_traceback)
         self.debug = bool(debug)
+        self.requests_session = requests_session
 
     def __repr__(self) -> str:
         return "<" + self.__class__.__name__ + "(" + self.__dict__.__str__() + ")>"

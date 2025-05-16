@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.16] - 2025-05-16
+
+## Added 
+- add multipass API to delete Users. (#96)
+- bring your own requests.Session() (#98)
+
+## Fixed
+- update deploy-pages version to v4	
+
 ## [2.1.15] - 2024-12-18
 
 ## Added
@@ -333,6 +342,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.16]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.15...v2.1.16
 [2.1.15]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.14...v2.1.15
 [2.1.14]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.13...v2.1.14
 [2.1.13]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.12...v2.1.13

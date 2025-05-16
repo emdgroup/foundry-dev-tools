@@ -78,6 +78,7 @@ ctx.config.cache_dir = cache_dir
 Configuring Foundry DevTools in Python works through the [FoundryContext].
 
 ```python
+import requests
 from foundry_dev_tools import FoundryContext
 
 # this way it will take the configuration and credentials
@@ -104,6 +105,9 @@ ctx = FoundryContext(config=Config())
 
 # For example to enable some debug logging
 ctx = FoundryContext(config=Config(debug=True))
+
+# if you want to bring your own requests.session
+ctx = FoundryContext(config=Config(debug=True, requests_session=requests.Session()))
 ```
 ### Configuration for Transforms
 

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from functools import cached_property, partial
 from typing import TYPE_CHECKING
 
+import requests
+
+from foundry_dev_tools.__about__ import __version__
 from foundry_dev_tools.clients import (
     build2,
     catalog,
@@ -42,7 +46,7 @@ class FoundryContext:
 
     config: Config
     token_provider: TokenProvider
-    client: context_client.ContextHTTPClient
+    client: requests.Session
 
     def __init__(
         self,
@@ -57,7 +61,21 @@ class FoundryContext:
         else:
             self.token_provider = token_provider
             self.config = config
-        self.client = context_client.ContextHTTPClient(self)
+
+        if not self.config.requests_session:
+            self.client = context_client.ContextHTTPClient(
+                debug=self.config.debug, requests_ca_bundle=self.config.requests_ca_bundle
+            )
+        else:
+            self.client = self.config.requests_session
+
+        self.client.auth = lambda r: self.token_provider.requests_auth_handler(r)
+        self.client.headers["User-Agent"] = requests.utils.default_user_agent(
+            f"foundry-dev-tools/{__version__}/python-requests"
+        )
+        if self.config.requests_ca_bundle:
+            self.verify = os.fspath(self.config.requests_ca_bundle)
+
         if self.config.rich_traceback:
             from rich.traceback import install
 
