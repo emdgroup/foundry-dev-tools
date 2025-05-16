@@ -177,7 +177,8 @@ class S3Client:
             expiration_duration: seconds the credentials should be valid, defaults to 3600 (the upper bound)
         """
         # does not call the api_request method, as this is not a regular api
-        resp = self.context.client.post(
+        resp = self.context.client.request(
+            "POST",
             self.get_url(),
             params={
                 "Action": "AssumeRoleWithWebIdentity",
