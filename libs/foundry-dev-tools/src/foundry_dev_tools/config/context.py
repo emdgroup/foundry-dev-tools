@@ -46,7 +46,7 @@ class FoundryContext:
 
     config: Config
     token_provider: TokenProvider
-    client: context_client.ContextHTTPClient | requests.Session
+    client: requests.Session
 
     def __init__(
         self,
