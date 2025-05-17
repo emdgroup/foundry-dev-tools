@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import numbers
+import os
 import time
 import typing
 from typing import TYPE_CHECKING
@@ -72,7 +73,7 @@ class ContextHTTPClient(requests.Session):
 
     def __init__(self, debug: bool = False, requests_ca_bundle: PathLike[str] | None = None) -> None:
         self.debug = debug
-        self.requests_ca_bundle = requests_ca_bundle
+        self.requests_ca_bundle = os.fspath(requests_ca_bundle) if requests_ca_bundle is not None else None
         super().__init__()
 
         self._counter = 0

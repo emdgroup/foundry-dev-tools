@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
+import requests
 import requests_mock
 from freezegun import freeze_time
 
+from foundry_dev_tools import Config
 from foundry_dev_tools.config.token_provider import (
     DEFAULT_OAUTH_SCOPES,
     AppServiceTokenProvider,
@@ -86,7 +88,7 @@ def test_oauth_token_provider(mocker: MockerFixture):
     guc_mock.assert_called_once()
     assert ac_tok == "token"
 
-    request_mock = mocker.patch("foundry_dev_tools.config.token_provider.requests.request")
+    request_mock = mocker.patch("requests.sessions.Session.request")
     request_mock.return_value.json = lambda: {"access_token": "token", "expires_in": 0}
 
     cc_tok = tp_cc.token
@@ -120,6 +122,35 @@ def test_foundry_client_credentials_provider(foundry_token, foundry_client_id, f
             json={"access_token": foundry_token, "expires_in": 0},
         )
         assert ctx.token == foundry_token
+
+
+def test_foundry_client_credentials_provider_custom_session(foundry_token, foundry_client_id, foundry_client_secret):
+    class CustomSession(requests.Session):
+        def __init__(self) -> None:
+            super().__init__()
+            self.called = False
+
+        def request(self, *args, **kwargs):
+            self.called = True
+            return super().request(*args, **kwargs)
+
+    custom_session = CustomSession()
+
+    ctx = FoundryMockContext(
+        config=Config(requests_session=custom_session),
+        token_provider=MockOAuthTokenProvider(
+            client_id=foundry_client_id,
+            client_secret=foundry_client_secret,
+            grant_type="client_credentials",
+        ),
+    )
+    with requests_mock.Mocker() as m:
+        m.post(
+            f"{ctx.token_provider.host.url}/multipass/api/oauth2/token",
+            json={"access_token": foundry_token, "expires_in": 0},
+        )
+        assert ctx.token == foundry_token
+    assert custom_session.called is True
 
 
 def test_app_service_token_provider():
