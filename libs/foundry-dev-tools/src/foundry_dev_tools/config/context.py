@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from functools import cached_property, partial
 from typing import TYPE_CHECKING
 
@@ -69,12 +68,11 @@ class FoundryContext:
         else:
             self.client = self.config.requests_session
 
+        self.token_provider.set_requests_session(self.client)
         self.client.auth = lambda r: self.token_provider.requests_auth_handler(r)
         self.client.headers["User-Agent"] = requests.utils.default_user_agent(
             f"foundry-dev-tools/{__version__}/python-requests"
         )
-        if self.config.requests_ca_bundle:
-            self.verify = os.fspath(self.config.requests_ca_bundle)
 
         if self.config.rich_traceback:
             from rich.traceback import install
