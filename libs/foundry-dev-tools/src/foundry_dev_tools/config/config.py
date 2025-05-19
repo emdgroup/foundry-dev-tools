@@ -46,14 +46,14 @@ class Config:
 
     def __init__(
         self,
-        requests_ca_bundle: PathLike[str] | None = None,
+        requests_ca_bundle: PathLike[str] | str | None = None,
         transforms_sql_sample_row_limit: int = 5000,
         transforms_sql_dataset_size_threshold: int = 500,
         transforms_sql_sample_select_random: bool = False,
         transforms_force_full_dataset_download: bool = False,
-        cache_dir: PathLike[str] | None = None,
+        cache_dir: PathLike[str] | str | None = None,
         transforms_freeze_cache: bool = False,
-        transforms_output_folder: PathLike[str] | None = None,
+        transforms_output_folder: PathLike[str] | str | None = None,
         rich_traceback: bool = False,
         debug: bool = False,
         requests_session: requests.Session | None = None,

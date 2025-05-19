@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import numbers
+import os
 import time
 import typing
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import requests
@@ -72,8 +74,9 @@ class ContextHTTPClient(requests.Session):
 
     def __init__(self, debug: bool = False, requests_ca_bundle: PathLike[str] | None = None) -> None:
         self.debug = debug
-        self.requests_ca_bundle = requests_ca_bundle
         super().__init__()
+        if requests_ca_bundle is not None and Path(requests_ca_bundle).is_file():
+            self.verify = os.fspath(requests_ca_bundle)
 
         self._counter = 0
 
@@ -117,8 +120,6 @@ class ContextHTTPClient(requests.Session):
             cert: see :py:meth:`requests.Session.request`
             json: see :py:meth:`requests.Session.request`
         """
-        if verify is None and (rcab := self.requests_ca_bundle) is not None:
-            verify = rcab
         if self.debug:
             self._counter = count = self._counter + 1
             LOGGER.debug(f"(r{count}) Making {method!s} request to {url!s}")  # noqa: G004

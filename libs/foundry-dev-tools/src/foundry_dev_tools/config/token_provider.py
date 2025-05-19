@@ -13,7 +13,8 @@ from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.errors.config import TokenProviderConfigError
-from foundry_dev_tools.errors.meta import FoundryAPIError
+from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
+from foundry_dev_tools.errors.multipass import ClientAuthenticationFailedError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
 
 if TYPE_CHECKING:
@@ -51,6 +52,9 @@ class TokenProvider:
         """
         r.headers.setdefault("authorization", f"Bearer {self.token}")
         return r
+
+    def set_requests_session(self, session: requests.Session) -> None:
+        """No-op by default."""
 
 
 class JWTTokenProvider(TokenProvider):
@@ -150,6 +154,7 @@ class OAuthTokenProvider(CachedTokenProvider):
                 self.scopes = DEFAULT_OAUTH_SCOPES
         else:
             self.scopes = scopes
+        self._requests_session = requests.Session()
 
     def _scopes_to_list(self, scopes: list[str] | str | None) -> list[str] | None:
         if scopes is not None and isinstance(scopes, str):
@@ -168,27 +173,38 @@ class OAuthTokenProvider(CachedTokenProvider):
             )
             return credentials.token, credentials.expiry.timestamp()
         if self.grant_type == "client_credentials" and self._client_secret is not None:
-            resp = requests.request(
-                "POST",
-                f"{self.host.url}/multipass/api/oauth2/token",
-                data={"grant_type": "client_credentials", "scope": " ".join(self.scopes)}
-                if self.scopes
-                else {"grant_type": "client_credentials"},
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Authorization": "Basic "
-                    + base64.b64encode(
-                        bytes(
-                            self._client_id + ":" + self._client_secret,
-                            "ISO-8859-1",
-                        ),
-                    ).decode("ascii"),
-                },
-                timeout=30,
+            # since we share the same requests session everywhere and on this session
+            # the auth is set to a lambda function we need to manually disable this
+            # for the single token call
+            auth_handler = self._requests_session.auth
+            self._requests_session.auth = None
+            try:
+                resp = self._requests_session.request(
+                    "POST",
+                    f"{self.host.url}/multipass/api/oauth2/token",
+                    data={"grant_type": "client_credentials", "scope": " ".join(self.scopes)}
+                    if self.scopes
+                    else {"grant_type": "client_credentials"},
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Authorization": "Basic "
+                        + base64.b64encode(
+                            bytes(
+                                self._client_id + ":" + self._client_secret,
+                                "ISO-8859-1",
+                            ),
+                        ).decode("ascii"),
+                    },
+                    timeout=30,
+                )
+            finally:
+                # add original auth handler again
+                self._requests_session.auth = auth_handler
+            raise_foundry_api_error(
+                resp,
+                error_handling=ErrorHandlingConfig({401: ClientAuthenticationFailedError}, client_id=self._client_id),
             )
             credentials = resp.json()
-            if "error" in credentials:
-                raise FoundryAPIError(resp)
             return credentials["access_token"], credentials["expires_in"] + time.time()
         if self._client_secret is None:
             msg = f"For grant type {self.grant_type} you need to set a client_secret."
@@ -196,6 +212,10 @@ class OAuthTokenProvider(CachedTokenProvider):
 
         msg = f"Grant type {self.grant_type} is not implemented."
         raise NotImplementedError(msg)
+
+    def set_requests_session(self, session: requests.Session) -> None:
+        """Sets request session used for client credentials grant.."""
+        self._requests_session = session
 
 
 class AppServiceTokenProvider(CachedTokenProvider):

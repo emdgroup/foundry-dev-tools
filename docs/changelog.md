@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.17] - 2025-05-19
+
+## Added 
+- Use same requests session in oauth2 token provider as well. (#99)
+
 ## [2.1.16] - 2025-05-16
 
 ## Added 
@@ -342,6 +347,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.17]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.16...v2.1.17
 [2.1.16]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.15...v2.1.16
 [2.1.15]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.14...v2.1.15
 [2.1.14]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.13...v2.1.14
