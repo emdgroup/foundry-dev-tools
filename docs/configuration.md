@@ -184,6 +184,34 @@ def compute(ctx, output_transform, source: ResolvedSource):
     )
 ```
 
+### Configuration for Python Functions (Serverless)
+
+```
+from functions.api import function
+from functions.sources import get_source
+
+import json
+from foundry_dev_tools import FoundryContext, OAuthTokenProvider, Config
+
+
+@function(sources=["SourceFoundryApi"])
+def get_user_info() -> str:
+    source = get_source("LsRestMTableauExtractSchedulerFoundryApi")
+    client = source.get_https_connection().get_client()
+
+    ctx = FoundryContext(
+        config=Config(requests_session=client),
+        token_provider=OAuthTokenProvider(
+            host="your-stack.palantirfoundry.com",
+            client_id=source.get_secret("ClientID"),
+            client_secret=source.get_secret("ClientSecret"),
+            grant_type="client_credentials",
+        ),
+    )
+    return json.dumps(ctx.multipass.get_user_info())
+
+```
+
 ## How the Configuration Gets Loaded and Merged
 
 For example if there are the files /etc/foundry-dev-tools/config.toml: 
