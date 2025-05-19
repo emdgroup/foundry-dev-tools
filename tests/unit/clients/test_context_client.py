@@ -1,12 +1,16 @@
+import os
 import time
+from pathlib import Path
 from unittest import mock
 
+import pytest
 import requests
 from requests_mock import ANY
 
+from foundry_dev_tools import Config
 from foundry_dev_tools.__about__ import __version__
-from foundry_dev_tools.clients.context_client import DEFAULT_TIMEOUT
-from tests.unit.mocks import MockOAuthTokenProvider
+from foundry_dev_tools.clients.context_client import DEFAULT_TIMEOUT, ContextHTTPClient
+from tests.unit.mocks import FoundryMockContext, MockOAuthTokenProvider, MockTokenProvider
 
 
 def test_context_http_client(test_context_mock, foundry_client_id):
@@ -51,3 +55,41 @@ def test_retry_on_connection_error(test_context_mock):
         m.side_effect = [requests.exceptions.ConnectionError(), response_mock]
         response = test_context_mock.client.request("GET", "test_call_args")
         assert response is response_mock
+
+
+def test_requests_ca_bundle(request, tmp_path_factory):
+    cert_dir = tmp_path_factory.mktemp(f"foundry_dev_tools_test__{request.node.name}").absolute()
+    with Path.open(cert_dir / "ca-bundle.pem", "w") as f:
+        f.write("test")
+    client1 = FoundryMockContext(
+        Config(
+            requests_ca_bundle=os.fspath(cert_dir / "ca-bundle.pem"),
+        ),
+        MockTokenProvider(jwt=request.node.name + "_token"),
+    ).client
+    assert client1.verify == os.fspath(cert_dir / "ca-bundle.pem")
+    client_with_pathlib = FoundryMockContext(
+        Config(
+            requests_ca_bundle=cert_dir / "ca-bundle.pem",
+        ),
+        MockTokenProvider(jwt=request.node.name + "_token"),
+    ).client
+    assert client_with_pathlib.verify == os.fspath(cert_dir / "ca-bundle.pem")
+
+    client = ContextHTTPClient(debug=False, requests_ca_bundle=None)
+    assert client.verify is True
+
+    with pytest.raises(TypeError):
+        _ = ContextHTTPClient(debug=False, requests_ca_bundle=False)
+
+    session = requests.Session()
+    assert session.verify is True
+
+
+def test_verify_is_passed(test_context_mock):
+    client1 = test_context_mock.client
+    assert client1.verify is True
+    test_context_mock.mock_adapter.register_uri(ANY, ANY)
+
+    req = test_context_mock.client.request("POST", "http+mock://test_authorization", verify=False).request
+    assert req.verify is False
