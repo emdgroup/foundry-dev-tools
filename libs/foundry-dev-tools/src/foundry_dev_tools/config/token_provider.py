@@ -13,8 +13,8 @@ from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.errors.config import TokenProviderConfigError
-from foundry_dev_tools.errors.handling import raise_foundry_api_error
-from foundry_dev_tools.errors.meta import FoundryAPIError
+from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
+from foundry_dev_tools.errors.multipass import ClientAuthenticationFailedError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
 
 if TYPE_CHECKING:
@@ -178,30 +178,33 @@ class OAuthTokenProvider(CachedTokenProvider):
             # for the single token call
             auth_handler = self._requests_session.auth
             self._requests_session.auth = None
-            resp = self._requests_session.request(
-                "POST",
-                f"{self.host.url}/multipass/api/oauth2/token",
-                data={"grant_type": "client_credentials", "scope": " ".join(self.scopes)}
-                if self.scopes
-                else {"grant_type": "client_credentials"},
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Authorization": "Basic "
-                    + base64.b64encode(
-                        bytes(
-                            self._client_id + ":" + self._client_secret,
-                            "ISO-8859-1",
-                        ),
-                    ).decode("ascii"),
-                },
-                timeout=30,
+            try:
+                resp = self._requests_session.request(
+                    "POST",
+                    f"{self.host.url}/multipass/api/oauth2/token",
+                    data={"grant_type": "client_credentials", "scope": " ".join(self.scopes)}
+                    if self.scopes
+                    else {"grant_type": "client_credentials"},
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Authorization": "Basic "
+                        + base64.b64encode(
+                            bytes(
+                                self._client_id + ":" + self._client_secret,
+                                "ISO-8859-1",
+                            ),
+                        ).decode("ascii"),
+                    },
+                    timeout=30,
+                )
+            finally:
+                # add original auth handler again
+                self._requests_session.auth = auth_handler
+            raise_foundry_api_error(
+                resp,
+                error_handling=ErrorHandlingConfig({401: ClientAuthenticationFailedError}, client_id=self._client_id),
             )
-            # add original auth handler again
-            self._requests_session.auth = auth_handler
-            raise_foundry_api_error(resp)
             credentials = resp.json()
-            if "error" in credentials:
-                raise FoundryAPIError(resp)
             return credentials["access_token"], credentials["expires_in"] + time.time()
         if self._client_secret is None:
             msg = f"For grant type {self.grant_type} you need to set a client_secret."
@@ -211,7 +214,7 @@ class OAuthTokenProvider(CachedTokenProvider):
         raise NotImplementedError(msg)
 
     def set_requests_session(self, session: requests.Session) -> None:
-        """No-op since this token provider does not make any requests."""
+        """Sets request session used for client credentials grant.."""
         self._requests_session = session
 
 
