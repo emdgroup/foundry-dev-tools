@@ -275,16 +275,17 @@ def test_lightweight_transform_two_inputs(spark_df_return_data_one, spark_df_ret
 
 
 def test_transform_polars_transform_two_inputs(spark_df_return_data_one, spark_df_return_data_two, transforms_context):
-    from transforms.api import Input, Output, transform_polars
+    from transforms.api import Input, Output, TransformContext, transform_polars
 
     @transform_polars(
         Output("/output/to/dataset"),
         input1=Input("/input1"),
         input2=Input("/input2"),
     )
-    def transform_me(input1, input2) -> DataFrame:
+    def transform_me(ctx, input1, input2) -> DataFrame:
         assert_frame_equal(input1.to_pandas(), spark_df_return_data_one.toPandas())
         assert_frame_equal(input2.to_pandas(), spark_df_return_data_two.toPandas())
+        assert isinstance(ctx, TransformContext)  # ctx is our TransformContext
         return input1.extend(input2)
 
     df = transform_me.compute(transforms_context)
@@ -358,19 +359,33 @@ def test_transform_pandas_one_input(mocker, spark_df_return_data_one, transforms
 
 
 def test_transform_pandas_one_input_with_ctx(spark_df_return_data_one, transforms_context):
-    from transforms.api import Input, Output, TransformContext, transform_pandas
+    from transforms.api import Input, Output, TransformContext, lightweight, transform_pandas
+
+    expected_df = spark_df_return_data_one.toPandas()
 
     @transform_pandas(Output("/output/to/dataset"), input1=Input("/input1"))
     def transform_me(ctx, input1: pd.DataFrame) -> pd.DataFrame:
         assert isinstance(input1, pd.DataFrame)
         assert isinstance(ctx, TransformContext)  # ctx is our TransformContext
         assert isinstance(ctx.spark_session, SparkSession)  # ctx.spark_session is a SparkSession
-        assert_frame_equal(input1, spark_df_return_data_one.toPandas())
+        assert_frame_equal(input1, expected_df)
         return input1
 
     df = transform_me.compute(transforms_context)
     assert isinstance(df, pd.DataFrame)
     assert_frame_equal(df, spark_df_return_data_one.toPandas())
+
+    @lightweight
+    @transform_pandas(Output("/output/to/dataset"), input1=Input("/input1"))
+    def transform_me(ctx, input1: pd.DataFrame) -> pd.DataFrame:
+        assert isinstance(input1, pd.DataFrame)
+        assert isinstance(ctx, TransformContext)  # ctx is our TransformContext
+        assert_frame_equal(input1, expected_df)
+        return input1
+
+    df = transform_me.compute(transforms_context)
+    assert isinstance(df, pd.DataFrame)
+    assert_frame_equal(df, expected_df)
 
 
 def test_transform_pandas_two_inputs(spark_df_return_data_one, spark_df_return_data_two, transforms_context):
@@ -502,6 +517,20 @@ def test_lightweight_transforms_with_resources():
         assert "will have no effect" in record_message
 
 
+def test_lightweight_transforms_with_context(transforms_context):
+    from transforms.api import Input, Output, TransformContext, lightweight, transform
+
+    @lightweight()
+    @transform(
+        output1=Output("/output/to/dataset"),
+        input1=Input("/input1"),
+    )
+    def transform_me(ctx, output1, input1):
+        assert isinstance(ctx, TransformContext)  # ctx is our TransformContext
+
+    transform_me.compute(transforms_context)
+
+
 def test_transforms_with_incremental():
     from transforms.api import Input, Output, incremental, transform
 
@@ -584,6 +613,20 @@ def test_transform_markings(transforms_context):
         ),
     )
     def transform_me(input1):
+        return input1
+
+    transform_me.compute(transforms_context)
+
+
+def test_transform_context_auth_header(transforms_context):
+    from transforms.api import Input, Output, transform_df
+
+    @transform_df(
+        Output("output1"),
+        input1=Input("/input1"),
+    )
+    def transform_me(ctx, input1):
+        assert ctx.auth_header == "Bearer test_transform_context_auth_header_token"
         return input1
 
     transform_me.compute(transforms_context)
