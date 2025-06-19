@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import polars as pl
 import pytest
 from pandas.testing import assert_frame_equal
 from pyspark.sql import SparkSession
@@ -34,14 +35,25 @@ CFC = "foundry_dev_tools.cached_foundry_client.CachedFoundryClient"
 )
 @patch(API + ".infer_dataset_schema")
 @patch(API + ".upload_dataset_schema")
-def test_save_pandas(upload_dataset_schema, infer_dataset_schema, save_objects, temporary_directory, test_context_mock):
+@pytest.mark.parametrize(
+    "df",
+    [
+        pd.DataFrame(data={"col1": [1, 2], "col2": [3, 4]}),
+        pl.DataFrame(data={"col1": [1, 2], "col2": [3, 4]}),
+    ],
+)
+def test_save_pandas(
+    upload_dataset_schema, infer_dataset_schema, save_objects, temporary_directory, test_context_mock, df
+):
     mtp = "mock_tmp_path"
     dsn = "dataset.parquet"
     dsp = mtp + "/" + dsn
     temporary_directory.return_value.__enter__.return_value = mtp
     fdt = CachedFoundryClient(ctx=test_context_mock)
-    df = pd.DataFrame(data={"col1": [1, 2], "col2": [3, 4]})
-    with patch.object(df, "to_parquet") as pd_to_parquet:
+
+    method_to_patch = "to_parquet" if isinstance(df, pd.DataFrame) else "write_parquet"
+
+    with patch.object(df, method_to_patch) as df_to_parquet:
         dataset_rid, transaction_id = fdt.save_dataset(
             df,
             dataset_path_or_rid=DATASET_PATH,
@@ -49,7 +61,8 @@ def test_save_pandas(upload_dataset_schema, infer_dataset_schema, save_objects, 
             exists_ok=True,
             mode="SNAPSHOT",
         )
-    assert pd_to_parquet.call_args[0][0] == dsp
+
+    assert df_to_parquet.call_args[0][0] == dsp
 
     assert save_objects.call_args[0][0] == {"spark/" + dsn: Path(dsp)}
     assert save_objects.call_args[0][1] == DATASET_PATH
