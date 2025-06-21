@@ -200,7 +200,7 @@ class CachedFoundryClient:
 
         Args:
             df (:external+pandas:py:class:`pandas.DataFrame` | :external+polars:py:class:`polars.DataFrame` | :external+spark:py:class:`pyspark.sql.DataFrame`):
-                A pyspark or pandas DataFrame to upload
+                A pyspark, pandas or polars DataFrame to upload
             dataset_path_or_rid (str): Path or Rid of the dataset in which the object should be stored.
             branch (str): Branch of the dataset in which the object should be stored
             exists_ok (bool): By default, this method creates a new dataset.
