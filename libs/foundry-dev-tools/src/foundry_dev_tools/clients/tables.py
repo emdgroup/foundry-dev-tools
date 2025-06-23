@@ -144,12 +144,7 @@ class TablesClient(APIClient):
             tables.extend(response_json["tables"])
         return tables
 
-    def api_get_table_schema(
-        self,
-        table_rid: TableRid,
-        branches: list[Branch],
-        **kwargs
-    ) -> requests.Response:
+    def api_get_table_schema(self, table_rid: TableRid, branches: list[Branch], **kwargs) -> requests.Response:
         """Retrieves schema for a Foundry table object per given list of branches.
 
         Args:
