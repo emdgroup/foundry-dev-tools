@@ -9,7 +9,7 @@ from foundry_dev_tools.clients.api_client import APIClient
 if TYPE_CHECKING:
     import requests
 
-    from foundry_dev_tools.utils.api_types import FolderRid, SourceRid, TableRid, Branch
+    from foundry_dev_tools.utils.api_types import Branch, FolderRid, SourceRid, TableRid
 
 
 class TablesClient(APIClient):
@@ -143,7 +143,7 @@ class TablesClient(APIClient):
             response_json = self.api_list_tables(connection_rid=connection_rid, page_token=next_page_token).json()
             tables.extend(response_json["tables"])
         return tables
-    
+
     def api_get_table_schema(
         self,
         table_rid: TableRid,
@@ -159,7 +159,7 @@ class TablesClient(APIClient):
 
         Returns:
             requests.Response: The API response containing the table schema.
-        
+
         Example::
             >>> response = tables_client.api_get_table_schema("ri.foundry.main.dataset.abc123", ["master"])
             >>> schema = response.json()
