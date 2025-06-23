@@ -159,6 +159,29 @@ class TablesClient(APIClient):
 
         Returns:
             requests.Response: The API response containing the table schema.
+        
+        Example::
+            >>> response = tables_client.api_get_table_schema("ri.foundry.main.dataset.abc123", ["master"])
+            >>> schema = response.json()
+            >>> schema
+            {
+                "fieldSchemaList": [
+                    {
+                        "type": "DECIMAL",
+                        "name": "column_A",
+                        "nullable": false,
+                        "precision": 38,
+                        "scale": 0
+                    },
+                    {
+                        "type": "STRING",
+                        "name": "column_B",
+                        "nullable": false
+                    }
+                ],
+                "primaryKey": null,
+                "customMetadata": {"format": "snowflake"}
+            }
         """
         return self.api_request(
             "POST",
