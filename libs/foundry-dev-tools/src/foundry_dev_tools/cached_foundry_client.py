@@ -27,6 +27,7 @@ LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import pandas as pd
+    import polars as pl
     import pyspark.sql
 
     from foundry_dev_tools.utils import api_types
@@ -185,7 +186,7 @@ class CachedFoundryClient:
 
     def save_dataset(
         self,
-        df: pd.DataFrame | pyspark.sql.DataFrame,
+        df: pd.DataFrame | pyspark.sql.DataFrame | pl.DataFrame,
         dataset_path_or_rid: str,
         branch: str = "master",
         exists_ok: bool = False,
@@ -198,8 +199,8 @@ class CachedFoundryClient:
         Creates SNAPSHOT transactions by default.
 
         Args:
-            df (:external+pandas:py:class:`pandas.DataFrame` | :external+spark:py:class:`pyspark.sql.DataFrame`): A
-                pyspark  or pandas DataFrame to upload
+            df (:external+pandas:py:class:`pandas.DataFrame` | :external+polars:py:class:`polars.DataFrame` | :external+spark:py:class:`pyspark.sql.DataFrame`):
+                A pyspark, pandas or polars DataFrame to upload
             dataset_path_or_rid (str): Path or Rid of the dataset in which the object should be stored.
             branch (str): Branch of the dataset in which the object should be stored
             exists_ok (bool): By default, this method creates a new dataset.
@@ -217,7 +218,7 @@ class CachedFoundryClient:
             ValueError: when dataframe is None
             ValueError: when branch is None
 
-        """
+        """  # noqa: E501
         if df is None:
             msg = "Please provide a spark or pandas dataframe object with parameter 'df'"
             raise ValueError(msg)
@@ -227,6 +228,7 @@ class CachedFoundryClient:
 
         with tempfile.TemporaryDirectory() as path:
             from foundry_dev_tools._optional.pandas import pd
+            from foundry_dev_tools._optional.polars import pl
 
             if not pd.__fake__ and isinstance(df, pd.DataFrame):
                 df.to_parquet(
@@ -234,6 +236,12 @@ class CachedFoundryClient:
                     engine="pyarrow",
                     compression="snappy",
                     flavor="spark",
+                )
+            elif not pl.__fake__ and isinstance(df, pl.DataFrame):
+                df.write_parquet(
+                    os.sep.join([path + "/dataset.parquet"]),  # noqa: PTH118
+                    use_pyarrow=True,
+                    compression="snappy",
                 )
             else:
                 df.write.format("parquet").option("compression", "snappy").save(path=path, mode="overwrite")
