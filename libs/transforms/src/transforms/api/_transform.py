@@ -113,7 +113,7 @@ class Transform:
         """
         kwargs = {name: i.init_input(context).dataframe() for name, i in self.inputs.items()}
         if self._use_context:
-            kwargs["ctx"] = TransformContext()
+            kwargs["ctx"] = TransformContext(context)
 
         output_df = self(**kwargs)
 
@@ -136,7 +136,7 @@ class Transform:
         """
         kwargs = {name: i.init_input(context).dataframe().toPandas() for name, i in self.inputs.items()}
         if self._use_context:
-            kwargs["ctx"] = TransformContext()
+            kwargs["ctx"] = TransformContext(context)
 
         output_df = self(**kwargs)
         from foundry_dev_tools._optional.pandas import pd
@@ -159,7 +159,7 @@ class Transform:
         kwargs = {**inputs, **outputs}
 
         if self._use_context:
-            kwargs["ctx"] = TransformContext()
+            kwargs["ctx"] = TransformContext(context)
 
         self(**kwargs)
 
@@ -169,16 +169,15 @@ class Transform:
         self,
         context: FoundryContext,
     ):
-        if self._use_context:
-            msg = "Lightweight transforms do not support the context argument."
-            raise ValueError(msg)
-
         inputs = {argument_name: LightweightTransformInput(i, context) for argument_name, i in self.inputs.items()}
         outputs = {
             argument_name: LightweightTransformOutput(o, argument_name, context)
             for argument_name, o in self.outputs.items()
         }
         kwargs = {**inputs, **outputs}
+
+        if self._use_context:
+            kwargs["ctx"] = TransformContext(context)
 
         self(**kwargs)
 
@@ -188,34 +187,30 @@ class Transform:
         self,
         context: FoundryContext,
     ) -> pd.core.frame.DataFrame:
-        if self._use_context:
-            msg = "Lightweight transforms do not support the context argument."
-            raise ValueError(msg)
-
         inputs = {
             argument_name: LightweightTransformInput(i, context).pandas() for argument_name, i in self.inputs.items()
         }
+        if self._use_context:
+            inputs["ctx"] = TransformContext(context)
         return self(**inputs)
 
     def _compute_lightweight_polars(
         self,
         context: FoundryContext,
     ) -> pl.DataFrame:
-        if self._use_context:
-            msg = "Lightweight transforms do not support the context argument."
-            raise ValueError(msg)
-
         inputs = {
             argument_name: LightweightTransformInput(i, context).polars() for argument_name, i in self.inputs.items()
         }
+        if self._use_context:
+            inputs["ctx"] = TransformContext(context)
         return self(**inputs)
 
 
 class TransformContext:
     """The TransformContext is passed to the transform function if ctx is the first argument."""
 
-    def __init__(self):
-        pass
+    def __init__(self, foundry_ctx: FoundryContext):
+        self._foundry_ctx = foundry_ctx
 
     @property
     def spark_session(self) -> pyspark.sql.SparkSession:
@@ -240,6 +235,10 @@ class TransformContext:
 
         warnings.warn("is_incremental functionality not implemented in Foundry DevTools")
         return False
+
+    @property
+    def auth_header(self) -> str:
+        return f"Bearer {self._foundry_ctx.token_provider.token}"
 
 
 class TransformInput:
