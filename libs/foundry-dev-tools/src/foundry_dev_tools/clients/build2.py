@@ -244,7 +244,7 @@ class Build2Client(APIClient):
         branch: api_types.DatasetBranch = "master",
         branch_fallbacks: set[api_types.DatasetBranch] | None = None,
         **kwargs,
-    ) -> dict | None:
+    ) -> requests.Response:
         """Get the jobspec for a dataset.
 
         Args:
@@ -254,7 +254,8 @@ class Build2Client(APIClient):
             **kwargs: Passed to APIClient.api_request.
 
         Returns:
-            dict or None: Jobspec information, or None if not found.
+            requests.Response:
+                the response contains a json with detailed JobSpec information.
         """
         body = {
             "datasetRid": dataset_rid,
@@ -262,22 +263,19 @@ class Build2Client(APIClient):
             "branchFallbacks": {"branches": list(branch_fallbacks) if branch_fallbacks else []},
         }
 
-        response = self.api_request(
+        return self.api_request(
             "POST",
             "jobspecs/get-jobspec-for-dataset",
             json=body,
             error_handling=ErrorHandlingConfig({204: ResourceNotFoundError}),
             **kwargs,
         )
-        if response.status_code == 204:
-            return None
-        return response.json()
 
     def api_remove_jobspecs(
         self,
         jobspec_rids: list[api_types.JobSpecRid],
         **kwargs,
-    ) -> bool:
+    ) -> requests.Response:
         """Remove job specs by RID.
 
         Args:
@@ -285,14 +283,14 @@ class Build2Client(APIClient):
             **kwargs: Passed to APIClient.api_request.
 
         Returns:
-            bool: True if successful, False otherwise.
+            requests.Response:
+                the response will have no content if successful.
         """
         body = {"jobSpecRids": jobspec_rids}
 
-        response = self.api_request(
+        return self.api_request(
             "POST",
             "jobspecs/remove-jobspecs",
             json=body,
             **kwargs,
         )
-        return response.ok
