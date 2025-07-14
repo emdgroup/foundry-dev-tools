@@ -37,3 +37,13 @@ class MissingFoundryHostError(TokenProviderConfigError):
 
     def __init__(self) -> None:
         super().__init__("A domain is missing in your credentials configuration.")
+
+
+class InvalidOrExpiredJWTTokenError(FoundryConfigError):
+    """Error if jwt is either expired or invalid."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The JWT Token you provided in the config, is either expired or invalid.\n"
+            "Please generate a new JWT Token and update your configuration."
+        )

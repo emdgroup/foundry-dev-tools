@@ -73,6 +73,7 @@ class FoundryContext:
         self.client.headers["User-Agent"] = requests.utils.default_user_agent(
             f"foundry-dev-tools/{__version__}/python-requests"
         )
+        self.token_provider.set_expiration(self)
 
         if self.config.rich_traceback:
             from rich.traceback import install

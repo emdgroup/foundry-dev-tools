@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import requests_mock
@@ -29,6 +30,9 @@ class MockTokenProvider(JWTTokenProvider):
     def __init__(self, jwt: Token):
         self._jwt = jwt
         self.host = TEST_HOST
+
+    def set_expiration(self, _):
+        self.__expiration = int(time.time() + 3600)
 
 
 class MockOAuthTokenProvider(OAuthTokenProvider):
