@@ -95,7 +95,7 @@ class JWTTokenProvider(TokenProvider):
 
     def set_expiration(self, ctx: FoundryContext) -> None:
         """This method decodes the jwt token and retrieves its expiration."""
-        if self.__expiration:
+        if self.__expiration is not None:
             return
         token_id = self._decode_token_id()
         try:
@@ -111,7 +111,7 @@ class JWTTokenProvider(TokenProvider):
     @property
     def token(self) -> Token:
         """Returns the token supplied when creating this Provider."""
-        if self.__expiration and self.__expiration <= time.time():
+        if self.__expiration is not None and self.__expiration <= time.time():
             raise InvalidOrExpiredJWTTokenError
         return self._jwt
 
