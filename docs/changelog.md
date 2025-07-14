@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.19] - 2025-07-14
+
+## Added 
+- added api_remove_jobspecs and api_get_jobspec_for_dataset for Build2Client (#105)
+
 ## [2.1.18] - 2025-06-23
 
 ## Added 
@@ -354,6 +359,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.19]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.18...v2.1.19
 [2.1.18]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.17...v2.1.18
 [2.1.17]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.16...v2.1.17
 [2.1.16]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.15...v2.1.16
