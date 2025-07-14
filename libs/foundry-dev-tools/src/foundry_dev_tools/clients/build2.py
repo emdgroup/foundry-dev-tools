@@ -237,3 +237,60 @@ class Build2Client(APIClient):
         return self.api_submit_build(
             job_spec_selections=datasets_job_spec_selections, branch=branch, force_build=force_build
         ).json()
+
+    def api_get_jobspec_for_dataset(
+        self,
+        dataset_rid: api_types.DatasetRid,
+        branch: api_types.DatasetBranch = "master",
+        branch_fallbacks: set[api_types.DatasetBranch] | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Get the jobspec for a dataset.
+
+        Args:
+            dataset_rid: The dataset RID.
+            branch: The branch to use. Default is "master".
+            branch_fallbacks: Fallback branches to use when resolving dataset properties.
+            **kwargs: Passed to APIClient.api_request.
+
+        Returns:
+            requests.Response:
+                the response contains a json with detailed JobSpec information.
+        """
+        body = {
+            "datasetRid": dataset_rid,
+            "branch": branch,
+            "branchFallbacks": {"branches": list(branch_fallbacks) if branch_fallbacks else []},
+        }
+
+        return self.api_request(
+            "POST",
+            "jobspecs/get-jobspec-for-dataset",
+            json=body,
+            error_handling=ErrorHandlingConfig({204: ResourceNotFoundError}),
+            **kwargs,
+        )
+
+    def api_remove_jobspecs(
+        self,
+        jobspec_rids: list[api_types.JobSpecRid],
+        **kwargs,
+    ) -> requests.Response:
+        """Remove job specs by RID.
+
+        Args:
+            jobspec_rids: List of job spec RIDs to remove.
+            **kwargs: Passed to APIClient.api_request.
+
+        Returns:
+            requests.Response:
+                the response will have no content if successful.
+        """
+        body = {"jobSpecRids": jobspec_rids}
+
+        return self.api_request(
+            "POST",
+            "jobspecs/remove-jobspecs",
+            json=body,
+            **kwargs,
+        )
