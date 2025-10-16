@@ -220,9 +220,11 @@ class MagritteCoordinatorClient(APIClient):
         extract_name: str,
         transaction_type: TransactionType,
         source_adapter: dict,
-        spark_profiles: list | None = None,
+        spark_profiles: list[str] | None = None,
     ) -> str:
         r"""Creates a new Foundry extract from a given source.
+
+        The `.json()` at the end does return a string value and not a dict-like structure.
 
         Usage:
         ```python
@@ -240,7 +242,8 @@ class MagritteCoordinatorClient(APIClient):
         ...                 "sqlQuery": "SELECT * FROM \"AIRPORT_DB\".\"FLIGHTS\""
         ...             },
         ...         }
-        ...     }
+        ...     },
+        ...     spark_profiles=[]  # only work with a non-agent type of exports
         ... )
         ```
 
@@ -250,19 +253,27 @@ class MagritteCoordinatorClient(APIClient):
             source_rid: Source RID from which the extract/sync will be spawned from.
             extract_name: Name of the new extract/sync.
             transaction_type: One of the options available within `TransactionType`
-            source_adapter: example
-                {
-                    "type": "jdbc-source-adapter",
-                    "jdbcOptions": {
-                        "preQueries": [],
-                        "query": {
-                            "sqlQuery": "SELECT * FROM \"AIRPORT_DB\".\"FLIGHTS\""
+            source_adapter: Dictionary specifying the source adapter configuration. Must include:
+                - type (str): Adapter type, e.g., "jdbc-source-adapter".
+                - jdbcOptions (dict, optional): For JDBC adapters, must include:
+                    - preQueries (list[str]): List of SQL queries to run before main query.
+                    - query (dict): Must include:
+                        - sqlQuery (str): The SQL query to execute.
+                - Example:
+                    {
+                        "type": "jdbc-source-adapter",
+                        "jdbcOptions": {
+                            "preQueries": [],
+                            "query": {
+                                "sqlQuery": "SELECT * FROM \"AIRPORT_DB\".\"FLIGHTS\""
+                            }
+                        }
                     }
-                }
-            spark_profiles: A set of spark profiles to use. Not available when using agent-based extracts.
+            spark_profiles: list[str]. A list of spark profile names to use.
+                Not available when using agent-based extracts.
 
         Returns:
-            str
+            str: The extract RID of the newly created extract.
         """
         payload = {
             "datasetId": dataset_rid,
