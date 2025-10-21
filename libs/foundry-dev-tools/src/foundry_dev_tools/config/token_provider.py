@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import time
-from functools import cached_property
+import uuid
 from typing import TYPE_CHECKING, ClassVar
 
 import palantir_oauth_client
@@ -12,13 +13,14 @@ import requests
 from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import Host
-from foundry_dev_tools.errors.config import TokenProviderConfigError
+from foundry_dev_tools.errors.config import InvalidOrExpiredJWTTokenError, TokenProviderConfigError
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
 from foundry_dev_tools.errors.multipass import ClientAuthenticationFailedError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
 
 if TYPE_CHECKING:
     from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
+    from foundry_dev_tools.config.context import FoundryContext
 
 
 class TokenProvider:
@@ -56,9 +58,17 @@ class TokenProvider:
     def set_requests_session(self, session: requests.Session) -> None:
         """No-op by default."""
 
+    def set_expiration(self, ctx: FoundryContext) -> None:
+        """No-op by default.
+
+        Used for jwt expiration retrieval.
+        """
+
 
 class JWTTokenProvider(TokenProvider):
     """Provides Host and Token."""
+
+    __expiration: int | None = None
 
     def __init__(self, host: Host | str, jwt: Token) -> None:
         """Initialize the JWTTokenProvider.
@@ -70,9 +80,39 @@ class JWTTokenProvider(TokenProvider):
         super().__init__(host)
         self._jwt = jwt
 
-    @cached_property
+    def _decode_token_id(self) -> str:
+        split_jwt = self._jwt.split(".")
+        if len(split_jwt) < 2:
+            raise InvalidOrExpiredJWTTokenError
+        try:
+            claim_part = split_jwt[1] + "=="  # add padding, which is omitted by jwt
+            claim_json = base64.b64decode(claim_part)
+            claims = json.loads(claim_json)
+            jti = base64.b64decode(claims["jti"])
+            return str(uuid.UUID(bytes=jti))
+        except Exception as e:
+            raise InvalidOrExpiredJWTTokenError from e
+
+    def set_expiration(self, ctx: FoundryContext) -> None:
+        """This method decodes the jwt token and retrieves its expiration."""
+        if self.__expiration is not None:
+            return
+        token_id = self._decode_token_id()
+        try:
+            tokens = ctx.multipass.get_tokens()  # retrieve all tokens the user has generated
+            for token in tokens:
+                if token["tokenId"] == token_id:  # search for this jwt token
+                    # save expiration time, which will be used in the token() property
+                    self.__expiration = time.time() + token["expires_in"] - 15  # subtract 15 seconds, to be safe
+                    break
+        except:  # noqa: E722
+            raise InvalidOrExpiredJWTTokenError from None
+
+    @property
     def token(self) -> Token:
         """Returns the token supplied when creating this Provider."""
+        if self.__expiration is not None and self.__expiration <= time.time():
+            raise InvalidOrExpiredJWTTokenError
         return self._jwt
 
 
