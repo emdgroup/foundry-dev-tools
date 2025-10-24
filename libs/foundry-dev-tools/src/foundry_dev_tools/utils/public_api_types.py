@@ -1,15 +1,4 @@
-"""API Types for the publicly documented Foundry API.
-
-IMPORTANT: These TypedDict definitions are for type-checking purposes only.
-They do NOT perform runtime validation. The actual API response is returned
-as-is from response.json() without any schema enforcement.
-
-These types are based on the official Palantir API documentation:
-https://www.palantir.com/docs/foundry/api/v2/
-
-If the API changes, mypy/pyright will catch mismatches in calling code,
-but no runtime errors will occur if the API returns unexpected fields.
-"""
+"""API Types for the publicly documented Foundry API."""
 
 from typing import NotRequired, TypedDict
 
