@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.20] - 2025-10-24
+
+## Added
+- add new extract/sync creation for MagritteCoordinatorClient. (#109)
+- add extract/sync deletion for MagritteCoordinatorClient. (#110)
+
 ## [2.1.19] - 2025-07-14
 
 ## Added 
