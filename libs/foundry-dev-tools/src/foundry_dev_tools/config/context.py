@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from foundry_dev_tools.config.config_types import Host, Token
     from foundry_dev_tools.config.token_provider import TokenProvider
     from foundry_dev_tools.foundry_api_client import FoundryRestClient
+    from foundry_dev_tools.public_sdk import PublicSDK
     from foundry_dev_tools.utils import api_types
 
 
@@ -163,6 +164,13 @@ class FoundryContext:
     def ontologies(self) -> public_ontologies_client.OntologiesClient:
         """Returns :py:class:`foundry_dev_tools.clients.public_ontologies.OntologiesClient`."""
         return public_ontologies_client.OntologiesClient(self)
+
+    @cached_property
+    def public_sdk(self) -> PublicSDK:
+        """Returns :py:class:`foundry_dev_tools.public_sdk.PublicSDK`."""
+        from foundry_dev_tools.public_sdk import PublicSDK
+
+        return PublicSDK(self)
 
     @cached_property
     def cached_foundry_client(self) -> CachedFoundryClient:
