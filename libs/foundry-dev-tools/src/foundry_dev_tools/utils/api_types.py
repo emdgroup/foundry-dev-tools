@@ -72,7 +72,7 @@ SourceRid = str
 """A magritte source resource identifier."""
 
 ExtractRid = str
-"""A maggrite extract resource identifier."""
+"""A magritte extract resource identifier."""
 
 TableRid = str
 """A virtual table resource identifier."""
