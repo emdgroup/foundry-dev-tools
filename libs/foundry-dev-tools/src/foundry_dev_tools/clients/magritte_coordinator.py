@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from foundry_dev_tools.utils.api_types import (
         CodeResourceType,
         DatasetRid,
+        ExtractRid,
         FolderRid,
         MarkingId,
         NetworkEgressPolicyRid,
@@ -171,6 +172,17 @@ class MagritteCoordinatorClient(APIClient):
             parent_rid=parent_rid,
         )
         return response.json()
+
+    def api_delete_extract(self, extract_rid: ExtractRid, **kwargs) -> requests.Response:
+        """Pernamently deletes given magritte extract.
+
+        If successful, HTTP 204 status code is returned (no content).
+
+        Args:
+            extract_rid: Rid of the desired extract/sync to be deleted.
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+        """
+        return self.api_request("DELETE", f"build/delete-extract/{extract_rid}", **kwargs)
 
     def get_source_config(self, source_rid: SourceRid) -> dict:
         """Returns the configuration of a Source."""
