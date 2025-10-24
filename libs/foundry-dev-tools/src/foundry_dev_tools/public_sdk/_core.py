@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class PublicSDK:
-    """Namespace that exposes clients built on Foundry's public API surface."""
+    """Namespace that exposes clients built on Foundry's public API."""
 
     __slots__ = ("_context", "__dict__")
 
