@@ -33,6 +33,8 @@ from foundry_dev_tools.resources.resource import Resource
 from foundry_dev_tools.utils.config import entry_point_fdt_api_client
 
 if TYPE_CHECKING:
+    from foundry_sdk.v2 import FoundryClient
+
     from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
     from foundry_dev_tools.config.config_types import Host, Token
     from foundry_dev_tools.config.token_provider import TokenProvider
@@ -183,6 +185,21 @@ class FoundryContext:
         from foundry_dev_tools.foundry_api_client import FoundryRestClient
 
         return FoundryRestClient(ctx=self)
+
+    @cached_property
+    def public_client_v2(self) -> FoundryClient:
+        """Returns :py:class:`foundry_sdk.v2.FoundryClient`.
+
+        Uses fdt context to integrate with the official foundry-platform-sdk.
+        """
+        from foundry_sdk.v2 import FoundryClient
+
+        from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth
+
+        return FoundryClient(
+            auth=FoundryDevToolsAuth(self),
+            hostname=self.host,
+        )
 
     def get_dataset(
         self,
