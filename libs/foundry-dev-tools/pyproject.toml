@@ -47,7 +47,8 @@ git-credential-foundry = "foundry_dev_tools.cli.git_credential_foundry:_helper"
 
 [project.optional-dependencies]
 s3 = ["aiobotocore[boto3]"]
-full = ["foundry-dev-tools-transforms", "foundry-dev-tools[s3]"]
+public = ["foundry-platform-sdk"]
+full = ["foundry-dev-tools-transforms", "foundry-dev-tools[s3]", "foundry-dev-tools[public]"]
 
 [project.urls]
 Homepage = "https://emdgroup.github.io/foundry-dev-tools"
