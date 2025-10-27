@@ -198,7 +198,7 @@ class FoundryContext:
 
         return FoundryClient(
             auth=FoundryDevToolsAuth(self),
-            hostname=self.host,
+            hostname=self.host.domain,
         )
 
     def get_dataset(
