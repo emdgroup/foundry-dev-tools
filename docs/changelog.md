@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.21] - 2025-10-28
+
+## Added
+- add official foundry-platform-sdk support under FoundryContext for public v2 APIs (#112)
+
 ## [2.1.20] - 2025-10-24
 
 ## Added

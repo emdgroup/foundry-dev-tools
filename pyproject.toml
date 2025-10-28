@@ -17,7 +17,7 @@ distribution = false
 [tool.pdm.dev-dependencies]
 dev = [
   "-e file:///${PROJECT_ROOT}/libs/transforms",
-  "-e file:///${PROJECT_ROOT}/libs/foundry-dev-tools[s3]",
+  "-e file:///${PROJECT_ROOT}/libs/foundry-dev-tools[s3,public]",
   "pre-commit",
   "ruff",
   "pytest",
