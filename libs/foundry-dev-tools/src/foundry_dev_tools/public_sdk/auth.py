@@ -5,16 +5,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar
 
+from foundry_dev_tools._optional.foundry_platform_sdk import foundry_sdk
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from foundry_sdk import Auth
-
     from foundry_dev_tools.config.context import FoundryContext
-else:
-    from foundry_dev_tools._optional.foundry_platform_sdk import foundry_sdk
-
-    Auth = foundry_sdk.Auth
 
 
 class Token(ABC):
@@ -50,7 +46,7 @@ class FoundryDevToolsToken(Token):
         return self._token
 
 
-class FoundryDevToolsAuth(Auth):
+class FoundryDevToolsAuth(foundry_sdk.Auth):
     """Auth adapter that bridges FoundryContext with foundry-platform-sdk."""
 
     def __init__(self, ctx: FoundryContext) -> None:
