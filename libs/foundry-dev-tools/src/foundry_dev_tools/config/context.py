@@ -33,6 +33,7 @@ from foundry_dev_tools.resources.resource import Resource
 from foundry_dev_tools.utils.config import entry_point_fdt_api_client
 
 if TYPE_CHECKING:
+    import foundry_sdk.v2
     from foundry_sdk.v2 import FoundryClient
 
     from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
@@ -40,6 +41,10 @@ if TYPE_CHECKING:
     from foundry_dev_tools.config.token_provider import TokenProvider
     from foundry_dev_tools.foundry_api_client import FoundryRestClient
     from foundry_dev_tools.utils import api_types
+else:
+    from foundry_dev_tools._optional import foundry_platform_sdk
+
+    foundry_sdk = foundry_platform_sdk.foundry_sdk
 
 
 class FoundryContext:
@@ -192,11 +197,9 @@ class FoundryContext:
 
         Uses fdt context to integrate with the official foundry-platform-sdk.
         """
-        from foundry_sdk.v2 import FoundryClient
-
         from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth
 
-        return FoundryClient(
+        return foundry_sdk.v2.FoundryClient(
             auth=FoundryDevToolsAuth(self),
             hostname=self.host.domain,
         )
