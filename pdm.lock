@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "foundry-dev-tools"
-version = "2.1.9.dev1"
+version = "2.1.21.dev9"
 extras = ["public", "s3"]
 requires_python = ">=3.10"
 editable = true

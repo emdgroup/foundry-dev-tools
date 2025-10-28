@@ -33,18 +33,13 @@ from foundry_dev_tools.resources.resource import Resource
 from foundry_dev_tools.utils.config import entry_point_fdt_api_client
 
 if TYPE_CHECKING:
-    import foundry_sdk.v2
-    from foundry_sdk.v2 import FoundryClient
+    from foundry_sdk.v2 import FoundryClient as FoundrySdkV2Client
 
     from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
     from foundry_dev_tools.config.config_types import Host, Token
     from foundry_dev_tools.config.token_provider import TokenProvider
     from foundry_dev_tools.foundry_api_client import FoundryRestClient
     from foundry_dev_tools.utils import api_types
-else:
-    from foundry_dev_tools._optional import foundry_platform_sdk
-
-    foundry_sdk = foundry_platform_sdk.foundry_sdk
 
 
 class FoundryContext:
@@ -192,7 +187,7 @@ class FoundryContext:
         return FoundryRestClient(ctx=self)
 
     @cached_property
-    def public_client_v2(self) -> FoundryClient:
+    def public_client_v2(self) -> FoundrySdkV2Client:
         """Returns :py:class:`foundry_sdk.v2.FoundryClient`.
 
         Uses fdt context to integrate with the official foundry-platform-sdk.
@@ -206,6 +201,7 @@ class FoundryContext:
             >>> pa_df = pa.ipc.open_stream(ds).read_all()
             >>> polars_df = pl.from_arrow(pa_df)
         """
+        from foundry_dev_tools._optional.foundry_platform_sdk import foundry_sdk
         from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth
 
         return foundry_sdk.v2.FoundryClient(

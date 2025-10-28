@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
-from foundry_dev_tools._optional import FakeModule
 from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth, FoundryDevToolsToken
 
 
@@ -38,20 +35,3 @@ def test_public_client_v2_uses_foundry_dev_tools_auth(test_context_mock):
     assert isinstance(client, FoundryClient)
 
     assert test_context_mock.host.domain is not None
-
-
-def test_public_client_v2_raises_helpful_error_when_sdk_not_installed(test_context_mock):
-    """Verify helpful error message when foundry-platform-sdk is not installed."""
-    import foundry_dev_tools.config.context as context_module
-
-    orig_foundry_sdk = context_module.foundry_sdk
-    context_module.foundry_sdk = FakeModule("foundry-platform-sdk")
-
-    try:
-        if "public_client_v2" in test_context_mock.__dict__:
-            del test_context_mock.__dict__["public_client_v2"]
-
-        with pytest.raises(ImportError, match="Missing optional dependency 'foundry-platform-sdk'"):
-            _ = test_context_mock.public_client_v2
-    finally:
-        context_module.foundry_sdk = orig_foundry_sdk

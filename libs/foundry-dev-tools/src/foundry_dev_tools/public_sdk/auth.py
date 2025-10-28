@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeVar
-
-from foundry_sdk import Auth
-from foundry_sdk._core.auth_utils import Token
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from foundry_sdk import Auth
+
     from foundry_dev_tools.config.context import FoundryContext
+else:
+    from foundry_dev_tools._optional.foundry_platform_sdk import foundry_sdk
+
+    Auth = foundry_sdk.Auth
+
+
+class Token(ABC):
+    """Reimplementation of the private foundry_sdk Token interface."""
+
+    @property
+    @abstractmethod
+    def access_token(self) -> str:  # noqa: D102
+        pass
 
 
 T = TypeVar("T")
