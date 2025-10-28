@@ -193,8 +193,8 @@ class FoundryContext:
         Uses fdt context to integrate with the official foundry-platform-sdk.
 
         Examples:
-            >>> from foundry_dev_tools._optional.polars import pl
-            >>> from foundry_dev_tools._optional.pyarrow import pa
+            >>> import polars as pl
+            >>> import pyarrow as pa
 
             >>> pub_client = ctx.public_client_v2
             >>> ds = pub_client.datasets.Dataset.read_table(rid, format="ARROW")
