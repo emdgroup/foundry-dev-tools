@@ -452,6 +452,7 @@ class FoundrySqlServerClientV2(APIClient):
         """
         if response_json.get("type") != "success":
             msg = f"Expected success response, got: {response_json.get('type')}"
+
             raise ValueError(msg)
 
         chunks = response_json["success"]["result"]["interactive"]["chunks"]
@@ -470,6 +471,7 @@ class FoundrySqlServerClientV2(APIClient):
         from foundry_dev_tools._optional.pyarrow import pa
 
         response = self._api_stream_ticket(tickets)
+        response.raw.decode_content = True
 
         return pa.ipc.RecordBatchStreamReader(response.raw)
 
