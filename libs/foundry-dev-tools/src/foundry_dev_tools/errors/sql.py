@@ -20,6 +20,12 @@ class FoundrySqlQueryFailedError(FoundryAPIError):
         super().__init__(response=response, info=self.error_message)
 
 
+class FurnaceSqlSqlParseError(FoundryAPIError):
+    """Exception is thrown when SQL Query is not valid."""
+
+    message = "Foundry SQL Query Parsing Failed."
+
+
 class FoundrySqlQueryClientTimedOutError(FoundryAPIError):
     """Exception is thrown when the Query execution time exceeded the client timeout value."""
 
