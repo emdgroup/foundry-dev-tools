@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
-from foundry_dev_tools.clients.api_client import PublicAPIClient, APIClient
+from foundry_dev_tools.clients.api_client import APIClient
 
 if TYPE_CHECKING:
     import requests
 
-    from foundry_dev_tools.utils import api_types
+    from foundry_dev_tools.utils.api_types import (
+        CheckRid,
+        DatasetRid,
+    )
 
 
 class DataHealthClient(APIClient):
@@ -19,7 +22,7 @@ class DataHealthClient(APIClient):
 
     def api_get_checks_for_dataset(
         self,
-        datasetRid: datasetRid,
+        dataset_rid: DatasetRid,
         branch: str = "master",
         **kwargs,
     ) -> requests.Response:
@@ -32,29 +35,25 @@ class DataHealthClient(APIClient):
         """
         return self.api_request(
             "GET",
-            api_path=f"checks/v2/{datasetRid}/{branch}",
+            api_path=f"checks/v2/{dataset_rid}/{branch}",
             **kwargs,
         )
-    
+
     def api_get_latest_checks_history(
-        self,
-        checkRids: List[CheckRid] | CheckRid,
-        limit: int | None = None,
-        **kwargs
+        self, check_rids: list[CheckRid] | CheckRid, limit: int | None = None, **kwargs
     ) -> requests.Response:
-        """Returns complete CheckRun metadata for the last `limit` number of check runs
-        for the given list of Check RIDs.
+        """Returns CheckRun metadata for the last `limit` number of check runs for the given list of Check RIDs.
 
         Args:
-            checkRids: a list of CheckRIDs or a single string value.
+            check_rids: a list of CheckRIDs or a single string value.
             limit: number of last check runs to go for for each Check RID. Defaults to 5.
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
-        checkRids = checkRids if isinstance(checkRids, list) else [checkRids]
+        check_rids = check_rids if isinstance(check_rids, list) else [check_rids]
         limit = limit if limit else 5
         return self.api_request(
             "POST",
             api_path=f"checks/reports/v2/latest?limit={limit}",
-            json=checkRids,
+            json=check_rids,
             **kwargs,
         )
