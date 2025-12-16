@@ -59,6 +59,9 @@ RoleId = str
 FolderRid = str
 """A compass folder resource identifier."""
 
+CheckRid = str
+"""A foundry data check resource identifier."""
+
 JobSpecRid = str
 """A jobspec resource identifier."""
 

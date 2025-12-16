@@ -13,6 +13,7 @@ from foundry_dev_tools.clients import (
     catalog,
     compass,
     context_client,
+    data_health,
     data_proxy,
     foundry_sql_server,
     foundry_stats,
@@ -125,6 +126,11 @@ class FoundryContext:
     def metadata(self) -> metadata.MetadataClient:
         """Returns :py:class:`foundry_dev_tools.clients.metadata.MetadataClient`."""
         return metadata.MetadataClient(self)
+
+    @cached_property
+    def data_health(self) -> data_health.DataHealthClient:
+        """Returns :py:class:`foundry_dev_tools.clients.data_health.DataHealthClient`."""
+        return data_health.DataHealthClient(self)
 
     @cached_property
     def data_proxy(self) -> data_proxy.DataProxyClient:
