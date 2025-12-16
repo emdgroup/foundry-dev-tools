@@ -40,7 +40,7 @@ class DataHealthClient(APIClient):
         )
 
     def api_get_latest_checks_history(
-        self, check_rids: list[CheckRid] | CheckRid, limit: int | None = None, **kwargs
+        self, check_rids: list[CheckRid] | CheckRid, limit: int = 5, **kwargs
     ) -> requests.Response:
         """Returns CheckRun metadata for the last `limit` number of check runs for the given list of Check RIDs.
 
@@ -50,10 +50,11 @@ class DataHealthClient(APIClient):
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
         check_rids = check_rids if isinstance(check_rids, list) else [check_rids]
-        limit = limit if limit else 5
+        params = {"limit": limit}
         return self.api_request(
             "POST",
-            api_path=f"checks/reports/v2/latest?limit={limit}",
+            api_path="checks/reports/v2/latest",
             json=check_rids,
+            params=params,
             **kwargs,
         )
