@@ -1001,7 +1001,7 @@ class FoundryRestClient:
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
-    ) -> pd.core.frame.DataFrame: ...
+    ) -> pd.DataFrame: ...
 
     @overload
     def query_foundry_sql(
@@ -1051,7 +1051,7 @@ class FoundryRestClient:
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql(
         self,
@@ -1060,7 +1060,7 @@ class FoundryRestClient:
         branch: api_types.Ref = "master",
         sql_dialect: api_types.SqlDialect = "SPARK",
         timeout: int = 600,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server with spark SQL dialect.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
