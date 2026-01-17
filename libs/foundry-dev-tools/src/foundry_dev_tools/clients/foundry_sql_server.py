@@ -124,6 +124,8 @@ class FoundrySqlServerClient(APIClient):
             ValueError: Only direct read eligible queries can be returned as arrow Table.
 
         """  # noqa: E501
+        assert_in_literal(return_type, SQLReturnType, "return_type")
+
         if return_type == "raw":
             warnings.warn("Falling back to query_foundry_sql_legacy!")
             return self.context.data_proxy.query_foundry_sql_legacy(
@@ -176,7 +178,6 @@ class FoundrySqlServerClient(APIClient):
                 return pl.from_arrow(arrow_table)
             if return_type == "arrow":
                 return arrow_stream_reader.read_all()
-            raise ValueError(f"Unsupported return_type: {return_type}")  # noqa: EM102, TRY003
         except (
             FoundrySqlSerializationFormatNotImplementedError,
             ImportError,
