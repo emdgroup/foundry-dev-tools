@@ -929,16 +929,6 @@ class FoundryRestClient:
     def query_foundry_sql_legacy(
         self,
         query: str,
-        return_type: Literal["polars"],
-        branch: api_types.Ref = ...,
-        sql_dialect: api_types.SqlDialect = ...,
-        timeout: int = ...,
-    ) -> pl.DataFrame: ...
-
-    @overload
-    def query_foundry_sql_legacy(
-        self,
-        query: str,
         return_type: Literal["raw"],
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
@@ -953,7 +943,7 @@ class FoundryRestClient:
         branch: api_types.Ref = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql_legacy(
         self,
@@ -962,7 +952,7 @@ class FoundryRestClient:
         branch: api_types.Ref = "master",
         sql_dialect: api_types.SqlDialect = "SPARK",
         timeout: int = 600,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the dataproxy query API with spark SQL.
 
         Example:

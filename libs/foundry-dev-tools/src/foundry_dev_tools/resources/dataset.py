@@ -697,7 +697,7 @@ class Dataset(resource.Resource):
         return_type: Literal["pandas"],
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
-    ) -> pd.core.frame.DataFrame: ...
+    ) -> pd.DataFrame: ...
 
     @overload
     def query_foundry_sql(
@@ -797,12 +797,6 @@ class Dataset(resource.Resource):
 
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
-        from foundry_dev_tools._optional.polars import pl
-
-        if getattr(pl, "__fake__", False):
-            msg = "The optional 'polars' package is not installed. Please install it to use the 'to_polars' method"
-            raise ImportError(msg)
-
         return self.query_foundry_sql("SELECT *", return_type="polars")
 
     @contextmanager
