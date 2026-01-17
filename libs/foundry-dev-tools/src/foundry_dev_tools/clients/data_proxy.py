@@ -111,7 +111,7 @@ class DataProxyClient(APIClient):
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
-    ) -> pd.DataFrame: ...
+    ) -> pd.core.frame.DataFrame: ...
 
     @overload
     def query_foundry_sql_legacy(
@@ -151,7 +151,7 @@ class DataProxyClient(APIClient):
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql_legacy(
         self,
@@ -160,7 +160,7 @@ class DataProxyClient(APIClient):
         branch: Ref = "master",
         sql_dialect: SqlDialect = "SPARK",
         timeout: int = 600,
-    ) -> tuple[dict, list[list]] | pd.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -220,7 +220,6 @@ class DataProxyClient(APIClient):
                 data=response_json["rows"],
                 names=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
-
         if return_type == "spark":
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
