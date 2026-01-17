@@ -95,10 +95,11 @@ GroupId = str
 SqlDialect = Literal["ANSI", "SPARK"]
 """The SQL Dialect for Foundry SQL queries."""
 
-SQLReturnType = Literal["pandas", "spark", "arrow", "raw"]
+SQLReturnType = Literal["pandas", "polars", "spark", "arrow", "raw"]
 """The return_types for sql queries.
 
 pandas: :external+pandas:py:class:`pandas.DataFrame`
+polars: :external+polars:py:class:`polars.DataFrame`
 arrow: :external+pyarrow:py:class:`pyarrow.Table`
 spark: :external+spark:py:class:`~pyspark.sql.DataFrame`
 raw: Tuple of (foundry_schema, data) (can only be used in legacy)

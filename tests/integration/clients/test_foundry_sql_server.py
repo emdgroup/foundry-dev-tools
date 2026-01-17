@@ -1,3 +1,4 @@
+import polars as pl
 import pytest
 
 from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetHasNoSchemaError, DatasetNotFoundError
@@ -10,6 +11,16 @@ def test_smoke():
         f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1",
     )
     assert one_row_one_column.shape == (1, 1)
+
+
+def test_polars_return_type():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 2",
+        return_type="polars",
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
 
 
 def test_exceptions():

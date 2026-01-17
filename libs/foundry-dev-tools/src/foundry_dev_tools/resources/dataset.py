@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
     import pandas.core.frame
-    import polars.dataframe.frame
+    import polars as pl
     import pyarrow as pa
     import pyspark.sql
 
@@ -539,7 +539,7 @@ class Dataset(resource.Resource):
 
     def save_dataframe(
         self,
-        df: pandas.core.frame.DataFrame | polars.dataframe.frame.DataFrame | pyspark.sql.DataFrame,
+        df: pandas.core.frame.DataFrame | pl.DataFrame | pyspark.sql.DataFrame,
         transaction_type: api_types.FoundryTransaction = "SNAPSHOT",
         foundry_schema: api_types.FoundrySchema | None = None,
     ) -> Self:
@@ -721,6 +721,15 @@ class Dataset(resource.Resource):
     def query_foundry_sql(
         self,
         query: str,
+        return_type: Literal["polars"],
+        sql_dialect: api_types.SqlDialect = ...,
+        timeout: int = ...,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
         return_type: Literal["raw"],
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
@@ -733,7 +742,7 @@ class Dataset(resource.Resource):
         return_type: api_types.SQLReturnType = ...,
         sql_dialect: api_types.SqlDialect = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql(
         self,
@@ -741,7 +750,7 @@ class Dataset(resource.Resource):
         return_type: api_types.SQLReturnType = "pandas",
         sql_dialect: api_types.SqlDialect = "SPARK",
         timeout: int = 600,
-    ) -> tuple[dict, list[list]] | pd.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Wrapper around :py:meth:`foundry_dev_tools.clients.foundry_sql_server.FoundrySqlServerClient.query_foundry_sql`.
 
         But it automatically prepends the dataset location, so instead of:
@@ -783,17 +792,18 @@ class Dataset(resource.Resource):
         """
         return self.query_foundry_sql("SELECT *", return_type="pandas")
 
-    def to_polars(self) -> polars.dataframe.frame.DataFrame:
+    def to_polars(self) -> pl.DataFrame:
         """Get dataset as a :py:class:`polars.DataFrame`.
 
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
-        try:
-            import polars as pl
-        except ImportError as e:
+        from foundry_dev_tools._optional.polars import pl
+
+        if getattr(pl, "__fake__", False):
             msg = "The optional 'polars' package is not installed. Please install it to use the 'to_polars' method"
-            raise ImportError(msg) from e
-        return pl.from_arrow(self.to_arrow())
+            raise ImportError(msg)
+
+        return self.query_foundry_sql("SELECT *", return_type="polars")
 
     @contextmanager
     def transaction_context(

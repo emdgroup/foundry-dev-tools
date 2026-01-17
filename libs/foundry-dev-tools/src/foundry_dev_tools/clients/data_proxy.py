@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pandas as pd
+    import polars as pl
     import pyarrow as pa
     import pyspark
     import requests
@@ -111,7 +112,7 @@ class DataProxyClient(APIClient):
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
-    ) -> pd.core.frame.DataFrame: ...
+    ) -> pd.DataFrame: ...
 
     @overload
     def query_foundry_sql_legacy(
@@ -137,6 +138,16 @@ class DataProxyClient(APIClient):
     def query_foundry_sql_legacy(
         self,
         query: str,
+        return_type: Literal["polars"],
+        branch: Ref = ...,
+        sql_dialect: SqlDialect = ...,
+        timeout: int = ...,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def query_foundry_sql_legacy(
+        self,
+        query: str,
         return_type: Literal["raw"],
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
@@ -151,7 +162,7 @@ class DataProxyClient(APIClient):
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql_legacy(
         self,
@@ -160,7 +171,7 @@ class DataProxyClient(APIClient):
         branch: Ref = "master",
         sql_dialect: SqlDialect = "SPARK",
         timeout: int = 600,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -213,13 +224,23 @@ class DataProxyClient(APIClient):
                 data=response_json["rows"],
                 columns=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
-        if return_type == "arrow":
+        if return_type in {"arrow", "polars"}:
             from foundry_dev_tools._optional.pyarrow import pa
 
-            return pa.table(
+            arrow_table = pa.table(
                 data=response_json["rows"],
                 names=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
+            if return_type == "arrow":
+                return arrow_table
+
+            from foundry_dev_tools._optional.polars import pl
+
+            if getattr(pl, "__fake__", False):
+                msg = "The optional 'polars' package is not installed. Please install it to request polars results."
+                raise ImportError(msg)
+
+            return pl.from_arrow(arrow_table)
         if return_type == "spark":
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,

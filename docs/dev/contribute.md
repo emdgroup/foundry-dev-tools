@@ -19,9 +19,11 @@ cd foundry-dev-tools
 ````{tab} Conda/Mamba
 First create an environment specifically for foundry-dev-tools with pdm and activate it
 ```shell
-mamba create -n foundry-dev-tools pdm openjdk===17
+mamba create -n foundry-dev-tools python=3.12 pdm openjdk=17
 mamba activate foundry-dev-tools
 ```
+Note that python>3.12 throws an error when running `pdm install`: `configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.12)`.
+
 ````
 ````{tab} Without Conda/Mamba
 If you don't want to use conda or mamba, you'll need to install pdm through other means.
