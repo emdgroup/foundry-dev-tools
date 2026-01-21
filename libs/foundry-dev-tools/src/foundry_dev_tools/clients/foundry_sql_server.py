@@ -124,73 +124,74 @@ class FoundrySqlServerClient(APIClient):
             ValueError: Only direct read eligible queries can be returned as arrow Table.
 
         """  # noqa: E501
-        assert_in_literal(return_type, SQLReturnType, "return_type")
-
-        if return_type == "raw":
-            warnings.warn("Falling back to query_foundry_sql_legacy!")
-            return self.context.data_proxy.query_foundry_sql_legacy(
-                query=query,
-                return_type=return_type,
-                branch=branch,
-                sql_dialect=sql_dialect,
-                timeout=timeout,
-            )
-
-        try:
-            response_json = self.api_queries_execute(
-                query,
-                branch=branch,
-                dialect=sql_dialect,
-                timeout=timeout,
-            ).json()
-            query_id = response_json["queryId"]
-            status = response_json["status"]
-
-            if status != {"ready": {}, "type": "ready"}:
-                start_time = time.time()
+        if return_type != "raw":
+            try:
+                response_json = self.api_queries_execute(
+                    query,
+                    branch=branch,
+                    dialect=sql_dialect,
+                    timeout=timeout,
+                ).json()
                 query_id = response_json["queryId"]
-                while response_json["status"]["type"] == "running":
-                    response = self.api_queries_status(query_id)
-                    response_json = response.json()
-                    if response_json["status"]["type"] == "failed":
-                        raise FoundrySqlQueryFailedError(response)
-                    if time.time() > start_time + timeout:
-                        raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
-                    time.sleep(0.2)
+                status = response_json["status"]
 
-            arrow_stream_reader = self.read_fsql_query_results_arrow(query_id=query_id)
-            if return_type == "pandas":
-                return arrow_stream_reader.read_pandas()
-            if return_type == "spark":
-                from foundry_dev_tools.utils.converter.foundry_spark import (
-                    arrow_stream_to_spark_dataframe,
-                )
+                if status != {"ready": {}, "type": "ready"}:
+                    start_time = time.time()
+                    query_id = response_json["queryId"]
+                    while response_json["status"]["type"] == "running":
+                        response = self.api_queries_status(query_id)
+                        response_json = response.json()
+                        if response_json["status"]["type"] == "failed":
+                            raise FoundrySqlQueryFailedError(response)
+                        if time.time() > start_time + timeout:
+                            raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
+                        time.sleep(0.2)
 
-                return arrow_stream_to_spark_dataframe(arrow_stream_reader)
-            if return_type == "polars":
-                from foundry_dev_tools._optional.polars import pl
+                arrow_stream_reader = self.read_fsql_query_results_arrow(query_id=query_id)
+                if return_type == "pandas":
+                    return arrow_stream_reader.read_pandas()
+                if return_type == "polars":
+                    # The FakeModule implementation used in the _optional packages
+                    # throws an ImportError when trying to access attributes of the module.
+                    # This ImportError is caught below to fall back to query_foundry_sql_legacy
+                    # which will again raise an ImportError when polars is not installed.
+                    from foundry_dev_tools._optional.polars import pl
 
-                if getattr(pl, "__fake__", False):
-                    msg = "The optional 'polars' package is not installed. Please install it to request polars results."
-                    raise ImportError(msg)  # noqa: TRY301
+                    arrow_table = arrow_stream_reader.read_all()
+                    return pl.from_arrow(arrow_table)
 
-                arrow_table = arrow_stream_reader.read_all()
-                return pl.from_arrow(arrow_table)
-            if return_type == "arrow":
+                if return_type == "spark":
+                    from foundry_dev_tools.utils.converter.foundry_spark import (
+                        arrow_stream_to_spark_dataframe,
+                    )
+
+                    return arrow_stream_to_spark_dataframe(arrow_stream_reader)
                 return arrow_stream_reader.read_all()
-        except (
-            FoundrySqlSerializationFormatNotImplementedError,
-            ImportError,
-        ) as exc:
-            if return_type == "arrow":
-                msg = (
-                    "Only direct read eligible queries can be returned as arrow Table. Consider using setting"
-                    " return_type to 'pandas'."
-                )
-                raise ValueError(
-                    msg,
-                ) from exc
-            raise
+            except (
+                FoundrySqlSerializationFormatNotImplementedError,
+                ImportError,
+            ) as exc:
+                # Swallow exception when return_type != 'arrow'
+                # to fall back to query_foundry_sql_legacy
+                if return_type == "arrow":
+                    msg = (
+                        "Only direct read eligible queries can be returned as arrow Table. Consider using setting"
+                        " return_type to 'pandas'."
+                    )
+                    raise ValueError(
+                        msg,
+                    ) from exc
+
+        # this fallback is not only used if return_type is 'raw', but also when one of
+        # the above exceptions is caught and return_type != 'arrow'
+        warnings.warn("Falling back to query_foundry_sql_legacy!")
+        return self.context.data_proxy.query_foundry_sql_legacy(
+            query=query,
+            return_type=return_type,
+            branch=branch,
+            sql_dialect=sql_dialect,
+            timeout=timeout,
+        )
 
     def read_fsql_query_results_arrow(self, query_id: str) -> pa.ipc.RecordBatchStreamReader:
         """Create a bytes io reader if query returned arrow."""
