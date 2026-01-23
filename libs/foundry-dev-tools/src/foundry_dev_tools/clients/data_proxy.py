@@ -217,7 +217,7 @@ class DataProxyClient(APIClient):
         response_json = response.json()
         if return_type == "raw":
             return response_json["foundrySchema"], response_json["rows"]
-        # return_type arrows, pandas and polars use the FakeModule implementation in
+        # return_type arrow, pandas and polars use the FakeModule implementation in
         # their _optional packages. The FakeModule throws an ImportError when trying
         # to access attributes of the module, so no need to explicitly catch ImportError.
         if return_type == "pandas":
