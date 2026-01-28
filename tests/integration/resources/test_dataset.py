@@ -97,6 +97,10 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
     ds_polars_branch = TEST_SINGLETON.ctx.get_dataset(ds.rid, branch="polars")
     ds_polars_branch.save_dataframe(polars_df)
     pl_assert_frame_equal(polars_df, ds_polars_branch.to_polars())
+    pl_assert_frame_equal(
+        polars_df,
+        ds_polars_branch.query_foundry_sql("SELECT *", return_type="polars"),
+    )
 
     ds_spark_branch = TEST_SINGLETON.ctx.get_dataset(ds.rid, branch="spark")
     ds_spark_branch.save_dataframe(spark_df)

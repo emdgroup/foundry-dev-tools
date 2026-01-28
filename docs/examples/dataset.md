@@ -260,9 +260,7 @@ import polars as pl
 
 ctx = FoundryContext()
 ds = ctx.get_dataset_by_path("/path/to/test_dataset")
-arrow_table = ds.query_foundry_sql("SELECT *",return_type="arrow")
-
-df = pl.from_arrow(arrow_table)
+df = ds.query_foundry_sql("SELECT *", return_type="polars")
 print(df)
 ```
 ````

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pandas as pd
+    import polars as pl
     import pyarrow as pa
     import pyspark
     import requests
@@ -111,7 +112,17 @@ class DataProxyClient(APIClient):
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
-    ) -> pd.core.frame.DataFrame: ...
+    ) -> pd.DataFrame: ...
+
+    @overload
+    def query_foundry_sql_legacy(
+        self,
+        query: str,
+        return_type: Literal["polars"],
+        branch: Ref = ...,
+        sql_dialect: SqlDialect = ...,
+        timeout: int = ...,
+    ) -> pl.DataFrame: ...
 
     @overload
     def query_foundry_sql_legacy(
@@ -151,7 +162,7 @@ class DataProxyClient(APIClient):
         branch: Ref = ...,
         sql_dialect: SqlDialect = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql_legacy(
         self,
@@ -160,7 +171,7 @@ class DataProxyClient(APIClient):
         branch: Ref = "master",
         sql_dialect: SqlDialect = "SPARK",
         timeout: int = 600,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the dataproxy query API with spark SQL.
 
         Example:
@@ -206,6 +217,9 @@ class DataProxyClient(APIClient):
         response_json = response.json()
         if return_type == "raw":
             return response_json["foundrySchema"], response_json["rows"]
+        # return_type arrow, pandas and polars use the FakeModule implementation in
+        # their _optional packages. The FakeModule throws an ImportError when trying
+        # to access attributes of the module, so no need to explicitly catch ImportError.
         if return_type == "pandas":
             from foundry_dev_tools._optional.pandas import pd
 
@@ -213,13 +227,19 @@ class DataProxyClient(APIClient):
                 data=response_json["rows"],
                 columns=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
-        if return_type == "arrow":
+        if return_type in {"arrow", "polars"}:
             from foundry_dev_tools._optional.pyarrow import pa
 
-            return pa.table(
+            table = pa.table(
                 data=response_json["rows"],
                 names=[e["name"] for e in response_json["foundrySchema"]["fieldSchemaList"]],
             )
+            if return_type == "arrow":
+                return table
+
+            from foundry_dev_tools._optional.polars import pl
+
+            return pl.from_arrow(table)
         if return_type == "spark":
             from foundry_dev_tools.utils.converter.foundry_spark import (
                 foundry_schema_to_spark_schema,
