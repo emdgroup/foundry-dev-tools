@@ -120,7 +120,7 @@ html_theme = "sphinx_book_theme"
 html_theme_options = {
     "show_navbar_depth": 2,
     "show_toc_level": 4,
-    "announcement":"Note: This is the documentation for Foundry DevTools v2",
+    "announcement":"Foundry DevTools Documentation",
 }
 
 # The name for this set of Sphinx documents.  If None, it defaults to

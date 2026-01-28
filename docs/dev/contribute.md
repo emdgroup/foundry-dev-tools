@@ -39,9 +39,19 @@ Then install foundry-dev-tools and the dev dependencies via:
 pdm install
 ```
 
-
 This command will link the local version of this package into your pip package folder.
 Every change you make in the code is instantly applied.
+
+## Testing a Remote Branch
+
+To test a branch from a remote repository (e.g., from a fork or pull request) without cloning it locally, you can use `uv run`:
+
+```shell
+# Test with a specific branch from a GitHub repository
+uv run --no-project \
+  --with 'git+https://github.com/emdgroup/foundry-dev-tools.git@main#subdirectory=libs/foundry-dev-tools' \
+  python -c "from foundry_dev_tools import __version__; print(__version__)"
+```
 
 ## Pre-Commit hooks & formatting
 

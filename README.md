@@ -28,11 +28,12 @@ Seamlessly run your Palantir Foundry Repository transforms code and more on your
 Foundry DevTools is a set of useful libraries to interact with the Foundry APIs. 
 It consists of two parts:
 
-- The [transforms](https://www.palantir.com/docs/foundry/transforms-python/transforms-python-api/) implementation
+- ~~The~~ [~~transforms~~](https://www.palantir.com/docs/foundry/api-reference/transforms-python-library) ~~implementation~~
 
-  - An implementation of the Foundry `transforms` package that internally uses the `CachedFoundryClient`.
+  - ~~An implementation of the Foundry `transforms` package that internally uses the `CachedFoundryClient`.
     This allows you to seamlessly run your Palantir Foundry Code Repository transforms code on your local machine.
-    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/dev/architecture.html#known-limitations-contributions-welcome).
+    Foundry DevTools does not cover all of Foundry's features, more on this [here](https://emdgroup.github.io/foundry-dev-tools/dev/architecture.html#known-limitations-contributions-welcome).~~
+  - The [Palantir extension for Visual Studio Code](https://www.palantir.com/docs/foundry/palantir-extension-for-visual-studio-code/overview/) has achieved the goals of the transforms implementation and should be used instead. The transforms implementation in foundry-dev-tools is no longer maintained.
 
 - API clients
 
@@ -78,7 +79,7 @@ conda install -c conda-forge foundry-dev-tools
 
 # License
 
-Copyright (c) 2024 Merck KGaA, Darmstadt, Germany
+Copyright (c) 2026 Merck KGaA, Darmstadt, Germany
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
