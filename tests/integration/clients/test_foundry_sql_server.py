@@ -176,3 +176,13 @@ def test_v2_with_where_clause():
     # Verify all returned rows have is_setosa = 'setosa'
     if result.shape[0] > 0:
         assert all(result["is_setosa"] == "setosa")
+
+
+def test_v2_polars_return_type():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 2",
+        return_type="polars",
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
