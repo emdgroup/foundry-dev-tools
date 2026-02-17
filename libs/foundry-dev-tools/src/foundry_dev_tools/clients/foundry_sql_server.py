@@ -326,6 +326,16 @@ class FoundrySqlServerClientV2(APIClient):
     def query_foundry_sql(
         self,
         query: str,
+        return_type: Literal["polars"],
+        branch: Ref = ...,
+        sql_dialect: SqlDialect = ...,
+        timeout: int = ...,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
         application_id: str,
         return_type: Literal["spark"],
         disable_arrow_compression: bool = ...,
@@ -350,7 +360,7 @@ class FoundrySqlServerClientV2(APIClient):
         return_type: SQLReturnType = ...,
         disable_arrow_compression: bool = ...,
         timeout: int = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql(
         self,
@@ -358,7 +368,7 @@ class FoundrySqlServerClientV2(APIClient):
         return_type: SQLReturnType = "pandas",
         disable_arrow_compression: bool = False,
         application_id: str | None = None,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server using the V2 API.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
@@ -376,9 +386,9 @@ class FoundrySqlServerClientV2(APIClient):
             application_id: The application/dataset RID, defaults to foundry-dev-tools User-Agent
 
         Returns:
-            :external+pandas:py:class:`~pandas.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`:
+            :external+pandas:py:class:`~pandas.DataFrame` | :external+polars:py:class:`~polars.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`:
 
-            A pandas DataFrame, Spark DataFrame or pyarrow.Table with the result.
+            A pandas DataFrame, polars, Spark DataFrame or pyarrow.Table with the result.
 
         Raises:
             FoundrySqlQueryFailedError: If the query fails
@@ -413,6 +423,16 @@ class FoundrySqlServerClientV2(APIClient):
 
         if return_type == "pandas":
             return arrow_stream_reader.read_pandas()
+
+        if return_type == "polars":
+            # The FakeModule implementation used in the _optional packages
+            # throws an ImportError when trying to access attributes of the module.
+            # This ImportError is caught below to fall back to query_foundry_sql_legacy
+            # which will again raise an ImportError when polars is not installed.
+            from foundry_dev_tools._optional.polars import pl
+
+            arrow_table = arrow_stream_reader.read_all()
+            return pl.from_arrow(arrow_table)
 
         if return_type == "spark":
             from foundry_dev_tools.utils.converter.foundry_spark import (
