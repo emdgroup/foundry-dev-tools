@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import warnings
 from typing import TYPE_CHECKING, Any, Literal, overload
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     import pyarrow as pa
     import pyspark
     import requests
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FoundrySqlServerClient(APIClient):
@@ -433,12 +436,10 @@ class FoundrySqlServerClientV2(APIClient):
             Query identifier dict
 
         """
-        if response_json.get("type") == "pending":
-            return response_json["pending"]["query"]
-        if response_json.get("type") == "success":
-            return response_json["success"]["query"]
-        msg = f"Unexpected response type: {response_json.get('type')}"
-        raise ValueError(msg)
+        if response_json["type"] == "triggered" and "plan" in response_json["triggered"]:
+            plan = response_json["triggered"]["plan"]
+            LOGGER.debug("plan %s", plan)
+        return response_json[response_json["type"]]["query"]
 
     def _extract_tickets(self, response_json: dict[str, Any]) -> list[str]:
         """Extract tickets from success response.
