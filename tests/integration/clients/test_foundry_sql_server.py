@@ -80,13 +80,11 @@ def test_v2_smoke():
     """Test basic V2 client functionality with a simple query."""
     one_row_one_column = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
         query=f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1",
-        application_id=TEST_SINGLETON.iris_new.rid,
     )
     assert one_row_one_column.shape == (1, 1)
 
     one_row_one_column = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
         query=f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1",
-        application_id=TEST_SINGLETON.iris_new.rid,
         return_type="arrow",
     )
     assert one_row_one_column.num_columns == 1
@@ -98,7 +96,6 @@ def test_v2_multiple_rows():
     """Test V2 client with multiple rows."""
     result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
         query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
-        application_id=TEST_SINGLETON.iris_new.rid,
     )
     assert result.shape[0] == 10
     assert result.shape[1] == 5  # iris dataset has 5 columns
@@ -110,7 +107,6 @@ def test_v2_return_type_arrow():
 
     result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
         query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 5",
-        application_id=TEST_SINGLETON.iris_new.rid,
         return_type="arrow",
     )
     assert isinstance(result, pa.Table)
@@ -122,7 +118,6 @@ def test_v2_return_type_raw_not_supported():
     with pytest.raises(ValueError, match="The following return_type is not supported: .+"):
         schema, rows = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
             query=f"SELECT sepal_width, sepal_length FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 3",
-            application_id=TEST_SINGLETON.iris_new.rid,
             return_type="raw",
         )
 
@@ -136,7 +131,6 @@ def test_v2_aggregation_query():
             AVG(sepal_width) as avg_sepal_width
         FROM `{TEST_SINGLETON.iris_new.rid}`
         """,
-        application_id=TEST_SINGLETON.iris_new.rid,
     )
     assert result.shape == (1, 2)
     assert "total_count" in result.columns
@@ -148,7 +142,6 @@ def test_v2_query_failed():
     with pytest.raises(FurnaceSqlSqlParseError):
         TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
             query=f"SELECT foo, bar, FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 100",
-            application_id=TEST_SINGLETON.iris_new.rid,
         )
 
 
@@ -156,8 +149,6 @@ def test_v2_disable_arrow_compression():
     """Test V2 client with arrow compression disabled."""
     result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
         query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 5",
-        application_id=TEST_SINGLETON.iris_new.rid,
-        disable_arrow_compression=True,
     )
     assert result.shape[0] == 5
 
@@ -170,7 +161,6 @@ def test_v2_with_where_clause():
         WHERE is_setosa = 'setosa'
         LIMIT 20
         """,
-        application_id=TEST_SINGLETON.iris_new.rid,
     )
     assert result.shape[0] <= 20
     # Verify all returned rows have is_setosa = 'setosa'

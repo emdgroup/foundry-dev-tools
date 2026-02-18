@@ -95,6 +95,9 @@ GroupId = str
 SqlDialect = Literal["ANSI", "SPARK"]
 """The SQL Dialect for Foundry SQL queries."""
 
+ArrowCompressionCodec = Literal["NONE", "LZ4", "ZSTD"]
+"""The Arrow compression codec for Foundry SQL queries."""
+
 SQLReturnType = Literal["pandas", "polars", "spark", "arrow", "raw"]
 """The return_types for sql queries.
 

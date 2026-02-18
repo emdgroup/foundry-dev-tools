@@ -58,6 +58,7 @@ DEFAULT_ERROR_MAPPING: dict[str | None, type[FoundryAPIError]] = {
     "DataProxy:FallbackBranchesNotSpecifiedInQuery": BranchNotFoundError,
     "DataProxy:BadSqlQuery": FoundrySqlQueryFailedError,
     "FurnaceSql:SqlParseError": FurnaceSqlSqlParseError,
+    "SqlQueryService:SqlSyntaxError": FurnaceSqlSqlParseError,
     "DataProxy:DatasetNotFound": DatasetNotFoundError,
     "Catalog:DuplicateDatasetName": DatasetAlreadyExistsError,
     "Catalog:DatasetsNotFound": DatasetNotFoundError,
