@@ -800,7 +800,7 @@ class Dataset(resource.Resource):
         """
         return self.query_foundry_sql("SELECT *", return_type="polars")
 
-    def to_lazy_polars(self) -> pl.LazyFrame:
+    def to_lazy_polars(self, transaction_rid: str | None = None) -> pl.LazyFrame:
         """Get dataset as a :py:class:`polars.LazyFrame`.
 
         Returns a lazy polars DataFrame that can be queried efficiently using
@@ -824,14 +824,17 @@ class Dataset(resource.Resource):
         """
         from foundry_dev_tools._optional.polars import pl
 
-        last_transaction = self.get_last_transaction()
-        if last_transaction is None:
-            msg = f"Dataset has no transactions: {self.rid=}"
-            raise DatasetHasNoTransactionsError(info=msg)
+        if transaction_rid is None:
+            maybe_transaction = self.get_last_transaction()
+            if maybe_transaction is None:
+                msg = f"Dataset has no transactions: {self.rid=}"
+                raise DatasetHasNoTransactionsError(info=msg)
+            transaction_rid = maybe_transaction["rid"]
 
         return pl.scan_parquet(
-            f"s3://{self.rid}.{last_transaction['rid']}/",
+            f"s3://{self.rid}.{transaction_rid}/**/*.parquet",
             storage_options=self._context.s3.get_polars_storage_options(),
+            hive_partitioning=True,
         )
 
     @contextmanager
