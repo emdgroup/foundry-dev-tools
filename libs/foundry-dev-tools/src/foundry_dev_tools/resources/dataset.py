@@ -810,7 +810,6 @@ class Dataset(resource.Resource):
         Example:
             >>> ds = ctx.get_dataset_by_path("/path/to/dataset")
             >>> lf = ds.to_lazy_polars()
-            >>> # Lazy operations - not executed yet
             >>> result = lf.filter(pl.col("age") > 25).select(["name", "age"])
             >>> # Execute and collect results
             >>> df = result.collect()
@@ -830,13 +829,9 @@ class Dataset(resource.Resource):
             msg = f"Dataset has no transactions: {self.path=} {self.rid=}"
             raise DatasetHasNoTransactionsError(msg)
 
-        bucket_path = f"s3://{self.rid}.{last_transaction['rid']}/"
-
-        storage_options = self._context.s3.get_polars_storage_options()
-
         return pl.scan_parquet(
-            bucket_path,
-            storage_options=storage_options,
+            f"s3://{self.rid}.{last_transaction['rid']}/",
+            storage_options=self._context.s3.get_polars_storage_options(),
         )
 
     @contextmanager
