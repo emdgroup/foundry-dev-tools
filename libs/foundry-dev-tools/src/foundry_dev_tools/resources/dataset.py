@@ -14,6 +14,7 @@ from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.dataset import (
     BranchNotFoundError,
     DatasetHasNoOpenTransactionError,
+    DatasetHasNoTransactionsError,
     DatasetNotFoundError,
     TransactionTypeMismatchError,
 )
@@ -798,6 +799,45 @@ class Dataset(resource.Resource):
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
         return self.query_foundry_sql("SELECT *", return_type="polars")
+
+    def to_lazy_polars(self) -> pl.LazyFrame:
+        """Get dataset as a :py:class:`polars.LazyFrame`.
+
+        Returns a lazy polars DataFrame that can be queried efficiently using
+        polars' lazy evaluation API. The data is accessed directly from S3
+        without going through FoundrySqlServer.
+
+        Example:
+            >>> ds = ctx.get_dataset_by_path("/path/to/dataset")
+            >>> lf = ds.to_lazy_polars()
+            >>> # Lazy operations - not executed yet
+            >>> result = lf.filter(pl.col("age") > 25).select(["name", "age"])
+            >>> # Execute and collect results
+            >>> df = result.collect()
+
+        Returns:
+            pl.LazyFrame: A lazy polars DataFrame
+
+        Note:
+            This method uses the S3 API to directly access dataset files.
+            For hive-partitioned datasets, polars will automatically read
+            the partition structure.
+        """
+        from foundry_dev_tools._optional.polars import pl
+
+        last_transaction = self.get_last_transaction()
+        if last_transaction is None:
+            msg = f"Dataset has no transactions: {self.path=} {self.rid=}"
+            raise DatasetHasNoTransactionsError(msg)
+
+        bucket_path = f"s3://{self.rid}.{last_transaction['rid']}/"
+
+        storage_options = self._context.s3.get_polars_storage_options()
+
+        return pl.scan_parquet(
+            bucket_path,
+            storage_options=storage_options,
+        )
 
     @contextmanager
     def transaction_context(

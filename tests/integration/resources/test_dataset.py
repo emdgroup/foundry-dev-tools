@@ -130,3 +130,25 @@ def test_crud_dataset(spark_session, tmp_path):  # noqa: PLR0915
     # # check that deletion was successful
     with pytest.raises(DatasetNotFoundError):
         ds.sync()
+
+
+def test_to_lazy_polars_parquet_dataset():
+    ds = TEST_SINGLETON.iris_parquet
+    lazy_df = ds.to_lazy_polars()
+
+    assert isinstance(lazy_df, pl.LazyFrame)
+
+    df = lazy_df.collect()
+    assert df.shape == (150, 5)
+    assert df.columns == ["sepal_width", "sepal_length", "petal_width", "petal_length", "is_setosa"]
+
+
+def test_to_lazy_polars_hive_partitioned():
+    ds = TEST_SINGLETON.iris_hive_partitioned
+    lazy_df = ds.to_lazy_polars()
+
+    assert isinstance(lazy_df, pl.LazyFrame)
+
+    df = lazy_df.collect()
+    assert df.shape == (150, 5)
+    assert df.columns == ["sepal_width", "sepal_length", "petal_width", "petal_length", "is_setosa"]
