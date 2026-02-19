@@ -826,8 +826,8 @@ class Dataset(resource.Resource):
 
         last_transaction = self.get_last_transaction()
         if last_transaction is None:
-            msg = f"Dataset has no transactions: {self.path=} {self.rid=}"
-            raise DatasetHasNoTransactionsError(msg)
+            msg = f"Dataset has no transactions: {self.rid=}"
+            raise DatasetHasNoTransactionsError(info=msg)
 
         return pl.scan_parquet(
             f"s3://{self.rid}.{last_transaction['rid']}/",
