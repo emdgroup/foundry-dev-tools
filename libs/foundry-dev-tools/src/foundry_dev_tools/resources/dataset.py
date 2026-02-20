@@ -262,11 +262,16 @@ class Dataset(resource.Resource):
             ).json()["values"]
         ]
 
-    def get_last_transaction(self) -> api_types.Transaction | None:
-        """Returns the last transaction or None if there are no transactions."""
+    def get_last_transaction(self, include_open_exclusive_transaction: bool = True) -> api_types.Transaction | None:
+        """Returns the last transaction or None if there are no transactions.
+
+        Args:
+            include_open_exclusive_transaction: If True, includes open transactions
+                in the results. If False, only returns committed transactions.
+        """
         v = self.get_transactions(
             page_size=1,
-            include_open_exclusive_transaction=True,
+            include_open_exclusive_transaction=include_open_exclusive_transaction,
         )
         if v is not None and len(v) > 0:
             return v[0]
@@ -830,9 +835,9 @@ class Dataset(resource.Resource):
         from foundry_dev_tools._optional.polars import pl
 
         if transaction_rid is None:
-            maybe_transaction = self.get_last_transaction()
+            maybe_transaction = self.get_last_transaction(include_open_exclusive_transaction=False)
             if maybe_transaction is None:
-                msg = f"Dataset has no transactions: {self.rid=}"
+                msg = f"Dataset has no committed transactions: {self.rid=}"
                 raise DatasetHasNoTransactionsError(info=msg)
             transaction_rid = maybe_transaction["rid"]
 
