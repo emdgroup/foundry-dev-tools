@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 import warnings
 from typing import TYPE_CHECKING, Any, Literal, overload
@@ -29,8 +28,6 @@ if TYPE_CHECKING:
     import pyarrow as pa
     import pyspark
     import requests
-
-LOGGER = logging.getLogger(__name__)
 
 
 class FoundrySqlServerClient(APIClient):
