@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.23] - 2026-02-20
+
+## Added
+- add to_lazy_polars() method to Dataset class for lazy Polars LazyFrame support (#116)
+- implement query_foundry_sql(return_type='polars') for direct Polars DataFrame output (#115)
+
+## Changed
+- deprecate transforms implementation in favor of Palantir VS Code extension
+
 ## [2.1.22] - 2025-12-15
 
 ## Added
