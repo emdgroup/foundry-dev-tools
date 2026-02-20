@@ -121,3 +121,106 @@ def test_exception_unknown_json(mocker, test_context_mock):
             timeout=0.001,
         )
     assert exception.value.error_message == ""
+
+
+def test_v2_experimental_use_trino(mocker, test_context_mock):
+    """Test that experimental_use_trino parameter modifies the query correctly."""
+    import pandas as pd
+
+    mocker.patch("time.sleep")  # we do not want to wait in tests
+
+    # Mock the arrow stream reader to return a simple pandas DataFrame
+    mock_arrow_reader = mocker.MagicMock()
+    mock_arrow_reader.read_pandas.return_value = pd.DataFrame({"col1": [1, 2, 3]})
+    mocker.patch.object(
+        test_context_mock.foundry_sql_server_v2,
+        "read_stream_results_arrow",
+        return_value=mock_arrow_reader,
+    )
+
+    # Mock the api_query endpoint (initial query execution)
+    query_matcher = mocker.MagicMock()
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-id-123", "type": "foundry"}}},
+        additional_matcher=query_matcher,
+    )
+
+    # Mock the api_status endpoint (poll for completion - returns ready immediately)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={
+            "status": {
+                "type": "ready",
+                "ready": {"tickets": [{"tickets": ["eyJhbGc...mock-ticket-1", "eyJhbGc...mock-ticket-2"]}]},
+            }
+        },
+    )
+
+    # Test with experimental_use_trino=True
+    df = test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+        "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+        experimental_use_trino=True,
+    )
+
+    # Verify the query was modified to include the Trino backend hint
+    call_args = query_matcher.call_args_list[0]
+    request = call_args[0][0]
+    request_json = request.json()
+
+    assert "SELECT /*+ backend(trino) */ * FROM" in request_json["querySpec"]["query"]
+    assert df.shape[0] == 3
+
+    # Reset for second test
+    query_matcher.reset_mock()
+
+    # Test with experimental_use_trino=False (default)
+    df = test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+        "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+        experimental_use_trino=False,
+    )
+
+    # Verify the query was NOT modified
+    call_args = query_matcher.call_args_list[0]
+    request = call_args[0][0]
+    request_json = request.json()
+
+    assert request_json["querySpec"]["query"] == "SELECT * FROM `ri.foundry.main.dataset.test-dataset`"
+    assert "backend(trino)" not in request_json["querySpec"]["query"]
+    assert df.shape[0] == 3
+
+
+def test_v2_poll_for_query_completion_timeout(mocker, test_context_mock):
+    """Test that V2 query times out correctly when polling takes too long."""
+    mocker.patch("time.sleep")  # we do not want to wait in tests
+
+    # Mock the api_query endpoint (initial query execution)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-timeout-123", "type": "foundry"}}},
+    )
+
+    # Mock the api_status endpoint to always return running status
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={"status": {"type": "running", "running": {}}},
+    )
+
+    with pytest.raises(FoundrySqlQueryClientTimedOutError):
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+            timeout=0.001,
+        )
+
+
+def test_v2_ansi_dialect_not_supported(test_context_mock):
+    """Test that V2 client rejects ANSI SQL dialect."""
+    with pytest.raises(TypeError, match="'ANSI' is not a valid option for sql_dialect"):
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+            sql_dialect="ANSI",  # type: ignore[arg-type]
+        )
