@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 import warnings
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from foundry_dev_tools.clients.api_client import APIClient
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig
@@ -13,7 +13,14 @@ from foundry_dev_tools.errors.sql import (
     FoundrySqlQueryFailedError,
     FoundrySqlSerializationFormatNotImplementedError,
 )
-from foundry_dev_tools.utils.api_types import Ref, SqlDialect, SQLReturnType, assert_in_literal
+from foundry_dev_tools.utils.api_types import (
+    ArrowCompressionCodec,
+    FurnaceSqlDialect,
+    Ref,
+    SqlDialect,
+    SQLReturnType,
+    assert_in_literal,
+)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -294,5 +301,348 @@ class FoundrySqlServerClient(APIClient):
             headers={
                 "Accept": "application/octet-stream",
             },
+            **kwargs,
+        )
+
+
+class FoundrySqlServerClientV2(APIClient):
+    """FoundrySqlServerClientV2 implements the newer foundry-sql-server API.
+
+    This client uses a different API flow compared to V1:
+    - Executes queries via POST to /api/ with applicationId and sql
+    - Polls POST to /api/status for query completion
+    - Retrieves results via POST to /api/stream with tickets
+    """
+
+    api_name = "foundry-sql-server"
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
+        return_type: Literal["pandas"],
+        branch: Ref = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
+        arrow_compression_codec: ArrowCompressionCodec = ...,
+        timeout: int = ...,
+        experimental_use_trino: bool = ...,
+    ) -> pd.DataFrame: ...
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
+        return_type: Literal["polars"],
+        branch: Ref = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
+        arrow_compression_codec: ArrowCompressionCodec = ...,
+        timeout: int = ...,
+        experimental_use_trino: bool = ...,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
+        return_type: Literal["spark"],
+        branch: Ref = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
+        arrow_compression_codec: ArrowCompressionCodec = ...,
+        timeout: int = ...,
+        experimental_use_trino: bool = ...,
+    ) -> pyspark.sql.DataFrame: ...
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
+        return_type: Literal["arrow"],
+        branch: Ref = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
+        arrow_compression_codec: ArrowCompressionCodec = ...,
+        timeout: int = ...,
+        experimental_use_trino: bool = ...,
+    ) -> pa.Table: ...
+
+    @overload
+    def query_foundry_sql(
+        self,
+        query: str,
+        return_type: Literal["pandas", "polars", "spark", "arrow"] = ...,
+        branch: Ref = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
+        arrow_compression_codec: ArrowCompressionCodec = ...,
+        timeout: int = ...,
+        experimental_use_trino: bool = ...,
+    ) -> pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+
+    def query_foundry_sql(
+        self,
+        query: str,
+        return_type: Literal["pandas", "polars", "spark", "arrow"] = "pandas",
+        branch: Ref = "master",
+        sql_dialect: FurnaceSqlDialect = "SPARK",
+        arrow_compression_codec: ArrowCompressionCodec = "NONE",
+        timeout: int = 600,
+        experimental_use_trino: bool = False,
+    ) -> pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
+        """Queries the Foundry SQL server using the V2 API.
+
+        Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
+
+        Example:
+            df = client.query_foundry_sql(
+                query="SELECT * FROM `ri.foundry.main.dataset.abc` LIMIT 10"
+            )
+
+        Args:
+            query: The SQL Query
+            return_type: The return type (pandas, polars, spark, or arrow). Note: "raw" is not supported in V2.
+            branch: The dataset branch to query
+            sql_dialect: The SQL dialect to use (only SPARK is supported for V2)
+            arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
+            timeout: Query timeout in seconds
+            experimental_use_trino: If True, modifies the query to use Trino backend by adding /*+ backend(trino) */ hint
+
+        Returns:
+            :external+pandas:py:class:`~pandas.DataFrame` | :external+polars:py:class:`~polars.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`:
+
+            A pandas DataFrame, polars, Spark DataFrame or pyarrow.Table with the result.
+
+        Raises:
+            FoundrySqlQueryFailedError: If the query fails
+            FoundrySqlQueryClientTimedOutError: If the query times out
+            TypeError: If an invalid sql_dialect or arrow_compression_codec is provided
+            ValueError: If an unsupported return_type is provided
+
+        """  # noqa: E501
+        if experimental_use_trino:
+            # Case-insensitive replacement of first SELECT keyword
+            import re
+
+            query = re.sub(r"\bSELECT\b", "SELECT /*+ backend(trino) */", query, count=1, flags=re.IGNORECASE)
+
+        response_json = self.api_query(
+            query=query,
+            dialect=sql_dialect,
+            branch=branch,
+            arrow_compression_codec=arrow_compression_codec,
+            timeout=timeout,
+        ).json()
+
+        query_handle = self._extract_query_handle(response_json)
+        start_time = time.time()
+
+        while response_json.get("status", {}).get("type") != "ready":
+            time.sleep(0.2)
+            response = self.api_status(query_handle)
+            response_json = response.json()
+
+            if response_json.get("status", {}).get("type") == "failed":
+                raise FoundrySqlQueryFailedError(response, query=query, branch=branch, dialect=sql_dialect)
+            if time.time() > start_time + timeout:
+                raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
+
+        ticket = self._extract_ticket(response_json)
+
+        arrow_stream_reader = self.read_stream_results_arrow(ticket)
+
+        if return_type == "pandas":
+            return arrow_stream_reader.read_pandas()
+
+        if return_type == "polars":
+            from foundry_dev_tools._optional.polars import pl
+
+            arrow_table = arrow_stream_reader.read_all()
+            return pl.from_arrow(arrow_table)
+
+        if return_type == "spark":
+            from foundry_dev_tools.utils.converter.foundry_spark import (
+                arrow_stream_to_spark_dataframe,
+            )
+
+            return arrow_stream_to_spark_dataframe(arrow_stream_reader)
+
+        if return_type == "arrow":
+            return arrow_stream_reader.read_all()
+
+        msg = (
+            f"Unsupported return_type: {return_type}. "
+            f"V2 API supports: pandas, polars, spark, arrow (raw is not supported)"
+        )
+        raise ValueError(msg)
+
+    def _extract_query_handle(self, response_json: dict[str, Any]) -> dict[str, Any]:
+        """Extract query handle from execute response.
+
+        Args:
+            response_json: Response JSON from execute API
+
+
+        Returns:
+            Query handle dict
+
+        Raises:
+            KeyError: If the response JSON doesn't contain the expected structure
+
+        """
+        response_type = response_json.get("type")
+        if not response_type:
+            msg = f"Response JSON missing 'type' field. Response: {response_json}"
+            raise KeyError(msg)
+
+        type_data = response_json.get(response_type)
+        if not type_data:
+            msg = f"Response JSON missing '{response_type}' field. Response: {response_json}"
+            raise KeyError(msg)
+
+        query_handle = type_data.get("queryHandle")
+        if not query_handle:
+            msg = f"Response JSON missing 'queryHandle' in '{response_type}'. Response: {response_json}"
+            raise KeyError(msg)
+
+        return query_handle
+
+    def _extract_ticket(self, response_json: dict[str, Any]) -> dict[str, Any]:
+        """Extract tickets from success response.
+
+        Args:
+            response_json: Success response JSON from status API
+
+        Returns:
+            Ticket dict with id, tickets list, and type. Example: {"id": 0, "tickets": [...], "type": "furnace"}
+
+        Raises:
+            KeyError: If the response JSON doesn't contain the expected structure
+
+        """
+        try:
+            status = response_json["status"]
+            ready = status["ready"]
+            ticket_groups = ready["tickets"]
+        except KeyError as exc:
+            msg = (
+                f"Response JSON missing expected structure. "
+                f"Expected path: status.ready.tickets. Response: {response_json}"
+            )
+            raise KeyError(msg) from exc
+
+        # we combine all tickets into one to get the full data
+        # if performance is a concern this should be done in parallel
+        return {
+            "id": 0,
+            "tickets": [ticket for ticket_group in ticket_groups for ticket in ticket_group["tickets"]],
+            "type": "furnace",
+        }
+
+    def read_stream_results_arrow(self, ticket: dict[str, Any]) -> pa.ipc.RecordBatchStreamReader:
+        """Fetch query results using tickets and return Arrow stream reader.
+
+        Args:
+            ticket: dict of tickets e.g. { "id": 0, "tickets": ["ey...", ...], "type": "furnace", }
+
+        Returns:
+            Arrow RecordBatchStreamReader
+
+        """
+        from foundry_dev_tools._optional.pyarrow import pa
+
+        response = self.api_stream_ticket(ticket)
+        response.raw.decode_content = True
+
+        return pa.ipc.RecordBatchStreamReader(response.raw)
+
+    def api_query(
+        self,
+        query: str,
+        dialect: FurnaceSqlDialect,
+        branch: Ref,
+        arrow_compression_codec: ArrowCompressionCodec = "NONE",
+        timeout: int = 600,
+        **kwargs,
+    ) -> requests.Response:
+        """Execute a SQL query via the V2 API.
+
+        Args:
+            query: The SQL query string
+            dialect: The SQL dialect to use (only SPARK is supported)
+            branch: The dataset branch to query
+            arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
+            timeout: Query timeout in seconds (used for error context)
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            Response with query handle and initial status
+
+        """
+        assert_in_literal(dialect, FurnaceSqlDialect, "dialect")
+        assert_in_literal(arrow_compression_codec, ArrowCompressionCodec, "arrow_compression_codec")
+
+        return self.api_request(
+            "POST",
+            "sql-endpoint/v1/queries/query",
+            json={
+                "querySpec": {
+                    "query": query,
+                    "tableProviders": {},
+                    "dialect": dialect,
+                    "options": {"options": [{"option": "arrowCompressionCodec", "value": arrow_compression_codec}]},
+                },
+                "executionParams": {
+                    "defaultBranchIds": [{"type": "datasetBranch", "datasetBranch": branch}],
+                    "resultFormat": "ARROW",
+                    "resultMode": "AUTO",
+                },
+            },
+            error_handling=ErrorHandlingConfig(branch=branch, dialect=dialect, timeout=timeout),
+            **kwargs,
+        )
+
+    def api_status(
+        self,
+        query_handle: dict[str, Any],
+        **kwargs,
+    ) -> requests.Response:
+        """Get the status of a SQL query via the V2 API.
+
+        Args:
+            query_handle: Query handle dict from execute response
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            Response with query status
+
+        """
+        return self.api_request(
+            "POST",
+            "sql-endpoint/v1/queries/status",
+            json=query_handle,
+            **kwargs,
+        )
+
+    def api_stream_ticket(
+        self,
+        ticket: dict,
+        **kwargs,
+    ) -> requests.Response:
+        """Stream query results using a ticket via the V2 API.
+
+        Args:
+            ticket: Ticket dict containing id, tickets list, and type.
+                Example: {"id": 0, "tickets": ["eyJhbGc...", "eyJhbGc..."], "type": "furnace"}
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            Response with streaming Arrow data
+
+        """
+        return self.api_request(
+            "POST",
+            "sql-endpoint/v1/queries/stream",
+            json=ticket,
+            headers={
+                "Accept": "application/octet-stream",
+            },
+            stream=True,
             **kwargs,
         )

@@ -153,6 +153,11 @@ class FoundryContext:
         return foundry_sql_server.FoundrySqlServerClient(self)
 
     @cached_property
+    def foundry_sql_server_v2(self) -> foundry_sql_server.FoundrySqlServerClientV2:
+        """Returns :py:class:`foundry_dev_tools.clients.foundry_sql_server.FoundrySqlServerClientV2`."""
+        return foundry_sql_server.FoundrySqlServerClientV2(self)
+
+    @cached_property
     def build2(self) -> build2.Build2Client:
         """Returns :py:class:`foundry_dev_tools.clients.build2.Build2Client`."""
         return build2.Build2Client(self)

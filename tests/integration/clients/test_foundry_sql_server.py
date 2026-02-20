@@ -2,7 +2,11 @@ import polars as pl
 import pytest
 
 from foundry_dev_tools.errors.dataset import BranchNotFoundError, DatasetHasNoSchemaError, DatasetNotFoundError
-from foundry_dev_tools.errors.sql import FoundrySqlQueryFailedError, FoundrySqlSerializationFormatNotImplementedError
+from foundry_dev_tools.errors.sql import (
+    FoundrySqlQueryFailedError,
+    FoundrySqlSerializationFormatNotImplementedError,
+    FurnaceSqlSqlParseError,
+)
 from tests.integration.conftest import TEST_SINGLETON
 
 
@@ -67,3 +71,217 @@ def test_legacy_fallback(mocker):
     TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}`")
 
     query_foundry_sql_legacy_spy.assert_called()
+
+
+def test_v1_ansi_sql_dialect():
+    """Test V1 client with ANSI SQL dialect (uses double quotes instead of backticks)."""
+    # Test basic query with ANSI dialect - note the use of double quotes instead of backticks
+    result = TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(
+        query=f'SELECT sepal_width, sepal_length FROM "{TEST_SINGLETON.iris_new.rid}" LIMIT 5',
+        sql_dialect="ANSI",
+    )
+    assert result.shape[0] == 5
+    assert result.shape[1] == 2
+
+    # Test with aggregation using ANSI dialect
+    result_agg = TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(
+        query=f'SELECT COUNT(*) as cnt FROM "{TEST_SINGLETON.iris_new.rid}"',
+        sql_dialect="ANSI",
+    )
+    assert result_agg.shape[0] == 1
+    assert "cnt" in result_agg.columns
+
+
+# V2 Client Tests
+
+
+def test_v2_smoke():
+    """Test basic V2 client functionality with a simple query."""
+    one_row_one_column = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1",
+    )
+    assert one_row_one_column.shape == (1, 1)
+
+    one_row_one_column = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1",
+        return_type="arrow",
+    )
+    assert one_row_one_column.num_columns == 1
+    assert one_row_one_column.num_rows == 1
+    assert one_row_one_column.column_names == ["sepal_width"]
+
+
+def test_v2_multiple_rows():
+    """Test V2 client with multiple rows."""
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+    )
+    assert result.shape[0] == 10
+    assert result.shape[1] == 5  # iris dataset has 5 columns
+
+
+def test_v2_return_type_arrow():
+    """Test V2 client with Arrow return type."""
+    import pyarrow as pa
+
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 5",
+        return_type="arrow",
+    )
+    assert isinstance(result, pa.Table)
+    assert result.num_rows == 5
+
+
+def test_v2_return_type_raw_not_supported():
+    """Test V2 client with raw return type."""
+    with pytest.raises(ValueError, match="Unsupported return_type: raw"):
+        TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+            query=f"SELECT sepal_width, sepal_length FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 3",
+            return_type="raw",  # type: ignore[arg-type]
+        )
+
+
+def test_v2_aggregation_query():
+    """Test V2 client with aggregation query."""
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"""
+        SELECT
+            COUNT(*) as total_count,
+            AVG(sepal_width) as avg_sepal_width
+        FROM `{TEST_SINGLETON.iris_new.rid}`
+        """,
+    )
+    assert result.shape == (1, 2)
+    assert "total_count" in result.columns
+    assert "avg_sepal_width" in result.columns
+
+
+def test_v2_query_failed():
+    """Test V2 client with invalid SQL query."""
+    with pytest.raises(FurnaceSqlSqlParseError):
+        TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+            query=f"SELECT foo, bar, FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 100",
+        )
+
+
+def test_v2_disable_arrow_compression():
+    """Test V2 client with arrow compression disabled."""
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 5",
+        arrow_compression_codec="NONE",
+    )
+    assert result.shape[0] == 5
+
+
+def test_v2_with_where_clause():
+    """Test V2 client with WHERE clause."""
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"""
+        SELECT * FROM `{TEST_SINGLETON.iris_new.rid}`
+        WHERE is_setosa = 'setosa'
+        LIMIT 20
+        """,
+    )
+    assert result.shape[0] <= 20
+    # Verify all returned rows have is_setosa = 'setosa'
+    if result.shape[0] > 0:
+        assert all(result["is_setosa"] == "setosa")
+
+
+def test_v2_polars_return_type():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 2",
+        return_type="polars",
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+
+def test_v2_polars_parquet():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_parquet.rid}` LIMIT 2",
+        return_type="polars",
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_parquet.rid}` LIMIT 2",
+        return_type="polars",
+        experimental_use_trino=True,
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+
+def test_v2_polars_parquet_hive_partitioning():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_hive_partitioned.rid}` LIMIT 2",
+        return_type="polars",
+        experimental_use_trino=True,
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_hive_partitioned.rid}` LIMIT 2", return_type="polars"
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+
+def test_v2_arrow_compression_codecs():
+    """Test V2 client with different arrow compression codecs."""
+    # Test with LZ4 compression
+    result_lz4 = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+        arrow_compression_codec="LZ4",
+    )
+    assert result_lz4.shape[0] == 10
+    assert result_lz4.shape[1] == 5
+
+    # Test with ZSTD compression
+    result_zstd = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+        arrow_compression_codec="ZSTD",
+    )
+    assert result_zstd.shape[0] == 10
+    assert result_zstd.shape[1] == 5
+
+    # Test with NONE compression (default)
+    result_none = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+        arrow_compression_codec="NONE",
+    )
+    assert result_none.shape[0] == 10
+    assert result_none.shape[1] == 5
+
+    # Verify all results have the same data
+    import pandas as pd
+
+    pd.testing.assert_frame_equal(result_lz4, result_zstd)
+    pd.testing.assert_frame_equal(result_lz4, result_none)
+
+
+def test_v2_trino_engine_in_response(mocker):
+    """Test that when experimental_use_trino=True, the API response indicates trino engine."""
+    # Spy on the api_query method to capture the initial response
+    api_query_spy = mocker.spy(TEST_SINGLETON.ctx.foundry_sql_server_v2, "api_query")
+
+    # Execute query with trino enabled using parquet dataset (trino works with parquet)
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_parquet.rid}` LIMIT 1",
+        experimental_use_trino=True,
+    )
+
+    assert result.shape == (1, 1)
+
+    # Verify the API response indicates TRINO backend
+    response_json = api_query_spy.spy_return.json()
+    backend = response_json[response_json["type"]]["queryStructure"]["metadata"]["backend"]
+    assert backend == "TRINO"

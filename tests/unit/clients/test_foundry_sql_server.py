@@ -121,3 +121,236 @@ def test_exception_unknown_json(mocker, test_context_mock):
             timeout=0.001,
         )
     assert exception.value.error_message == ""
+
+
+def test_v2_experimental_use_trino(mocker, test_context_mock):
+    """Test that experimental_use_trino parameter modifies the query correctly."""
+    import pandas as pd
+
+    mocker.patch("time.sleep")  # we do not want to wait in tests
+
+    # Mock the arrow stream reader to return a simple pandas DataFrame
+    mock_arrow_reader = mocker.MagicMock()
+    mock_arrow_reader.read_pandas.return_value = pd.DataFrame({"col1": [1, 2, 3]})
+    mocker.patch.object(
+        test_context_mock.foundry_sql_server_v2,
+        "read_stream_results_arrow",
+        return_value=mock_arrow_reader,
+    )
+
+    # Mock the api_query endpoint (initial query execution)
+    query_matcher = mocker.MagicMock()
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-id-123", "type": "foundry"}}},
+        additional_matcher=query_matcher,
+    )
+
+    # Mock the api_status endpoint (poll for completion - returns ready immediately)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={
+            "status": {
+                "type": "ready",
+                "ready": {"tickets": [{"tickets": ["eyJhbGc...mock-ticket-1", "eyJhbGc...mock-ticket-2"]}]},
+            }
+        },
+    )
+
+    # Test with experimental_use_trino=True
+    df = test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+        "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+        experimental_use_trino=True,
+    )
+
+    # Verify the query was modified to include the Trino backend hint
+    call_args = query_matcher.call_args_list[0]
+    request = call_args[0][0]
+    request_json = request.json()
+
+    assert "SELECT /*+ backend(trino) */ * FROM" in request_json["querySpec"]["query"]
+    assert df.shape[0] == 3
+
+    # Reset for second test
+    query_matcher.reset_mock()
+
+    # Test with experimental_use_trino=False (default)
+    df = test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+        "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+        experimental_use_trino=False,
+    )
+
+    # Verify the query was NOT modified
+    call_args = query_matcher.call_args_list[0]
+    request = call_args[0][0]
+    request_json = request.json()
+
+    assert request_json["querySpec"]["query"] == "SELECT * FROM `ri.foundry.main.dataset.test-dataset`"
+    assert "backend(trino)" not in request_json["querySpec"]["query"]
+    assert df.shape[0] == 3
+
+
+def test_v2_poll_for_query_completion_timeout(mocker, test_context_mock):
+    """Test that V2 query times out correctly when polling takes too long."""
+    mocker.patch("time.sleep")  # we do not want to wait in tests
+
+    # Mock the api_query endpoint (initial query execution)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-timeout-123", "type": "foundry"}}},
+    )
+
+    # Mock the api_status endpoint to always return running status
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={"status": {"type": "running", "running": {}}},
+    )
+
+    with pytest.raises(FoundrySqlQueryClientTimedOutError):
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+            timeout=0.001,
+        )
+
+
+def test_v2_ansi_dialect_not_supported(test_context_mock):
+    """Test that V2 client rejects ANSI SQL dialect."""
+    with pytest.raises(TypeError, match="'ANSI' is not a valid option for dialect"):
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+            sql_dialect="ANSI",  # type: ignore[arg-type]
+        )
+
+
+def test_v2_invalid_compression_codec(test_context_mock):
+    """Test that V2 client rejects invalid arrow compression codec."""
+    with pytest.raises(TypeError, match="'INVALID' is not a valid option for arrow_compression_codec"):
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+            arrow_compression_codec="INVALID",  # type: ignore[arg-type]
+        )
+
+
+def test_v2_query_failed_error_details(mocker, test_context_mock):
+    """Test that V2 error responses with rich parameters are properly extracted."""
+    mocker.patch("time.sleep")
+
+    # Mock the api_query endpoint (initial query execution)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-id", "type": "foundry"}}},
+    )
+
+    # Mock the api_status endpoint with V2 error structure containing rich parameters
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={
+            "status": {
+                "type": "failed",
+                "failed": {
+                    "errorCode": "INVALID_ARGUMENT",
+                    "errorName": "SqlQueryService:SqlSyntaxError",
+                    "errorInstanceId": "c16cb2b7-01ec-42a9-9ee2-0e57e2aed4ba",
+                    "parameters": {
+                        "endLine": 1,
+                        "endColumn": 15350,
+                        "dialect": "SPARK",
+                        "queryFragment": "",
+                        "startColumn": 15340,
+                        "startLine": 1,
+                        "userFriendlyMessage": (
+                            "From line 1, column 15340 to line 1, column 15350: "
+                            "Column 'COLUMN_NAME' not found in table 'my_table'; did you mean 'column_name'?"
+                        ),
+                    },
+                },
+            }
+        },
+    )
+
+    with pytest.raises(FoundrySqlQueryFailedError) as exception:
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT COLUMN_NAME FROM `ri.foundry.main.dataset.test-dataset`",
+        )
+
+    # Verify all error parameters are extracted and accessible
+    assert exception.value.error_code == "INVALID_ARGUMENT"
+    assert exception.value.error_name == "SqlQueryService:SqlSyntaxError"
+    assert exception.value.error_instance_id == "c16cb2b7-01ec-42a9-9ee2-0e57e2aed4ba"
+
+    # Verify parameters are converted from camelCase to snake_case and accessible
+    assert exception.value.start_line == 1
+    assert exception.value.end_line == 1
+    assert exception.value.start_column == 15340
+    assert exception.value.end_column == 15350
+    assert exception.value.dialect == "SPARK"
+    # query_fragment is in kwargs even if empty
+    assert "query_fragment" in exception.value.kwargs
+
+    # Verify userFriendlyMessage is used as the info text and accessible
+    assert exception.value.user_friendly_message == (
+        "From line 1, column 15340 to line 1, column 15350: "
+        "Column 'COLUMN_NAME' not found in table 'my_table'; did you mean 'column_name'?"
+    )
+
+    # Verify the exception message string includes the user-friendly message
+    exception_str = str(exception.value)
+    assert "COLUMN_NAME" in exception_str
+    assert "my_table" in exception_str
+
+
+def test_v2_polling_error_includes_context(mocker, test_context_mock):
+    """Test that polling errors include query context for better debugging."""
+    mocker.patch("time.sleep")
+
+    test_query = "SELECT * FROM `ri.foundry.main.dataset.test-dataset`"
+
+    # Mock the api_query endpoint (initial query execution)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-id", "type": "foundry"}}},
+    )
+
+    # Mock the api_status endpoint with polling error
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={
+            "status": {
+                "type": "failed",
+                "failed": {
+                    "errorCode": "ModuleGroupService:ErrorPollingModule",
+                    "errorInstanceId": "5be87070-3aa3-4ed6-aa6a-d9b5041885af",
+                    "errorMessage": "Error polling for job status. Please resubmit.",
+                    "retryable": False,
+                },
+            }
+        },
+    )
+
+    with pytest.raises(FoundrySqlQueryFailedError) as exception:
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(test_query)
+
+    # Verify error details are extracted
+    assert exception.value.error_code == "ModuleGroupService:ErrorPollingModule"
+    assert exception.value.error_instance_id == "5be87070-3aa3-4ed6-aa6a-d9b5041885af"
+    assert exception.value.error_message == "Error polling for job status. Please resubmit."
+
+    # Verify query context is included in the error
+    assert exception.value.query == test_query
+    assert exception.value.branch == "master"
+    assert exception.value.dialect == "SPARK"
+
+    # Verify context appears in exception string
+    exception_str = str(exception.value)
+    assert "query = " + test_query in exception_str
+    assert "branch = master" in exception_str
+    assert "dialect = SPARK" in exception_str
+    assert "ModuleGroupService:ErrorPollingModule" in exception_str
