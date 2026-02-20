@@ -412,10 +412,15 @@ class FoundrySqlServerClientV2(APIClient):
         Raises:
             FoundrySqlQueryFailedError: If the query fails
             FoundrySqlQueryClientTimedOutError: If the query times out
+            TypeError: If an invalid sql_dialect or arrow_compression_codec is provided
+            ValueError: If an unsupported return_type is provided
 
         """  # noqa: E501
         if experimental_use_trino:
-            query = query.replace("SELECT ", "SELECT /*+ backend(trino) */ ", 1)
+            # Case-insensitive replacement of first SELECT keyword
+            import re
+
+            query = re.sub(r"\bSELECT\b", "SELECT /*+ backend(trino) */", query, count=1, flags=re.IGNORECASE)
 
         response_json = self.api_query(
             query=query,
@@ -428,7 +433,6 @@ class FoundrySqlServerClientV2(APIClient):
         query_handle = self._extract_query_handle(response_json)
         start_time = time.time()
 
-        # Poll for completion
         while response_json.get("status", {}).get("type") != "ready":
             time.sleep(0.2)
             response = self.api_status(query_handle)
@@ -439,20 +443,14 @@ class FoundrySqlServerClientV2(APIClient):
             if time.time() > start_time + timeout:
                 raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
 
-        # Extract tickets from successful response
         ticket = self._extract_ticket(response_json)
 
-        # Fetch Arrow data using tickets
         arrow_stream_reader = self.read_stream_results_arrow(ticket)
 
         if return_type == "pandas":
             return arrow_stream_reader.read_pandas()
 
         if return_type == "polars":
-            # The FakeModule implementation used in the _optional packages
-            # throws an ImportError when trying to access attributes of the module.
-            # This ImportError is caught below to fall back to query_foundry_sql_legacy
-            # which will again raise an ImportError when polars is not installed.
             from foundry_dev_tools._optional.polars import pl
 
             arrow_table = arrow_stream_reader.read_all()
@@ -484,8 +482,26 @@ class FoundrySqlServerClientV2(APIClient):
         Returns:
             Query handle dict
 
+        Raises:
+            KeyError: If the response JSON doesn't contain the expected structure
+
         """
-        return response_json[response_json["type"]]["queryHandle"]
+        response_type = response_json.get("type")
+        if not response_type:
+            msg = f"Response JSON missing 'type' field. Response: {response_json}"
+            raise KeyError(msg)
+
+        type_data = response_json.get(response_type)
+        if not type_data:
+            msg = f"Response JSON missing '{response_type}' field. Response: {response_json}"
+            raise KeyError(msg)
+
+        query_handle = type_data.get("queryHandle")
+        if not query_handle:
+            msg = f"Response JSON missing 'queryHandle' in '{response_type}'. Response: {response_json}"
+            raise KeyError(msg)
+
+        return query_handle
 
     def _extract_ticket(self, response_json: dict[str, Any]) -> dict[str, Any]:
         """Extract tickets from success response.
@@ -496,16 +512,26 @@ class FoundrySqlServerClientV2(APIClient):
         Returns:
             List of tickets for fetching results
 
+        Raises:
+            KeyError: If the response JSON doesn't contain the expected structure
+
         """
+        try:
+            status = response_json["status"]
+            ready = status["ready"]
+            ticket_groups = ready["tickets"]
+        except KeyError as exc:
+            msg = (
+                f"Response JSON missing expected structure. "
+                f"Expected path: status.ready.tickets. Response: {response_json}"
+            )
+            raise KeyError(msg) from exc
+
         # we combine all tickets into one to get the full data
         # if performance is a concern this should be done in parallel
         return {
             "id": 0,
-            "tickets": [
-                ticket
-                for ticket_group in response_json["status"]["ready"]["tickets"]
-                for ticket in ticket_group["tickets"]
-            ],
+            "tickets": [ticket for ticket_group in ticket_groups for ticket in ticket_group["tickets"]],
             "type": "furnace",
         }
 

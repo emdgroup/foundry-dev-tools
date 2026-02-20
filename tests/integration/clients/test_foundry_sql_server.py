@@ -265,3 +265,22 @@ def test_v2_arrow_compression_codecs():
 
     pd.testing.assert_frame_equal(result_lz4, result_zstd)
     pd.testing.assert_frame_equal(result_lz4, result_none)
+
+
+def test_v2_trino_engine_in_response(mocker):
+    """Test that when experimental_use_trino=True, the API response indicates trino engine."""
+    # Spy on the api_query method to capture the initial response
+    api_query_spy = mocker.spy(TEST_SINGLETON.ctx.foundry_sql_server_v2, "api_query")
+
+    # Execute query with trino enabled using parquet dataset (trino works with parquet)
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_parquet.rid}` LIMIT 1",
+        experimental_use_trino=True,
+    )
+
+    assert result.shape == (1, 1)
+
+    # Verify the API response indicates TRINO backend
+    response_json = api_query_spy.spy_return.json()
+    backend = response_json[response_json["type"]]["queryStructure"]["metadata"]["backend"]
+    assert backend == "TRINO"
