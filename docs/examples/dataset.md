@@ -249,9 +249,21 @@ rest_client.download_dataset_files(dataset_rid=rid, output_directory='/paht/to/o
 ```
 ````
 
-### Polars DataFrame from Spark SQL dialect
+### Polars
 
-Queries the Foundry SQL server with Spark SQL dialect, load arrow stream using [polars](https://www.pola.rs/).
+There are three ways to get Polars data from a Foundry dataset. Choose the one that fits your workload:
+
+| Method | Data path | Evaluation | Best for |
+|---|---|---|---|
+| `to_polars()` | FoundrySqlServer | Eager (full dataset) | Quick exploration of small-medium datasets |
+| `query_foundry_sql(..., "polars")` | FoundrySqlServer | Eager (SQL-filtered) | Aggregations, joins, complex SQL queries |
+| `to_lazy_polars()` | Direct parquet scan (S3) | Lazy | Filtering/selection on large datasets; portable code for Foundry transforms |
+
+`to_lazy_polars()` scans parquet files directly via the S3-compatible API using `polars.scan_parquet`. Combined with Polars' lazy evaluation, this enables predicate pushdown: filters applied to the LazyFrame are pushed down to the parquet reader, so only relevant data is read from storage.
+
+The lazy Polars API uses the same syntax as [Foundry lightweight transforms](https://www.palantir.com/docs/foundry/transforms-python/polars-lazy), so code written with `to_lazy_polars()` can be moved into a Foundry transform without rewriting.
+
+#### Eager via FoundrySqlServer
 
 ````{tab} v2
 ```python
@@ -260,7 +272,13 @@ import polars as pl
 
 ctx = FoundryContext()
 ds = ctx.get_dataset_by_path("/path/to/test_dataset")
-df = ds.query_foundry_sql("SELECT *", return_type="polars")
+
+# Fetch the full dataset
+df = ds.to_polars()
+print(df)
+
+# Or use SQL to filter/aggregate server-side
+df = ds.query_foundry_sql("SELECT * WHERE age > 25", return_type="polars")
 print(df)
 ```
 ````
@@ -282,9 +300,7 @@ print(df)
 ```
 ````
 
-### Polars LazyFrame with direct S3-compatible API access
-
-Access dataset files directly via the S3-compatible API as a Polars LazyFrame for efficient lazy evaluation. This method bypasses FoundrySqlServer and works with both regular and hive-partitioned parquet datasets.
+#### Lazy via direct S3 parquet scan
 
 ````{tab} v2
 ```python
@@ -293,10 +309,10 @@ import polars as pl
 
 ctx = FoundryContext()
 ds = ctx.get_dataset_by_path("/path/to/test_dataset")
-lazy_df = ds.to_lazy_polars()
+lazy_df: pl.LazyFrame = ds.to_lazy_polars()
 
 # Perform lazy operations (not executed yet)
-result = lazy_df.filter(pl.col("age") > 25).select(["name", "age"])
+result = lazy_df.filter(pl.col("age") > 25).select("name", "age")
 
 # Execute and collect results
 df = result.collect()
