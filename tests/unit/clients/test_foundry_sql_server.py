@@ -219,8 +219,17 @@ def test_v2_poll_for_query_completion_timeout(mocker, test_context_mock):
 
 def test_v2_ansi_dialect_not_supported(test_context_mock):
     """Test that V2 client rejects ANSI SQL dialect."""
-    with pytest.raises(TypeError, match="'ANSI' is not a valid option for sql_dialect"):
+    with pytest.raises(TypeError, match="'ANSI' is not a valid option for dialect"):
         test_context_mock.foundry_sql_server_v2.query_foundry_sql(
             "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
             sql_dialect="ANSI",  # type: ignore[arg-type]
+        )
+
+
+def test_v2_invalid_compression_codec(test_context_mock):
+    """Test that V2 client rejects invalid arrow compression codec."""
+    with pytest.raises(TypeError, match="'INVALID' is not a valid option for arrow_compression_codec"):
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+            "SELECT * FROM `ri.foundry.main.dataset.test-dataset`",
+            arrow_compression_codec="INVALID",  # type: ignore[arg-type]
         )
