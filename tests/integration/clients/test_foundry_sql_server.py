@@ -168,6 +168,7 @@ def test_v2_disable_arrow_compression():
     """Test V2 client with arrow compression disabled."""
     result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
         query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 5",
+        arrow_compression_codec="NONE",
     )
     assert result.shape[0] == 5
 
