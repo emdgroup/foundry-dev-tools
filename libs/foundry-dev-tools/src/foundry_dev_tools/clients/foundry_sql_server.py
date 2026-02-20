@@ -326,7 +326,7 @@ class FoundrySqlServerClientV2(APIClient):
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
         experimental_use_trino: bool = ...,
-    ) -> pd.core.frame.DataFrame: ...
+    ) -> pd.DataFrame: ...
 
     @overload
     def query_foundry_sql(
@@ -374,7 +374,7 @@ class FoundrySqlServerClientV2(APIClient):
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
         experimental_use_trino: bool = ...,
-    ) -> pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql(
         self,
@@ -385,7 +385,7 @@ class FoundrySqlServerClientV2(APIClient):
         arrow_compression_codec: ArrowCompressionCodec = "NONE",
         timeout: int = 600,
         experimental_use_trino: bool = False,
-    ) -> pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server using the V2 API.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
@@ -510,7 +510,7 @@ class FoundrySqlServerClientV2(APIClient):
             response_json: Success response JSON from status API
 
         Returns:
-            List of tickets for fetching results
+            Ticket dict with id, tickets list, and type. Example: {"id": 0, "tickets": [...], "type": "furnace"}
 
         Raises:
             KeyError: If the response JSON doesn't contain the expected structure
