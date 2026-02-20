@@ -804,8 +804,16 @@ class Dataset(resource.Resource):
         """Get dataset as a :py:class:`polars.LazyFrame`.
 
         Returns a lazy polars DataFrame that can be queried efficiently using
-        polars' lazy evaluation API. The data is accessed directly from S3
-        without going through FoundrySqlServer.
+        polars' lazy evaluation API. The data is accessed directly via the
+        S3-compatible API without going through FoundrySqlServer.
+
+        Args:
+            transaction_rid: The transaction RID to read from. If None, uses the
+                last committed transaction. Useful for reading specific historical
+                versions of the dataset.
+
+        Returns:
+            pl.LazyFrame: A lazy polars DataFrame
 
         Example:
             >>> ds = ctx.get_dataset_by_path("/path/to/dataset")
@@ -814,11 +822,8 @@ class Dataset(resource.Resource):
             >>> # Execute and collect results
             >>> df = result.collect()
 
-        Returns:
-            pl.LazyFrame: A lazy polars DataFrame
-
         Note:
-            This method uses the S3 API to directly access dataset files.
+            This method uses the S3-compatible API to directly access dataset files.
             For hive-partitioned datasets, polars will automatically read
             the partition structure.
         """
