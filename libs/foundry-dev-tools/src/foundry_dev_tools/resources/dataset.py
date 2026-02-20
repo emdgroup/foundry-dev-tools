@@ -14,6 +14,7 @@ from foundry_dev_tools.errors.compass import ResourceNotFoundError
 from foundry_dev_tools.errors.dataset import (
     BranchNotFoundError,
     DatasetHasNoOpenTransactionError,
+    DatasetHasNoTransactionsError,
     DatasetNotFoundError,
     TransactionTypeMismatchError,
 )
@@ -261,11 +262,16 @@ class Dataset(resource.Resource):
             ).json()["values"]
         ]
 
-    def get_last_transaction(self) -> api_types.Transaction | None:
-        """Returns the last transaction or None if there are no transactions."""
+    def get_last_transaction(self, include_open_exclusive_transaction: bool = True) -> api_types.Transaction | None:
+        """Returns the last transaction or None if there are no transactions.
+
+        Args:
+            include_open_exclusive_transaction: If True, includes open transactions
+                in the results. If False, only returns committed transactions.
+        """
         v = self.get_transactions(
             page_size=1,
-            include_open_exclusive_transaction=True,
+            include_open_exclusive_transaction=include_open_exclusive_transaction,
         )
         if v is not None and len(v) > 0:
             return v[0]
@@ -798,6 +804,48 @@ class Dataset(resource.Resource):
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
         return self.query_foundry_sql("SELECT *", return_type="polars")
+
+    def to_lazy_polars(self, transaction_rid: str | None = None) -> pl.LazyFrame:
+        """Get dataset as a :py:class:`polars.LazyFrame`.
+
+        Returns a lazy polars DataFrame that can be queried efficiently using
+        polars' lazy evaluation API. The data is accessed directly via the
+        S3-compatible API without going through FoundrySqlServer.
+
+        Args:
+            transaction_rid: The transaction RID to read from. If None, uses the
+                last committed transaction. Useful for reading specific historical
+                versions of the dataset.
+
+        Returns:
+            pl.LazyFrame: A lazy polars DataFrame
+
+        Example:
+            >>> ds = ctx.get_dataset_by_path("/path/to/dataset")
+            >>> lf = ds.to_lazy_polars()
+            >>> result = lf.filter(pl.col("age") > 25).select(["name", "age"])
+            >>> # Execute and collect results
+            >>> df = result.collect()
+
+        Note:
+            This method uses the S3-compatible API to directly access dataset files.
+            For hive-partitioned datasets, polars will automatically read
+            the partition structure.
+        """
+        from foundry_dev_tools._optional.polars import pl
+
+        if transaction_rid is None:
+            maybe_transaction = self.get_last_transaction(include_open_exclusive_transaction=False)
+            if maybe_transaction is None:
+                msg = f"Dataset has no committed transactions: {self.rid=}"
+                raise DatasetHasNoTransactionsError(info=msg)
+            transaction_rid = maybe_transaction["rid"]
+
+        return pl.scan_parquet(
+            f"s3://{self.rid}.{transaction_rid}/**/*.parquet",
+            storage_options=self._context.s3.get_polars_storage_options(),
+            hive_partitioning=True,
+        )
 
     @contextmanager
     def transaction_context(

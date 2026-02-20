@@ -282,6 +282,28 @@ print(df)
 ```
 ````
 
+### Polars LazyFrame with direct S3-compatible API access
+
+Access dataset files directly via the S3-compatible API as a Polars LazyFrame for efficient lazy evaluation. This method bypasses FoundrySqlServer and works with both regular and hive-partitioned parquet datasets.
+
+````{tab} v2
+```python
+from foundry_dev_tools import FoundryContext
+import polars as pl
+
+ctx = FoundryContext()
+ds = ctx.get_dataset_by_path("/path/to/test_dataset")
+lazy_df = ds.to_lazy_polars()
+
+# Perform lazy operations (not executed yet)
+result = lazy_df.filter(pl.col("age") > 25).select(["name", "age"])
+
+# Execute and collect results
+df = result.collect()
+print(df)
+```
+````
+
 ### DuckDB Table from Spark SQL dialect
 
 Queries the Foundry SQL server with Spark SQL dialect, load arrow stream using [duckdb](https://duckdb.org/).

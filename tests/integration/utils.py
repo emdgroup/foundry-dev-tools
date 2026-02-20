@@ -144,6 +144,79 @@ IRIS_SCHEMA = {
     },
 }
 
+IRIS_SCHEMA_HIVE = {
+    "fieldSchemaList": [
+        {
+            "type": "DOUBLE",
+            "name": "sepal_width",
+            "nullable": None,
+            "userDefinedTypeClass": None,
+            "customMetadata": {},
+            "arraySubtype": None,
+            "precision": None,
+            "scale": None,
+            "mapKeyType": None,
+            "mapValueType": None,
+            "subSchemas": None,
+        },
+        {
+            "type": "DOUBLE",
+            "name": "sepal_length",
+            "nullable": None,
+            "userDefinedTypeClass": None,
+            "customMetadata": {},
+            "arraySubtype": None,
+            "precision": None,
+            "scale": None,
+            "mapKeyType": None,
+            "mapValueType": None,
+            "subSchemas": None,
+        },
+        {
+            "type": "DOUBLE",
+            "name": "petal_width",
+            "nullable": None,
+            "userDefinedTypeClass": None,
+            "customMetadata": {},
+            "arraySubtype": None,
+            "precision": None,
+            "scale": None,
+            "mapKeyType": None,
+            "mapValueType": None,
+            "subSchemas": None,
+        },
+        {
+            "type": "DOUBLE",
+            "name": "petal_length",
+            "nullable": None,
+            "userDefinedTypeClass": None,
+            "customMetadata": {},
+            "arraySubtype": None,
+            "precision": None,
+            "scale": None,
+            "mapKeyType": None,
+            "mapValueType": None,
+            "subSchemas": None,
+        },
+        {
+            "type": "STRING",
+            "name": "is_setosa",
+            "nullable": None,
+            "userDefinedTypeClass": None,
+            "customMetadata": {},
+            "arraySubtype": None,
+            "precision": None,
+            "scale": None,
+            "mapKeyType": None,
+            "mapValueType": None,
+            "subSchemas": None,
+        },
+    ],
+    "primaryKey": None,
+    "dataFrameReaderClass": "com.palantir.foundry.spark.input.ParquetDataFrameReader",
+    "customMetadata": {"format": "parquet"},
+}
+
 FOUNDRY_SCHEMA_COMPLEX_DATASET = {
     "fieldSchemaList": [
         {
@@ -514,6 +587,30 @@ class TestSingleton:
                 self.iris_csv_content,
             )
         return _iris_no_schema
+
+    @cached_property
+    def iris_hive_partitioned(self) -> Dataset:
+        _iris_hive_partitioned = self.ctx.get_dataset_by_path(
+            INTEGRATION_TEST_COMPASS_ROOT_PATH + "/iris_hive_partitioned",
+            create_if_not_exist=True,
+        )
+        if _iris_hive_partitioned.__created__:
+            _ = _iris_hive_partitioned.upload_folder(TEST_FOLDER.joinpath("test_data", "iris", "iris_hive_partitioned"))
+            _iris_hive_partitioned.upload_schema(
+                _iris_hive_partitioned.get_last_transaction()["rid"], schema=IRIS_SCHEMA_HIVE
+            )
+        return _iris_hive_partitioned
+
+    @cached_property
+    def iris_parquet(self) -> Dataset:
+        _iris_parquet = self.ctx.get_dataset_by_path(
+            INTEGRATION_TEST_COMPASS_ROOT_PATH + "/iris_parquet",
+            create_if_not_exist=True,
+        )
+        if _iris_parquet.__created__:
+            _ = _iris_parquet.upload_folder(TEST_FOLDER.joinpath("test_data", "iris", "iris_parquet"))
+            _iris_parquet.upload_schema(_iris_parquet.get_last_transaction()["rid"], schema=IRIS_SCHEMA_HIVE)
+        return _iris_parquet
 
     @cached_property
     def empty_dataset(self) -> Dataset:
