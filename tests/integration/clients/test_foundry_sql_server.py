@@ -73,6 +73,25 @@ def test_legacy_fallback(mocker):
     query_foundry_sql_legacy_spy.assert_called()
 
 
+def test_v1_ansi_sql_dialect():
+    """Test V1 client with ANSI SQL dialect (uses double quotes instead of backticks)."""
+    # Test basic query with ANSI dialect - note the use of double quotes instead of backticks
+    result = TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(
+        query=f'SELECT sepal_width, sepal_length FROM "{TEST_SINGLETON.iris_new.rid}" LIMIT 5',
+        sql_dialect="ANSI",
+    )
+    assert result.shape[0] == 5
+    assert result.shape[1] == 2
+
+    # Test with aggregation using ANSI dialect
+    result_agg = TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(
+        query=f'SELECT COUNT(*) as cnt FROM "{TEST_SINGLETON.iris_new.rid}"',
+        sql_dialect="ANSI",
+    )
+    assert result_agg.shape[0] == 1
+    assert "cnt" in result_agg.columns
+
+
 # V2 Client Tests
 
 
@@ -176,3 +195,73 @@ def test_v2_polars_return_type():
     assert isinstance(polars_df, pl.DataFrame)
     assert polars_df.height == 2
     assert polars_df.width == 1
+
+
+def test_v2_polars_parquet():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_parquet.rid}` LIMIT 2",
+        return_type="polars",
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_parquet.rid}` LIMIT 2",
+        return_type="polars",
+        experimental_use_trino=True,
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+
+def test_v2_polars_parquet_hive_partitioning():
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_hive_partitioned.rid}` LIMIT 2",
+        return_type="polars",
+        experimental_use_trino=True,
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+    polars_df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT sepal_length FROM `{TEST_SINGLETON.iris_hive_partitioned.rid}` LIMIT 2", return_type="polars"
+    )
+    assert isinstance(polars_df, pl.DataFrame)
+    assert polars_df.height == 2
+    assert polars_df.width == 1
+
+
+def test_v2_arrow_compression_codecs():
+    """Test V2 client with different arrow compression codecs."""
+    # Test with LZ4 compression
+    result_lz4 = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+        arrow_compression_codec="LZ4",
+    )
+    assert result_lz4.shape[0] == 10
+    assert result_lz4.shape[1] == 5
+
+    # Test with ZSTD compression
+    result_zstd = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+        arrow_compression_codec="ZSTD",
+    )
+    assert result_zstd.shape[0] == 10
+    assert result_zstd.shape[1] == 5
+
+    # Test with NONE compression (default)
+    result_none = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        query=f"SELECT * FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 10",
+        arrow_compression_codec="NONE",
+    )
+    assert result_none.shape[0] == 10
+    assert result_none.shape[1] == 5
+
+    # Verify all results have the same data
+    import pandas as pd
+
+    pd.testing.assert_frame_equal(result_lz4, result_zstd)
+    pd.testing.assert_frame_equal(result_lz4, result_none)

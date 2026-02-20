@@ -95,6 +95,9 @@ GroupId = str
 SqlDialect = Literal["ANSI", "SPARK"]
 """The SQL Dialect for Foundry SQL queries."""
 
+FurnaceSqlDialect = Literal["SPARK"]
+"""The SQL Dialect for Furnace SQL queries (V2 API). Only SPARK is supported."""
+
 ArrowCompressionCodec = Literal["NONE", "LZ4", "ZSTD"]
 """The Arrow compression codec for Foundry SQL queries."""
 

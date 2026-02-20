@@ -14,7 +14,14 @@ from foundry_dev_tools.errors.sql import (
     FoundrySqlQueryFailedError,
     FoundrySqlSerializationFormatNotImplementedError,
 )
-from foundry_dev_tools.utils.api_types import ArrowCompressionCodec, Ref, SqlDialect, SQLReturnType, assert_in_literal
+from foundry_dev_tools.utils.api_types import (
+    ArrowCompressionCodec,
+    FurnaceSqlDialect,
+    Ref,
+    SqlDialect,
+    SQLReturnType,
+    assert_in_literal,
+)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -318,9 +325,10 @@ class FoundrySqlServerClientV2(APIClient):
         query: str,
         return_type: Literal["pandas"],
         branch: Ref = ...,
-        sql_dialect: SqlDialect = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        experimental_use_trino: bool = ...,
     ) -> pd.core.frame.DataFrame: ...
 
     @overload
@@ -329,9 +337,10 @@ class FoundrySqlServerClientV2(APIClient):
         query: str,
         return_type: Literal["polars"],
         branch: Ref = ...,
-        sql_dialect: SqlDialect = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        experimental_use_trino: bool = ...,
     ) -> pl.DataFrame: ...
 
     @overload
@@ -340,9 +349,10 @@ class FoundrySqlServerClientV2(APIClient):
         query: str,
         return_type: Literal["spark"],
         branch: Ref = ...,
-        sql_dialect: SqlDialect = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        experimental_use_trino: bool = ...,
     ) -> pyspark.sql.DataFrame: ...
 
     @overload
@@ -351,9 +361,10 @@ class FoundrySqlServerClientV2(APIClient):
         query: str,
         return_type: Literal["arrow"],
         branch: Ref = ...,
-        sql_dialect: SqlDialect = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        experimental_use_trino: bool = ...,
     ) -> pa.Table: ...
 
     @overload
@@ -362,9 +373,10 @@ class FoundrySqlServerClientV2(APIClient):
         query: str,
         return_type: SQLReturnType = ...,
         branch: Ref = ...,
-        sql_dialect: SqlDialect = ...,
+        sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        experimental_use_trino: bool = ...,
     ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql(
@@ -372,9 +384,10 @@ class FoundrySqlServerClientV2(APIClient):
         query: str,
         return_type: SQLReturnType = "pandas",
         branch: Ref = "master",
-        sql_dialect: SqlDialect = "SPARK",
+        sql_dialect: FurnaceSqlDialect = "SPARK",
         arrow_compression_codec: ArrowCompressionCodec = "NONE",
         timeout: int = 600,
+        experimental_use_trino: bool = False,
     ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server using the V2 API.
 
@@ -389,9 +402,10 @@ class FoundrySqlServerClientV2(APIClient):
             query: The SQL Query
             return_type: See :py:class:foundry_dev_tools.foundry_api_client.SQLReturnType
             branch: The dataset branch to query
-            sql_dialect: The SQL dialect to use
+            sql_dialect: The SQL dialect to use (only SPARK is supported for V2)
             arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
             timeout: Query timeout in seconds
+            experimental_use_trino: If True, modifies the query to use Trino backend by adding /*+ backend(trino) */ hint
 
         Returns:
             :external+pandas:py:class:`~pandas.DataFrame` | :external+polars:py:class:`~polars.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`:
@@ -403,6 +417,11 @@ class FoundrySqlServerClientV2(APIClient):
             FoundrySqlQueryClientTimedOutError: If the query times out
 
         """  # noqa: E501
+        assert_in_literal(sql_dialect, FurnaceSqlDialect, "sql_dialect")
+
+        if experimental_use_trino:
+            query = query.replace("SELECT ", "SELECT /*+ backend(trino) */ ", 1)
+
         response_json = self.api_query(
             query=query, dialect=sql_dialect, branch=branch, arrow_compression_codec=arrow_compression_codec
         ).json()
@@ -507,7 +526,7 @@ class FoundrySqlServerClientV2(APIClient):
     def api_query(
         self,
         query: str,
-        dialect: SqlDialect,
+        dialect: FurnaceSqlDialect,
         branch: Ref,
         arrow_compression_codec: ArrowCompressionCodec = "NONE",
         **kwargs,
@@ -516,7 +535,7 @@ class FoundrySqlServerClientV2(APIClient):
 
         Args:
             query: The SQL query string
-            dialect: The SQL dialect to use
+            dialect: The SQL dialect to use (only SPARK is supported)
             branch: The dataset branch to query
             arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
