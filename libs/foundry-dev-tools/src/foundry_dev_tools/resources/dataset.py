@@ -801,6 +801,9 @@ class Dataset(resource.Resource):
     def to_polars(self) -> pl.DataFrame:
         """Get dataset as a :py:class:`polars.DataFrame`.
 
+        Fetches the full dataset via FoundrySqlServer. For lazy evaluation
+        with predicate pushdown on large datasets, see :py:meth:`to_lazy_polars`.
+
         Via :py:meth:`foundry_dev_tools.resources.dataset.Dataset.query_foundry_sql`
         """
         return self.query_foundry_sql("SELECT *", return_type="polars")
@@ -822,8 +825,8 @@ class Dataset(resource.Resource):
 
         Example:
             >>> ds = ctx.get_dataset_by_path("/path/to/dataset")
-            >>> lf = ds.to_lazy_polars()
-            >>> result = lf.filter(pl.col("age") > 25).select(["name", "age"])
+            >>> lazy_df = ds.to_lazy_polars()
+            >>> result = lazy_df.filter(pl.col("age") > 25).select("name", "age")
             >>> # Execute and collect results
             >>> df = result.collect()
 
@@ -831,6 +834,10 @@ class Dataset(resource.Resource):
             This method uses the S3-compatible API to directly access dataset files.
             For hive-partitioned datasets, polars will automatically read
             the partition structure.
+
+        See Also:
+            :py:meth:`to_polars`: Eager alternative via FoundrySqlServer.
+            :py:meth:`query_foundry_sql`: For SQL-based filtering and aggregations.
         """
         from foundry_dev_tools._optional.polars import pl
 
