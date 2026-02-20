@@ -134,10 +134,10 @@ def test_v2_return_type_arrow():
 
 def test_v2_return_type_raw_not_supported():
     """Test V2 client with raw return type."""
-    with pytest.raises(ValueError, match="The following return_type is not supported: .+"):
-        schema, rows = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+    with pytest.raises(ValueError, match="Unsupported return_type: raw"):
+        TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
             query=f"SELECT sepal_width, sepal_length FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 3",
-            return_type="raw",
+            return_type="raw",  # type: ignore[arg-type]
         )
 
 

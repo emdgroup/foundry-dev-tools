@@ -368,24 +368,24 @@ class FoundrySqlServerClientV2(APIClient):
     def query_foundry_sql(
         self,
         query: str,
-        return_type: SQLReturnType = ...,
+        return_type: Literal["pandas", "polars", "spark", "arrow"] = ...,
         branch: Ref = ...,
         sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
         experimental_use_trino: bool = ...,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
+    ) -> pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
     def query_foundry_sql(
         self,
         query: str,
-        return_type: SQLReturnType = "pandas",
+        return_type: Literal["pandas", "polars", "spark", "arrow"] = "pandas",
         branch: Ref = "master",
         sql_dialect: FurnaceSqlDialect = "SPARK",
         arrow_compression_codec: ArrowCompressionCodec = "NONE",
         timeout: int = 600,
         experimental_use_trino: bool = False,
-    ) -> tuple[dict, list[list]] | pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> pd.core.frame.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server using the V2 API.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
@@ -397,7 +397,7 @@ class FoundrySqlServerClientV2(APIClient):
 
         Args:
             query: The SQL Query
-            return_type: See :py:class:foundry_dev_tools.foundry_api_client.SQLReturnType
+            return_type: The return type (pandas, polars, spark, or arrow). Note: "raw" is not supported in V2.
             branch: The dataset branch to query
             sql_dialect: The SQL dialect to use (only SPARK is supported for V2)
             arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
@@ -414,13 +414,15 @@ class FoundrySqlServerClientV2(APIClient):
             FoundrySqlQueryClientTimedOutError: If the query times out
 
         """  # noqa: E501
-        assert_in_literal(sql_dialect, FurnaceSqlDialect, "sql_dialect")
-
         if experimental_use_trino:
             query = query.replace("SELECT ", "SELECT /*+ backend(trino) */ ", 1)
 
         response_json = self.api_query(
-            query=query, dialect=sql_dialect, branch=branch, arrow_compression_codec=arrow_compression_codec
+            query=query,
+            dialect=sql_dialect,
+            branch=branch,
+            arrow_compression_codec=arrow_compression_codec,
+            timeout=timeout,
         ).json()
 
         query_handle = self._extract_query_handle(response_json)
@@ -466,7 +468,11 @@ class FoundrySqlServerClientV2(APIClient):
         if return_type == "arrow":
             return arrow_stream_reader.read_all()
 
-        raise ValueError("The following return_type is not supported: " + return_type)
+        msg = (
+            f"Unsupported return_type: {return_type}. "
+            f"V2 API supports: pandas, polars, spark, arrow (raw is not supported)"
+        )
+        raise ValueError(msg)
 
     def _extract_query_handle(self, response_json: dict[str, Any]) -> dict[str, Any]:
         """Extract query handle from execute response.
@@ -526,6 +532,7 @@ class FoundrySqlServerClientV2(APIClient):
         dialect: FurnaceSqlDialect,
         branch: Ref,
         arrow_compression_codec: ArrowCompressionCodec = "NONE",
+        timeout: int = 600,
         **kwargs,
     ) -> requests.Response:
         """Execute a SQL query via the V2 API.
@@ -535,12 +542,16 @@ class FoundrySqlServerClientV2(APIClient):
             dialect: The SQL dialect to use (only SPARK is supported)
             branch: The dataset branch to query
             arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
+            timeout: Query timeout in seconds (used for error context)
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
             Response with query handle and initial status
 
         """
+        assert_in_literal(dialect, FurnaceSqlDialect, "dialect")
+        assert_in_literal(arrow_compression_codec, ArrowCompressionCodec, "arrow_compression_codec")
+
         return self.api_request(
             "POST",
             "sql-endpoint/v1/queries/query",
@@ -557,6 +568,7 @@ class FoundrySqlServerClientV2(APIClient):
                     "resultMode": "AUTO",
                 },
             },
+            error_handling=ErrorHandlingConfig(branch=branch, dialect=dialect, timeout=timeout),
             **kwargs,
         )
 
