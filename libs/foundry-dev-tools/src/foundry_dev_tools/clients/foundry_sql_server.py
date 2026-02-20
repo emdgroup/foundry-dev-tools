@@ -439,7 +439,7 @@ class FoundrySqlServerClientV2(APIClient):
             response_json = response.json()
 
             if response_json.get("status", {}).get("type") == "failed":
-                raise FoundrySqlQueryFailedError(response)
+                raise FoundrySqlQueryFailedError(response, query=query, branch=branch, dialect=sql_dialect)
             if time.time() > start_time + timeout:
                 raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
 
