@@ -303,3 +303,54 @@ def test_v2_query_failed_error_details(mocker, test_context_mock):
     exception_str = str(exception.value)
     assert "COLUMN_NAME" in exception_str
     assert "my_table" in exception_str
+
+
+def test_v2_polling_error_includes_context(mocker, test_context_mock):
+    """Test that polling errors include query context for better debugging."""
+    mocker.patch("time.sleep")
+
+    test_query = "SELECT * FROM `ri.foundry.main.dataset.test-dataset`"
+
+    # Mock the api_query endpoint (initial query execution)
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json={"type": "running", "running": {"queryHandle": {"queryId": "test-query-id", "type": "foundry"}}},
+    )
+
+    # Mock the api_status endpoint with polling error
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        json={
+            "status": {
+                "type": "failed",
+                "failed": {
+                    "errorCode": "ModuleGroupService:ErrorPollingModule",
+                    "errorInstanceId": "5be87070-3aa3-4ed6-aa6a-d9b5041885af",
+                    "errorMessage": "Error polling for job status. Please resubmit.",
+                    "retryable": False,
+                },
+            }
+        },
+    )
+
+    with pytest.raises(FoundrySqlQueryFailedError) as exception:
+        test_context_mock.foundry_sql_server_v2.query_foundry_sql(test_query)
+
+    # Verify error details are extracted
+    assert exception.value.error_code == "ModuleGroupService:ErrorPollingModule"
+    assert exception.value.error_instance_id == "5be87070-3aa3-4ed6-aa6a-d9b5041885af"
+    assert exception.value.error_message == "Error polling for job status. Please resubmit."
+
+    # Verify query context is included in the error
+    assert exception.value.query == test_query
+    assert exception.value.branch == "master"
+    assert exception.value.dialect == "SPARK"
+
+    # Verify context appears in exception string
+    exception_str = str(exception.value)
+    assert "query = " + test_query in exception_str
+    assert "branch = master" in exception_str
+    assert "dialect = SPARK" in exception_str
+    assert "ModuleGroupService:ErrorPollingModule" in exception_str

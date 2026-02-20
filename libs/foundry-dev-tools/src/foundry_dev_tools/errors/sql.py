@@ -16,7 +16,7 @@ class FoundrySqlQueryFailedError(FoundryAPIError):
 
     message = "Foundry SQL Query Failed."
 
-    def __init__(self, response: requests.Response):
+    def __init__(self, response: requests.Response, **context_kwargs):
         kwargs = {}
         info = ""
 
@@ -50,6 +50,9 @@ class FoundrySqlQueryFailedError(FoundryAPIError):
         except Exception:  # noqa: BLE001
             # If any error occurs during extraction, fall back to empty
             self.error_message = ""
+
+        # Merge context kwargs (e.g., query, branch) with extracted error parameters
+        kwargs.update(context_kwargs)
 
         super().__init__(response=response, info=info, **kwargs)
 
