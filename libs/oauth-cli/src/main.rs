@@ -47,16 +47,16 @@ struct Cli {
     /// Enable debug logging to ~/.foundry/oauth-debug.log
     #[arg(long, global = true)]
     debug: bool,
+
+    /// Use console mode instead of browser (for headless/SSH environments)
+    #[arg(long, global = true)]
+    no_browser: bool,
 }
 
 #[derive(Subcommand)]
 enum Command {
     /// Interactive login: open browser, complete OAuth2 flow, store refresh token
-    Login {
-        /// Use console mode instead of browser (for headless/SSH environments)
-        #[arg(long)]
-        no_browser: bool,
-    },
+    Login,
 
     /// Output a fresh access token to stdout (refresh if needed)
     Token,
@@ -71,8 +71,6 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
 
-    let no_browser = matches!(cli.command, Command::Login { no_browser: true });
-
     let flags = CliFlags {
         hostname: cli.hostname,
         client_id: cli.client_id,
@@ -80,7 +78,7 @@ fn main() {
         scopes: cli.scopes,
         cache_dir: cli.cache_dir,
         port: cli.port,
-        no_browser,
+        no_browser: cli.no_browser,
         debug: cli.debug,
     };
 
@@ -93,7 +91,7 @@ fn main() {
     };
 
     let result = match cli.command {
-        Command::Login { .. } => cli::login(&config),
+        Command::Login => cli::login(&config),
         Command::Token => cli::token(&config),
         Command::Status => cli::status(&config),
         Command::Logout => cli::logout(&config),
