@@ -1,11 +1,11 @@
 [package]
-name = "foundry-oauth-cli"
+name = "foundry-dev-tools-oauth-cli"
 version = "0.1.0"
 edition = "2021"
-description = "Standalone OAuth2 CLI for Foundry, designed for Claude Code apiKeyHelper"
+description = "Standalone OAuth2 CLI for Palantir Foundry"
 
 [[bin]]
-name = "foundry-oauth"
+name = "foundry-dev-tools-oauth"
 path = "src/main.rs"
 
 [dependencies]

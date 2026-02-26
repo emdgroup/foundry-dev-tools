@@ -107,7 +107,7 @@ pub fn exchange_code(
 
     let client = reqwest::blocking::Client::new();
     let resp = client
-        .post(&config.token_url())
+        .post(config.token_url())
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()?;
@@ -136,7 +136,7 @@ pub fn refresh_token(config: &Config, refresh_tok: &str) -> Result<TokenResponse
 
     let client = reqwest::blocking::Client::new();
     let resp = client
-        .post(&config.token_url())
+        .post(config.token_url())
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()?;

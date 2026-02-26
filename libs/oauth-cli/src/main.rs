@@ -12,8 +12,8 @@ use std::process;
 
 #[derive(Parser)]
 #[command(
-    name = "foundry-oauth",
-    about = "OAuth2 CLI for Foundry — provides Bearer tokens for Claude Code",
+    name = "foundry-dev-tools-oauth",
+    about = "OAuth2 CLI for Palantir Foundry — obtain and manage Bearer tokens",
     version
 )]
 struct Cli {
@@ -100,7 +100,12 @@ fn main() {
     };
 
     if let Err(e) = result {
-        log::debug_log(config.debug, &config.cache_dir, "EXIT", &format!("1 — {}", e));
+        log::debug_log(
+            config.debug,
+            &config.cache_dir,
+            "EXIT",
+            &format!("1 — {}", e),
+        );
         eprintln!("Error: {}", e);
         process::exit(1);
     }

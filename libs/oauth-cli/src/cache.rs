@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 const LOCK_TIMEOUT_SECS: u64 = 30;
-const KEYRING_SERVICE: &str = "foundry-oauth";
+const KEYRING_SERVICE: &str = "foundry-dev-tools-oauth";
 
 /// On-disk cache file (Linux only): maps hash keys to refresh tokens.
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -51,7 +51,10 @@ fn keyring_load(key: &str) -> Result<Option<String>> {
     match entry.get_password() {
         Ok(token) => Ok(Some(token)),
         Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(Error::Keyring(format!("failed to read from keyring: {}", e))),
+        Err(e) => Err(Error::Keyring(format!(
+            "failed to read from keyring: {}",
+            e
+        ))),
     }
 }
 
@@ -151,7 +154,9 @@ fn file_load(cache_dir: &Path, key: &str) -> Result<Option<String>> {
 fn file_save(cache_dir: &Path, key: &str, refresh_token: &str) -> Result<()> {
     ensure_cache_dir(cache_dir)?;
     let mut cache = read_cache_file(cache_dir)?;
-    cache.tokens.insert(key.to_string(), refresh_token.to_string());
+    cache
+        .tokens
+        .insert(key.to_string(), refresh_token.to_string());
     write_cache_file(cache_dir, &cache)
 }
 
@@ -287,7 +292,12 @@ where
                         seconds: LOCK_TIMEOUT_SECS,
                     });
                 }
-                log::debug_log(debug, cache_dir, "LOCK_WAIT", "waiting to acquire file lock");
+                log::debug_log(
+                    debug,
+                    cache_dir,
+                    "LOCK_WAIT",
+                    "waiting to acquire file lock",
+                );
                 std::thread::sleep(Duration::from_millis(200));
             }
         }
@@ -365,9 +375,14 @@ mod tests {
         let cache_dir = dir.path();
 
         // Initially empty
-        let result =
-            load(cache_dir, "host.example.com", "client123", &["offline_access".into()], false)
-                .unwrap();
+        let result = load(
+            cache_dir,
+            "host.example.com",
+            "client123",
+            &["offline_access".into()],
+            false,
+        )
+        .unwrap();
         assert!(result.is_none());
 
         // Save
@@ -382,21 +397,35 @@ mod tests {
         .unwrap();
 
         // Load back
-        let result =
-            load(cache_dir, "host.example.com", "client123", &["offline_access".into()], false)
-                .unwrap();
+        let result = load(
+            cache_dir,
+            "host.example.com",
+            "client123",
+            &["offline_access".into()],
+            false,
+        )
+        .unwrap();
         assert_eq!(result.unwrap(), "refresh_tok");
 
         // Delete
-        let removed =
-            delete(cache_dir, "host.example.com", "client123", &["offline_access".into()])
-                .unwrap();
+        let removed = delete(
+            cache_dir,
+            "host.example.com",
+            "client123",
+            &["offline_access".into()],
+        )
+        .unwrap();
         assert!(removed);
 
         // Gone
-        let result =
-            load(cache_dir, "host.example.com", "client123", &["offline_access".into()], false)
-                .unwrap();
+        let result = load(
+            cache_dir,
+            "host.example.com",
+            "client123",
+            &["offline_access".into()],
+            false,
+        )
+        .unwrap();
         assert!(result.is_none());
     }
 }

@@ -34,7 +34,7 @@ pub enum Error {
     ServerTimeout,
 
     #[error("callback server error: {0}")]
-    ServerError(String),
+    ServerCallback(String),
 
     // Cache / storage errors
     #[error("cache directory error ({path}): {source}")]
@@ -70,7 +70,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     // Login required (no cached token, non-interactive context)
-    #[error("no cached credentials found — run `foundry-oauth login` first")]
+    #[error("no cached credentials found — run `foundry-dev-tools-oauth login` first")]
     LoginRequired,
 }
 

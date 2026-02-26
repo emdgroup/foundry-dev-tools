@@ -12,7 +12,11 @@ pub fn login(config: &Config) -> Result<()> {
         config.debug,
         &config.cache_dir,
         "STARTED",
-        &format!("login — hostname={}, scopes={}", config.hostname, config.scopes_str()),
+        &format!(
+            "login — hostname={}, scopes={}",
+            config.hostname,
+            config.scopes_str()
+        ),
     );
 
     let pkce = oauth::generate_pkce();
@@ -43,7 +47,12 @@ pub fn login(config: &Config) -> Result<()> {
         (redirect_uri, code)
     } else {
         // Browser mode: start local server, open browser
-        log::debug_log(config.debug, &config.cache_dir, "LOGIN_TRIGGERED", "starting browser-based login");
+        log::debug_log(
+            config.debug,
+            &config.cache_dir,
+            "LOGIN_TRIGGERED",
+            "starting browser-based login",
+        );
 
         let (port, callback) = {
             // Start the server first so we know the actual port
@@ -68,7 +77,12 @@ pub fn login(config: &Config) -> Result<()> {
     };
 
     // Exchange the authorization code for tokens
-    log::debug_log(config.debug, &config.cache_dir, "LOGIN_PENDING", "exchanging authorization code for tokens");
+    log::debug_log(
+        config.debug,
+        &config.cache_dir,
+        "LOGIN_PENDING",
+        "exchanging authorization code for tokens",
+    );
     let token_resp = oauth::exchange_code(config, &code, &pkce.code_verifier, &redirect_uri)?;
 
     // Save refresh token
@@ -85,7 +99,12 @@ pub fn login(config: &Config) -> Result<()> {
         })?;
     }
 
-    log::debug_log(config.debug, &config.cache_dir, "LOGIN_OK", "login completed, refresh token saved");
+    log::debug_log(
+        config.debug,
+        &config.cache_dir,
+        "LOGIN_OK",
+        "login completed, refresh token saved",
+    );
     eprintln!("Login successful! Tokens cached for {}.", config.hostname);
 
     Ok(())
@@ -128,7 +147,11 @@ pub fn token(config: &Config) -> Result<()> {
         config.debug,
         &config.cache_dir,
         "STARTED",
-        &format!("token — hostname={}, scopes={}", config.hostname, config.scopes_str()),
+        &format!(
+            "token — hostname={}, scopes={}",
+            config.hostname,
+            config.scopes_str()
+        ),
     );
 
     // Try refresh under the lock (fast path)
@@ -142,8 +165,12 @@ pub fn token(config: &Config) -> Result<()> {
             // No cached token or refresh failed — try auto-login OUTSIDE the lock
             // so the interactive browser flow doesn't hold the lock for 30+ seconds
             if let Err(ref e) = result {
-                log::debug_log(config.debug, &config.cache_dir, "LOGIN_TRIGGERED",
-                    &format!("attempting auto-login: {}", e));
+                log::debug_log(
+                    config.debug,
+                    &config.cache_dir,
+                    "LOGIN_TRIGGERED",
+                    &format!("attempting auto-login: {}", e),
+                );
             }
             try_auto_login(config)?
         }
@@ -152,7 +179,12 @@ pub fn token(config: &Config) -> Result<()> {
 
     // Print access token to stdout (the ONLY thing that goes to stdout)
     println!("{}", access_token);
-    log::debug_log(config.debug, &config.cache_dir, "TOKEN_OUTPUT", "access token printed to stdout");
+    log::debug_log(
+        config.debug,
+        &config.cache_dir,
+        "TOKEN_OUTPUT",
+        "access token printed to stdout",
+    );
     log::debug_log(config.debug, &config.cache_dir, "EXIT", "0");
 
     Ok(())
@@ -171,7 +203,12 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
 
     match cached {
         Some(refresh_tok) => {
-            log::debug_log(config.debug, &config.cache_dir, "REFRESH_START", "sending refresh token request");
+            log::debug_log(
+                config.debug,
+                &config.cache_dir,
+                "REFRESH_START",
+                "sending refresh token request",
+            );
 
             match oauth::refresh_token(config, &refresh_tok) {
                 Ok(resp) => {
@@ -186,7 +223,12 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
                             config.debug,
                         )?;
                     }
-                    log::debug_log(config.debug, &config.cache_dir, "REFRESH_OK", "new access token received");
+                    log::debug_log(
+                        config.debug,
+                        &config.cache_dir,
+                        "REFRESH_OK",
+                        "new access token received",
+                    );
                     Ok(resp.access_token)
                 }
                 Err(e) => {
@@ -211,11 +253,16 @@ fn try_auto_login(config: &Config) -> Result<String> {
     // Check if we're in an interactive terminal
     if !atty_is_terminal() {
         eprintln!("No cached credentials and not running interactively.");
-        eprintln!("Run `foundry-oauth login` in a terminal first.");
+        eprintln!("Run `foundry-dev-tools-oauth login` in a terminal first.");
         return Err(Error::LoginRequired);
     }
 
-    log::debug_log(config.debug, &config.cache_dir, "LOGIN_TRIGGERED", "no valid token, starting interactive login");
+    log::debug_log(
+        config.debug,
+        &config.cache_dir,
+        "LOGIN_TRIGGERED",
+        "no valid token, starting interactive login",
+    );
     eprintln!("No cached token found. Starting login flow...");
 
     // Run login flow (this may open a browser and wait — NOT under the lock)
@@ -270,7 +317,7 @@ pub fn status(config: &Config) -> Result<()> {
 
     if !has_token {
         eprintln!();
-        eprintln!("Run `foundry-oauth login` to authenticate.");
+        eprintln!("Run `foundry-dev-tools-oauth login` to authenticate.");
     }
 
     Ok(())

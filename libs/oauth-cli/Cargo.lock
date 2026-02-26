@@ -378,7 +378,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "foundry-oauth-cli"
+name = "foundry-dev-tools-oauth-cli"
 version = "0.1.0"
 dependencies = [
  "base64",

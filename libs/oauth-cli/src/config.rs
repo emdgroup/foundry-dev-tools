@@ -101,26 +101,17 @@ impl Config {
 
     /// Authorization endpoint URL.
     pub fn authorize_url(&self) -> String {
-        format!(
-            "https://{}/multipass/api/oauth2/authorize",
-            self.hostname
-        )
+        format!("https://{}/multipass/api/oauth2/authorize", self.hostname)
     }
 
     /// Token endpoint URL.
     pub fn token_url(&self) -> String {
-        format!(
-            "https://{}/multipass/api/oauth2/token",
-            self.hostname
-        )
+        format!("https://{}/multipass/api/oauth2/token", self.hostname)
     }
 
     /// Callback URL used for console (no-browser) mode.
     pub fn callback_url(&self) -> String {
-        format!(
-            "https://{}/multipass/api/oauth2/callback",
-            self.hostname
-        )
+        format!("https://{}/multipass/api/oauth2/callback", self.hostname)
     }
 
     /// Local redirect URI for browser-based flow.
