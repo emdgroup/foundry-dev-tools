@@ -14,7 +14,16 @@ pub fn debug_log(enabled: bool, config_dir: &Path, event: &str, message: &str) {
     let line = format!("[{}] {} — {}\n", timestamp, event, message);
 
     // Best-effort: silently ignore write failures for debug logging
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_path) {
+    let mut opts = OpenOptions::new();
+    opts.create(true).append(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+
+    if let Ok(mut file) = opts.open(&log_path) {
         let _ = file.write_all(line.as_bytes());
     }
 }
