@@ -140,6 +140,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     fn flags_with_required(hostname: &str, client_id: &str) -> CliFlags {
         CliFlags {
@@ -150,6 +151,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_with_flags() {
         let config = Config::resolve(flags_with_required("host.example.com", "my-client")).unwrap();
         assert_eq!(config.hostname, "host.example.com");
@@ -161,6 +163,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_missing_hostname() {
         let flags = CliFlags {
             client_id: Some("id".into()),
@@ -174,6 +177,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_missing_client_id() {
         let flags = CliFlags {
             hostname: Some("host".into()),
@@ -186,6 +190,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_custom_scopes() {
         let mut flags = flags_with_required("host", "id");
         flags.scopes = Some("api:read offline_access".into());
@@ -194,6 +199,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_custom_port() {
         let mut flags = flags_with_required("host", "id");
         flags.port = Some(9999);
@@ -202,6 +208,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_debug_flag() {
         let mut flags = flags_with_required("host", "id");
         flags.debug = true;
@@ -210,12 +217,14 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_scopes_str() {
         let config = Config::resolve(flags_with_required("host", "id")).unwrap();
         assert_eq!(config.scopes_str(), "offline_access");
     }
 
     #[test]
+    #[serial]
     fn test_authorize_url() {
         let config = Config::resolve(flags_with_required("foundry.example.com", "id")).unwrap();
         assert_eq!(
@@ -225,6 +234,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_token_url() {
         let config = Config::resolve(flags_with_required("foundry.example.com", "id")).unwrap();
         assert_eq!(
@@ -234,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_callback_url() {
         let config = Config::resolve(flags_with_required("foundry.example.com", "id")).unwrap();
         assert_eq!(
@@ -243,6 +254,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_local_redirect_uri() {
         let config = Config::resolve(flags_with_required("host", "id")).unwrap();
         assert_eq!(config.local_redirect_uri(9876), "http://127.0.0.1:9876/");

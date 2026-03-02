@@ -265,8 +265,8 @@ where
     let lock_path = lock_file_path(config_dir);
     let lock_file = fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .write(true)
-        .truncate(true)
         .open(&lock_path)
         .map_err(|e| Error::CacheIo {
             path: lock_path.clone(),

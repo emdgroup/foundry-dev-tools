@@ -5,10 +5,9 @@ use base64::Engine;
 use rand::RngExt;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
 
 /// PKCE pair: code_verifier and the derived code_challenge.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Pkce {
     pub code_verifier: String,
     pub code_challenge: String,
@@ -16,11 +15,8 @@ pub struct Pkce {
 
 /// Token response from the Foundry OAuth2 token endpoint.
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct TokenResponse {
     pub access_token: String,
-    pub token_type: String,
-    pub expires_in: Option<u64>,
     pub refresh_token: Option<String>,
 }
 
@@ -60,27 +56,16 @@ pub fn build_authorization_url(
     state: &str,
     redirect_uri: &str,
 ) -> String {
-    let params = [
-        ("response_type", "code"),
-        ("client_id", &config.client_id),
-        ("redirect_uri", redirect_uri),
-        ("scope", &config.scopes_str()),
-        ("state", state),
-        ("code_challenge", &pkce.code_challenge),
-        ("code_challenge_method", "S256"),
-    ];
-
-    let query = params
-        .iter()
-        .map(|(k, v)| {
-            format!(
-                "{}={}",
-                url::form_urlencoded::byte_serialize(k.as_bytes()).collect::<String>(),
-                url::form_urlencoded::byte_serialize(v.as_bytes()).collect::<String>()
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("&");
+    let scopes = config.scopes_str();
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("response_type", "code")
+        .append_pair("client_id", &config.client_id)
+        .append_pair("redirect_uri", redirect_uri)
+        .append_pair("scope", &scopes)
+        .append_pair("state", state)
+        .append_pair("code_challenge", &pkce.code_challenge)
+        .append_pair("code_challenge_method", "S256")
+        .finish();
 
     format!("{}?{}", config.authorize_url(), query)
 }
@@ -92,23 +77,19 @@ pub fn exchange_code(
     code_verifier: &str,
     redirect_uri: &str,
 ) -> Result<TokenResponse> {
-    let mut params = HashMap::new();
-    params.insert("grant_type", "authorization_code");
-    params.insert("code", code);
-    params.insert("redirect_uri", redirect_uri);
-    params.insert("client_id", &config.client_id);
-    params.insert("code_verifier", code_verifier);
-
-    let client_secret_owned;
+    let mut params: Vec<(&str, &str)> = vec![
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("redirect_uri", redirect_uri),
+        ("client_id", &config.client_id),
+        ("code_verifier", code_verifier),
+    ];
     if let Some(ref secret) = config.client_secret {
-        client_secret_owned = secret.clone();
-        params.insert("client_secret", &client_secret_owned);
+        params.push(("client_secret", secret));
     }
 
-    let client = reqwest::blocking::Client::new();
-    let resp = client
+    let resp = http_client()
         .post(config.token_url())
-        .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()?;
 
@@ -123,21 +104,17 @@ pub fn exchange_code(
 
 /// Refresh an access token using a refresh_token.
 pub fn refresh_token(config: &Config, refresh_tok: &str) -> Result<TokenResponse> {
-    let mut params = HashMap::new();
-    params.insert("grant_type", "refresh_token");
-    params.insert("refresh_token", refresh_tok);
-    params.insert("client_id", &config.client_id);
-
-    let client_secret_owned;
+    let mut params: Vec<(&str, &str)> = vec![
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_tok),
+        ("client_id", &config.client_id),
+    ];
     if let Some(ref secret) = config.client_secret {
-        client_secret_owned = secret.clone();
-        params.insert("client_secret", &client_secret_owned);
+        params.push(("client_secret", secret));
     }
 
-    let client = reqwest::blocking::Client::new();
-    let resp = client
+    let resp = http_client()
         .post(config.token_url())
-        .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()?;
 
@@ -148,6 +125,13 @@ pub fn refresh_token(config: &Config, refresh_tok: &str) -> Result<TokenResponse
     }
 
     Ok(resp.json()?)
+}
+
+/// Shared HTTP client. Reuses connection pool and TLS sessions across requests.
+fn http_client() -> reqwest::blocking::Client {
+    use std::sync::OnceLock;
+    static CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
+    CLIENT.get_or_init(reqwest::blocking::Client::new).clone()
 }
 
 #[cfg(test)]

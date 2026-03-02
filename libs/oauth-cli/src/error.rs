@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
 pub enum Error {
     // Configuration errors
     #[error("missing required configuration: {0}")]
@@ -16,9 +15,6 @@ pub enum Error {
 
     #[error("token refresh failed (HTTP {status}): {body}")]
     TokenRefresh { status: u16, body: String },
-
-    #[error("PKCE generation failed: {0}")]
-    Pkce(String),
 
     #[error("state mismatch: expected {expected}, got {got}")]
     StateMismatch { expected: String, got: String },

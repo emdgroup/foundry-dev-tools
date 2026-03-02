@@ -46,7 +46,8 @@ pub fn login(config: &Config) -> Result<()> {
 
         (redirect_uri, code)
     } else {
-        // Browser mode: start local server, open browser
+        // Browser mode: bind server first, then open browser, then wait for callback.
+        // This ordering ensures the port is listening before the browser redirects back.
         log::debug_log(
             config.debug,
             &config.config_dir,
@@ -54,15 +55,20 @@ pub fn login(config: &Config) -> Result<()> {
             "starting browser-based login",
         );
 
-        let (port, callback) = {
-            // Start the server first so we know the actual port
-            let (port, _redirect_uri) = start_server_and_open_browser(config, &pkce, &state)?;
-            // wait_for_callback blocks until the browser redirects back
-            let (actual_port, callback) = server::wait_for_callback(port, 300)?;
-            // The actual_port should match, but use what we got
-            let _ = actual_port;
-            (port, callback)
-        };
+        let callback_server = server::CallbackServer::bind(config.port)?;
+        let port = callback_server.port();
+        let redirect_uri = config.local_redirect_uri(port);
+        let auth_url = oauth::build_authorization_url(config, &pkce, &state, &redirect_uri);
+
+        // Open browser (best effort — print URL as fallback)
+        eprintln!("Opening browser for authentication...");
+        if let Err(e) = open::that(&auth_url) {
+            eprintln!("Failed to open browser: {}", e);
+            eprintln!("Please open this URL manually:");
+            eprintln!("  {}", auth_url);
+        }
+
+        let callback = callback_server.wait_for_callback(300)?;
 
         // Validate state
         if callback.state != state {
@@ -72,7 +78,6 @@ pub fn login(config: &Config) -> Result<()> {
             });
         }
 
-        let redirect_uri = config.local_redirect_uri(port);
         (redirect_uri, callback.code)
     };
 
@@ -108,37 +113,6 @@ pub fn login(config: &Config) -> Result<()> {
     eprintln!("Login successful! Tokens cached for {}.", config.hostname);
 
     Ok(())
-}
-
-/// Start the local callback server and open the browser to the authorization URL.
-/// Returns the port the server is bound to.
-fn start_server_and_open_browser(
-    config: &Config,
-    pkce: &oauth::Pkce,
-    state: &str,
-) -> Result<(u16, String)> {
-    // We need to know the port before building the URL, but wait_for_callback
-    // does the binding. We'll use a two-step approach: bind, build URL, open browser.
-    // Actually, server::wait_for_callback already binds and waits. But we need
-    // to open the browser *after* binding but *before* the callback arrives.
-    //
-    // Restructure: bind the server, open the browser, then wait for the callback.
-    // This requires splitting wait_for_callback. For simplicity, we'll use a
-    // thread: spawn the server wait in a thread, open the browser, then join.
-
-    let port = config.port;
-    let redirect_uri = config.local_redirect_uri(port);
-    let auth_url = oauth::build_authorization_url(config, pkce, state, &redirect_uri);
-
-    // Open browser (best effort)
-    eprintln!("Opening browser for authentication...");
-    if let Err(e) = open::that(&auth_url) {
-        eprintln!("Failed to open browser: {}", e);
-        eprintln!("Please open this URL manually:");
-        eprintln!("  {}", auth_url);
-    }
-
-    Ok((port, redirect_uri))
 }
 
 /// Get a fresh access token, refreshing via cached refresh_token. Outputs token to stdout.
