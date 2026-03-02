@@ -32,7 +32,7 @@ struct Cli {
     #[arg(long, global = true)]
     client_secret: Option<String>,
 
-    /// OAuth2 scopes (space-separated)
+    /// OAuth2 scopes (space-separated, default: "offline_access api:read-data")
     #[arg(long, global = true)]
     scopes: Option<String>,
 

@@ -69,7 +69,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     // Login required (no cached token, non-interactive context)
-    #[error("no cached credentials found — run `foundry-dev-tools-oauth login` first")]
+    #[error("no cached credentials found — run `{exe} login` first", exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "foundry-dev-tools-oauth".into()))]
     LoginRequired,
 }
 

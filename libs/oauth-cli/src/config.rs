@@ -1,6 +1,9 @@
 use crate::error::{Error, Result};
 use std::path::PathBuf;
 
+/// Default OAuth2 scopes requested when none are explicitly provided.
+pub const DEFAULT_SCOPES: &[&str] = &["offline_access", "api:read-data"];
+
 /// Resolved configuration for the CLI.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -115,7 +118,7 @@ impl Config {
             .scopes
             .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__SCOPES").ok())
             .map(|s| s.split_whitespace().map(String::from).collect())
-            .unwrap_or_else(|| vec!["offline_access".to_string()]);
+            .unwrap_or_else(|| DEFAULT_SCOPES.iter().map(|s| String::from(*s)).collect());
 
         let config_dir = resolve_config_dir();
 
@@ -191,7 +194,7 @@ mod tests {
         let config = Config::resolve(flags_with_required("host.example.com", "my-client")).unwrap();
         assert_eq!(config.hostname, "host.example.com");
         assert_eq!(config.client_id, "my-client");
-        assert_eq!(config.scopes, vec!["offline_access"]);
+        assert_eq!(config.scopes, vec!["offline_access", "api:read-data"]);
         assert_eq!(config.port, 9876);
         assert!(!config.debug);
         assert!(!config.no_browser);
@@ -252,7 +255,7 @@ mod tests {
     #[serial]
     fn test_scopes_str() {
         let config = Config::resolve(flags_with_required("host", "id")).unwrap();
-        assert_eq!(config.scopes_str(), "offline_access");
+        assert_eq!(config.scopes_str(), "offline_access api:read-data");
     }
 
     #[test]

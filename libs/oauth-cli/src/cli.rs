@@ -226,8 +226,11 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
 fn try_auto_login(config: &Config) -> Result<String> {
     // Check if we're in an interactive terminal
     if !atty_is_terminal() {
+        let exe = std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "foundry-dev-tools-oauth".to_string());
         eprintln!("No cached credentials and not running interactively.");
-        eprintln!("Run `foundry-dev-tools-oauth login` in a terminal first.");
+        eprintln!("Run `{exe} login` in a terminal first.");
         return Err(Error::LoginRequired);
     }
 
@@ -290,8 +293,11 @@ pub fn status(config: &Config) -> Result<()> {
     eprintln!("  Has token: {}", if has_token { "yes" } else { "no" });
 
     if !has_token {
+        let exe = std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "foundry-dev-tools-oauth".to_string());
         eprintln!();
-        eprintln!("Run `foundry-dev-tools-oauth login` to authenticate.");
+        eprintln!("Run `{exe} login` to authenticate.");
     }
 
     Ok(())
