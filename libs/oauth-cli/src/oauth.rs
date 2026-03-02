@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::error::{Error, Result};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use rand::Rng;
+use rand::RngExt;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -29,10 +29,10 @@ const PKCE_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 
 /// Generate a PKCE code_verifier and code_challenge (S256).
 pub fn generate_pkce() -> Pkce {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let verifier: String = (0..128)
         .map(|_| {
-            let idx = rng.gen_range(0..PKCE_CHARS.len());
+            let idx = rng.random_range(0..PKCE_CHARS.len());
             PKCE_CHARS[idx] as char
         })
         .collect();
@@ -48,8 +48,8 @@ pub fn generate_pkce() -> Pkce {
 
 /// Generate a random state parameter for CSRF protection.
 pub fn generate_state() -> String {
-    let mut rng = rand::thread_rng();
-    let bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+    let mut rng = rand::rng();
+    let bytes: Vec<u8> = (0..32).map(|_| rng.random()).collect();
     URL_SAFE_NO_PAD.encode(&bytes)
 }
 
