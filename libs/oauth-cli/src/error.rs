@@ -6,6 +6,9 @@ pub enum Error {
     #[error("missing required configuration: {0}")]
     MissingConfig(&'static str),
 
+    #[error("invalid hostname '{hostname}': must be a plain domain name (no slashes, ports, or path components)")]
+    InvalidHostname { hostname: String },
+
     // OAuth errors
     #[error("OAuth authorization failed: {0}")]
     OAuthAuthorization(String),

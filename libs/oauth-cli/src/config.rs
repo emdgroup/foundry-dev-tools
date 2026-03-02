@@ -53,32 +53,67 @@ fn resolve_config_dir() -> PathBuf {
     candidates[0].join("oauth")
 }
 
+/// Validate that the hostname is a plain domain name, not a URL or path-injected string.
+/// Rejects any hostname containing characters that could cause URL injection when
+/// interpolated into `https://{hostname}/multipass/api/...`.
+fn validate_hostname(hostname: &str) -> Result<()> {
+    if hostname.is_empty() {
+        return Err(Error::InvalidHostname {
+            hostname: hostname.to_string(),
+        });
+    }
+
+    // Must contain only valid domain characters: alphanumeric, hyphens, dots
+    let is_valid = hostname
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.');
+
+    if !is_valid {
+        return Err(Error::InvalidHostname {
+            hostname: hostname.to_string(),
+        });
+    }
+
+    // Must not start or end with a dot or hyphen
+    if hostname.starts_with('.')
+        || hostname.starts_with('-')
+        || hostname.ends_with('.')
+        || hostname.ends_with('-')
+    {
+        return Err(Error::InvalidHostname {
+            hostname: hostname.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
 impl Config {
-    /// Build a resolved Config by merging: CLI flags → native env vars → FDT env vars → defaults.
+    /// Build a resolved Config by merging: CLI flags → FDT env vars → defaults.
     pub fn resolve(flags: CliFlags) -> Result<Self> {
         let hostname = flags
             .hostname
-            .or_else(|| std::env::var("FOUNDRY_HOSTNAME").ok())
             .or_else(|| std::env::var("FDT_CREDENTIALS__DOMAIN").ok())
             .ok_or(Error::MissingConfig(
-                "hostname (--hostname, FOUNDRY_HOSTNAME, or FDT_CREDENTIALS__DOMAIN)",
+                "hostname (--hostname or FDT_CREDENTIALS__DOMAIN)",
             ))?;
+
+        validate_hostname(&hostname)?;
 
         let client_id = flags
             .client_id
-            .or_else(|| std::env::var("FOUNDRY_CLIENT_ID").ok())
             .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__CLIENT_ID").ok())
             .ok_or(Error::MissingConfig(
-                "client_id (--client-id, FOUNDRY_CLIENT_ID, or FDT_CREDENTIALS__OAUTH__CLIENT_ID)",
+                "client_id (--client-id or FDT_CREDENTIALS__OAUTH__CLIENT_ID)",
             ))?;
 
         let client_secret = flags
             .client_secret
-            .or_else(|| std::env::var("FOUNDRY_CLIENT_SECRET").ok());
+            .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__CLIENT_SECRET").ok());
 
         let scopes = flags
             .scopes
-            .or_else(|| std::env::var("FOUNDRY_SCOPES").ok())
+            .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__SCOPES").ok())
             .map(|s| s.split_whitespace().map(String::from).collect())
             .unwrap_or_else(|| vec!["offline_access".to_string()]);
 
@@ -87,14 +122,14 @@ impl Config {
         let port = flags
             .port
             .or_else(|| {
-                std::env::var("FOUNDRY_OAUTH_PORT")
+                std::env::var("FDT_CREDENTIALS__OAUTH__PORT")
                     .ok()
                     .and_then(|s| s.parse().ok())
             })
             .unwrap_or(9876);
 
         let debug = flags.debug
-            || std::env::var("FOUNDRY_OAUTH_DEBUG")
+            || std::env::var("FDT_CREDENTIALS__OAUTH__DEBUG")
                 .ok()
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);
@@ -169,8 +204,6 @@ mod tests {
             client_id: Some("id".into()),
             ..Default::default()
         };
-        // Clear env vars that might interfere
-        std::env::remove_var("FOUNDRY_HOSTNAME");
         std::env::remove_var("FDT_CREDENTIALS__DOMAIN");
         let result = Config::resolve(flags);
         assert!(result.is_err());
@@ -183,7 +216,6 @@ mod tests {
             hostname: Some("host".into()),
             ..Default::default()
         };
-        std::env::remove_var("FOUNDRY_CLIENT_ID");
         std::env::remove_var("FDT_CREDENTIALS__OAUTH__CLIENT_ID");
         let result = Config::resolve(flags);
         assert!(result.is_err());
@@ -259,5 +291,69 @@ mod tests {
         let config = Config::resolve(flags_with_required("host", "id")).unwrap();
         assert_eq!(config.local_redirect_uri(9876), "http://127.0.0.1:9876/");
         assert_eq!(config.local_redirect_uri(9000), "http://127.0.0.1:9000/");
+    }
+
+    // ---- hostname validation tests ----
+
+    #[test]
+    fn test_validate_hostname_valid() {
+        assert!(validate_hostname("foundry.example.com").is_ok());
+        assert!(validate_hostname("my-host.example.co.uk").is_ok());
+        assert!(validate_hostname("localhost").is_ok());
+        assert!(validate_hostname("a").is_ok());
+        assert!(validate_hostname("host-1.test").is_ok());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_empty() {
+        assert!(validate_hostname("").is_err());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_slashes() {
+        // URL injection: evil.com/steal?x= would redirect credentials
+        assert!(validate_hostname("evil.com/steal?x=").is_err());
+        assert!(validate_hostname("host/path").is_err());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_colons() {
+        assert!(validate_hostname("host:8080").is_err());
+        assert!(validate_hostname("https://host").is_err());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_query_and_fragment() {
+        assert!(validate_hostname("host?query=1").is_err());
+        assert!(validate_hostname("host#fragment").is_err());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_at_sign() {
+        // Userinfo injection: user@evil.com
+        assert!(validate_hostname("user@evil.com").is_err());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_spaces_and_special() {
+        assert!(validate_hostname("host name").is_err());
+        assert!(validate_hostname("host\tname").is_err());
+        assert!(validate_hostname("host\nname").is_err());
+    }
+
+    #[test]
+    fn test_validate_hostname_rejects_leading_trailing_dot_hyphen() {
+        assert!(validate_hostname(".example.com").is_err());
+        assert!(validate_hostname("example.com.").is_err());
+        assert!(validate_hostname("-example.com").is_err());
+        assert!(validate_hostname("example.com-").is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_rejects_injected_hostname() {
+        let flags = flags_with_required("evil.com/steal?x=", "id");
+        let result = Config::resolve(flags);
+        assert!(result.is_err());
     }
 }

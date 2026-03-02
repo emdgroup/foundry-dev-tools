@@ -83,24 +83,34 @@ fn keyring_delete(key: &str) -> Result<bool> {
 // JSON file backend (Linux)
 // ---------------------------------------------------------------------------
 
-/// Ensure the cache directory exists with 0o700 permissions.
+/// Ensure the cache directory exists with 0o700 permissions (Unix).
+/// Uses DirBuilder::mode() to set permissions at creation time, avoiding a TOCTOU race.
 pub fn ensure_config_dir(config_dir: &Path) -> Result<()> {
-    if !config_dir.exists() {
+    if config_dir.exists() {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(config_dir)
+            .map_err(|e| Error::CacheDir {
+                path: config_dir.to_path_buf(),
+                source: e,
+            })?;
+    }
+
+    #[cfg(not(unix))]
+    {
         fs::create_dir_all(config_dir).map_err(|e| Error::CacheDir {
             path: config_dir.to_path_buf(),
             source: e,
         })?;
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(config_dir, fs::Permissions::from_mode(0o700)).map_err(|e| {
-            Error::CacheDir {
-                path: config_dir.to_path_buf(),
-                source: e,
-            }
-        })?;
-    }
+
     Ok(())
 }
 
@@ -125,24 +135,34 @@ fn read_cache_file(config_dir: &Path) -> Result<CacheFile> {
     serde_json::from_str(&data).map_err(|e| Error::CacheParse { path, source: e })
 }
 
-/// Write the cache file with 0o600 permissions.
+/// Write the cache file atomically with 0o600 permissions (Unix).
+/// Uses OpenOptions::mode() to set permissions at creation time, avoiding a TOCTOU race
+/// where the file is briefly world-readable between write and chmod.
 fn write_cache_file(config_dir: &Path, cache: &CacheFile) -> Result<()> {
+    use std::io::Write;
+
     let path = cache_file_path(config_dir);
     let data = serde_json::to_string_pretty(cache).expect("cache serialization cannot fail");
-    fs::write(&path, data).map_err(|e| Error::CacheIo {
+
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+
+    let mut file = opts.open(&path).map_err(|e| Error::CacheIo {
         path: path.clone(),
         source: e,
     })?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).map_err(|e| {
-            Error::CacheIo {
-                path: path.clone(),
-                source: e,
-            }
+    file.write_all(data.as_bytes())
+        .map_err(|e| Error::CacheIo {
+            path: path.clone(),
+            source: e,
         })?;
-    }
+
     Ok(())
 }
 
@@ -263,15 +283,17 @@ where
     ensure_config_dir(config_dir)?;
 
     let lock_path = lock_file_path(config_dir);
-    let lock_file = fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(&lock_path)
-        .map_err(|e| Error::CacheIo {
-            path: lock_path.clone(),
-            source: e,
-        })?;
+    let mut lock_opts = fs::OpenOptions::new();
+    lock_opts.create(true).truncate(false).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        lock_opts.mode(0o600);
+    }
+    let lock_file = lock_opts.open(&lock_path).map_err(|e| Error::CacheIo {
+        path: lock_path.clone(),
+        source: e,
+    })?;
 
     // Try to acquire the lock with a timeout
     let start = Instant::now();
@@ -432,5 +454,63 @@ mod tests {
         )
         .unwrap();
         assert!(result.is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_cache_file_permissions_0o600() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let config_dir = dir.path();
+        let key = cache_key("host.example.com", "client123", &["offline_access".into()]);
+
+        file_save(config_dir, &key, "secret_token").unwrap();
+
+        let path = cache_file_path(config_dir);
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "cache file should have 0o600 permissions, got {:o}",
+            mode
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_config_dir_permissions_0o700() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let config_dir = dir.path().join("new-oauth-dir");
+
+        ensure_config_dir(&config_dir).unwrap();
+
+        let mode = fs::metadata(&config_dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o700,
+            "config dir should have 0o700 permissions, got {:o}",
+            mode
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_lock_file_permissions_0o600() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let config_dir = dir.path();
+
+        // with_lock creates the lock file
+        with_lock(config_dir, false, || Ok(())).unwrap();
+
+        let path = lock_file_path(config_dir);
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "lock file should have 0o600 permissions, got {:o}",
+            mode
+        );
     }
 }
