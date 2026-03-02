@@ -128,10 +128,20 @@ pub fn refresh_token(config: &Config, refresh_tok: &str) -> Result<TokenResponse
 }
 
 /// Shared HTTP client. Reuses connection pool and TLS sessions across requests.
+/// Redirects are disabled per RFC 6749 §3.2 / OAuth 2.0 Security BCP §4.11:
+/// token endpoint requests must not follow redirects, as doing so could leak
+/// credentials (auth codes, client secrets, PKCE verifiers) to the redirect target.
 fn http_client() -> reqwest::blocking::Client {
     use std::sync::OnceLock;
     static CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
-    CLIENT.get_or_init(reqwest::blocking::Client::new).clone()
+    CLIENT
+        .get_or_init(|| {
+            reqwest::blocking::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("failed to build HTTP client")
+        })
+        .clone()
 }
 
 #[cfg(test)]
