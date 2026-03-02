@@ -84,31 +84,40 @@ fn keyring_delete(key: &str) -> Result<bool> {
 // ---------------------------------------------------------------------------
 
 /// Ensure the cache directory exists with 0o700 permissions (Unix).
-/// Uses DirBuilder::mode() to set permissions at creation time, avoiding a TOCTOU race.
+/// Uses DirBuilder::mode() to set permissions at creation time, avoiding a TOCTOU race
+/// between creation and chmod.
 pub fn ensure_config_dir(config_dir: &Path) -> Result<()> {
-    if config_dir.exists() {
-        return Ok(());
-    }
-
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
-        fs::DirBuilder::new()
+        match fs::DirBuilder::new()
             .recursive(true)
             .mode(0o700)
             .create(config_dir)
-            .map_err(|e| Error::CacheDir {
-                path: config_dir.to_path_buf(),
-                source: e,
-            })?;
+        {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => {
+                return Err(Error::CacheDir {
+                    path: config_dir.to_path_buf(),
+                    source: e,
+                })
+            }
+        }
     }
 
     #[cfg(not(unix))]
     {
-        fs::create_dir_all(config_dir).map_err(|e| Error::CacheDir {
-            path: config_dir.to_path_buf(),
-            source: e,
-        })?;
+        match fs::create_dir_all(config_dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => {
+                return Err(Error::CacheDir {
+                    path: config_dir.to_path_buf(),
+                    source: e,
+                })
+            }
+        }
     }
 
     Ok(())

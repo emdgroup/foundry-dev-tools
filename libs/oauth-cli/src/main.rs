@@ -8,6 +8,7 @@ mod server;
 
 use clap::{Parser, Subcommand};
 use config::CliFlags;
+use error::Error;
 use std::process;
 
 #[derive(Parser)]
@@ -36,7 +37,7 @@ struct Cli {
     #[arg(long, global = true)]
     scopes: Option<String>,
 
-    /// Local server port for OAuth callback (default: 8888)
+    /// Local server port for OAuth callback (default: 9876)
     #[arg(long, global = true)]
     port: Option<u16>,
 
@@ -99,7 +100,11 @@ fn main() {
             "EXIT",
             &format!("1 — {}", e),
         );
-        eprintln!("Error: {}", e);
+        // LoginRequired already printed a helpful message to stdout in try_auto_login,
+        // so skip the redundant stderr error for that case.
+        if !matches!(e, Error::LoginRequired { .. }) {
+            eprintln!("Error: {}", e);
+        }
         process::exit(1);
     }
 }

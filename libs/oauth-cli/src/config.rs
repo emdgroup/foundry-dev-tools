@@ -15,6 +15,9 @@ pub struct Config {
     pub port: u16,
     pub no_browser: bool,
     pub debug: bool,
+    /// CLI flags that were explicitly passed (not from env vars),
+    /// formatted as command-line arguments for display in error messages.
+    pub explicit_cli_args: String,
 }
 
 /// Raw values from CLI flags (all optional — flags override env vars).
@@ -94,8 +97,12 @@ fn validate_hostname(hostname: &str) -> Result<()> {
 impl Config {
     /// Build a resolved Config by merging: CLI flags → FDT env vars → defaults.
     pub fn resolve(flags: CliFlags) -> Result<Self> {
+        // Track which args were explicitly passed as CLI flags
+        let mut cli_args = Vec::new();
+
         let hostname = flags
             .hostname
+            .inspect(|h| cli_args.push(format!("--hostname {h}")))
             .or_else(|| std::env::var("FDT_CREDENTIALS__DOMAIN").ok())
             .ok_or(Error::MissingConfig(
                 "hostname (--hostname or FDT_CREDENTIALS__DOMAIN)",
@@ -105,6 +112,7 @@ impl Config {
 
         let client_id = flags
             .client_id
+            .inspect(|c| cli_args.push(format!("--client-id {c}")))
             .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__CLIENT_ID").ok())
             .ok_or(Error::MissingConfig(
                 "client_id (--client-id or FDT_CREDENTIALS__OAUTH__CLIENT_ID)",
@@ -112,10 +120,12 @@ impl Config {
 
         let client_secret = flags
             .client_secret
+            .inspect(|s| cli_args.push(format!("--client-secret {s}")))
             .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__CLIENT_SECRET").ok());
 
         let scopes = flags
             .scopes
+            .inspect(|s| cli_args.push(format!("--scopes \"{s}\"")))
             .or_else(|| std::env::var("FDT_CREDENTIALS__OAUTH__SCOPES").ok())
             .map(|s| s.split_whitespace().map(String::from).collect())
             .unwrap_or_else(|| DEFAULT_SCOPES.iter().map(|s| String::from(*s)).collect());
@@ -124,6 +134,7 @@ impl Config {
 
         let port = flags
             .port
+            .inspect(|p| cli_args.push(format!("--port {p}")))
             .or_else(|| {
                 std::env::var("FDT_CREDENTIALS__OAUTH__PORT")
                     .ok()
@@ -131,11 +142,24 @@ impl Config {
             })
             .unwrap_or(9876);
 
+        if flags.no_browser {
+            cli_args.push("--no-browser".to_string());
+        }
+        if flags.debug {
+            cli_args.push("--debug".to_string());
+        }
+
         let debug = flags.debug
             || std::env::var("FDT_CREDENTIALS__OAUTH__DEBUG")
                 .ok()
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);
+
+        let explicit_cli_args = if cli_args.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", cli_args.join(" "))
+        };
 
         Ok(Config {
             hostname,
@@ -146,6 +170,7 @@ impl Config {
             port,
             no_browser: flags.no_browser,
             debug,
+            explicit_cli_args,
         })
     }
 

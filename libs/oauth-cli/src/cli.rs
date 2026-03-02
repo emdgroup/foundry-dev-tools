@@ -135,7 +135,7 @@ pub fn token(config: &Config) -> Result<()> {
 
     let access_token = match result {
         Ok(token) => token,
-        Err(Error::LoginRequired) | Err(Error::TokenRefresh { .. }) => {
+        Err(Error::LoginRequired { .. }) | Err(Error::TokenRefresh { .. }) => {
             // No cached token or refresh failed — try auto-login OUTSIDE the lock
             // so the interactive browser flow doesn't hold the lock for 30+ seconds
             if let Err(ref e) = result {
@@ -217,7 +217,9 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
                 }
             }
         }
-        None => Err(Error::LoginRequired),
+        None => Err(Error::LoginRequired {
+            args: config.explicit_cli_args.clone(),
+        }),
     }
 }
 
@@ -229,9 +231,17 @@ fn try_auto_login(config: &Config) -> Result<String> {
         let exe = std::env::current_exe()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| "foundry-dev-tools-oauth".to_string());
-        eprintln!("No cached credentials and not running interactively.");
-        eprintln!("Run `{exe} login` in a terminal first.");
-        return Err(Error::LoginRequired);
+        // Intentionally print to stdout, not stderr: when this binary is used as an
+        // apiKeyHelper (e.g. by Claude Code), stdout is captured and displayed to the user.
+        // stderr is swallowed. Using stdout ensures the login instructions are visible.
+        println!("No cached credentials and not running interactively.");
+        println!(
+            "Run `{exe} login{args}` in a terminal first and restart the session.",
+            args = config.explicit_cli_args,
+        );
+        return Err(Error::LoginRequired {
+            args: config.explicit_cli_args.clone(),
+        });
     }
 
     log::debug_log(
@@ -254,7 +264,9 @@ fn try_auto_login(config: &Config) -> Result<String> {
             &config.scopes,
             config.debug,
         )?
-        .ok_or(Error::LoginRequired)?;
+        .ok_or(Error::LoginRequired {
+            args: config.explicit_cli_args.clone(),
+        })?;
 
         let resp = oauth::refresh_token(config, &refresh_tok)?;
         if let Some(ref new_refresh) = resp.refresh_token {
@@ -272,9 +284,12 @@ fn try_auto_login(config: &Config) -> Result<String> {
     })
 }
 
-/// Check if stderr is a terminal (heuristic for interactivity).
+/// Check if running interactively (both stdin and stderr must be terminals).
+/// When stdout is piped (e.g. apiKeyHelper in Claude Code), stdin won't be a terminal,
+/// so we skip the interactive login flow and show an error instead.
 fn atty_is_terminal() -> bool {
-    std::io::IsTerminal::is_terminal(&std::io::stderr())
+    std::io::IsTerminal::is_terminal(&std::io::stdin())
+        && std::io::IsTerminal::is_terminal(&std::io::stderr())
 }
 
 /// Show authentication status.
@@ -297,7 +312,10 @@ pub fn status(config: &Config) -> Result<()> {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| "foundry-dev-tools-oauth".to_string());
         eprintln!();
-        eprintln!("Run `{exe} login` to authenticate.");
+        eprintln!(
+            "Run `{exe} login{args}` to authenticate.",
+            args = config.explicit_cli_args
+        );
     }
 
     Ok(())

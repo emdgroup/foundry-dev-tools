@@ -69,8 +69,12 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     // Login required (no cached token, non-interactive context)
-    #[error("no cached credentials found — run `{exe} login` first", exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "foundry-dev-tools-oauth".into()))]
-    LoginRequired,
+    #[error("no cached credentials found — run `{exe} login{args}` first", exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "foundry-dev-tools-oauth".into()))]
+    LoginRequired {
+        /// Explicit CLI args to include in the error message (e.g. " --hostname foo").
+        /// Empty string when no extra args are needed.
+        args: String,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -208,6 +208,7 @@ mod tests {
             port: 8888,
             no_browser: false,
             debug: false,
+            explicit_cli_args: String::new(),
         };
         let pkce = Pkce {
             code_verifier: "test-verifier".into(),
