@@ -84,19 +84,19 @@ fn keyring_delete(key: &str) -> Result<bool> {
 // ---------------------------------------------------------------------------
 
 /// Ensure the cache directory exists with 0o700 permissions.
-pub fn ensure_cache_dir(cache_dir: &Path) -> Result<()> {
-    if !cache_dir.exists() {
-        fs::create_dir_all(cache_dir).map_err(|e| Error::CacheDir {
-            path: cache_dir.to_path_buf(),
+pub fn ensure_config_dir(config_dir: &Path) -> Result<()> {
+    if !config_dir.exists() {
+        fs::create_dir_all(config_dir).map_err(|e| Error::CacheDir {
+            path: config_dir.to_path_buf(),
             source: e,
         })?;
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(cache_dir, fs::Permissions::from_mode(0o700)).map_err(|e| {
+        fs::set_permissions(config_dir, fs::Permissions::from_mode(0o700)).map_err(|e| {
             Error::CacheDir {
-                path: cache_dir.to_path_buf(),
+                path: config_dir.to_path_buf(),
                 source: e,
             }
         })?;
@@ -104,17 +104,17 @@ pub fn ensure_cache_dir(cache_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn cache_file_path(cache_dir: &Path) -> PathBuf {
-    cache_dir.join("oauth-cache.json")
+fn cache_file_path(config_dir: &Path) -> PathBuf {
+    config_dir.join("oauth-cache.json")
 }
 
-fn lock_file_path(cache_dir: &Path) -> PathBuf {
-    cache_dir.join("oauth-cache.lock")
+fn lock_file_path(config_dir: &Path) -> PathBuf {
+    config_dir.join("oauth-cache.lock")
 }
 
 /// Read the cache file, returning the parsed structure.
-fn read_cache_file(cache_dir: &Path) -> Result<CacheFile> {
-    let path = cache_file_path(cache_dir);
+fn read_cache_file(config_dir: &Path) -> Result<CacheFile> {
+    let path = cache_file_path(config_dir);
     if !path.exists() {
         return Ok(CacheFile::default());
     }
@@ -126,8 +126,8 @@ fn read_cache_file(cache_dir: &Path) -> Result<CacheFile> {
 }
 
 /// Write the cache file with 0o600 permissions.
-fn write_cache_file(cache_dir: &Path, cache: &CacheFile) -> Result<()> {
-    let path = cache_file_path(cache_dir);
+fn write_cache_file(config_dir: &Path, cache: &CacheFile) -> Result<()> {
+    let path = cache_file_path(config_dir);
     let data = serde_json::to_string_pretty(cache).expect("cache serialization cannot fail");
     fs::write(&path, data).map_err(|e| Error::CacheIo {
         path: path.clone(),
@@ -146,25 +146,25 @@ fn write_cache_file(cache_dir: &Path, cache: &CacheFile) -> Result<()> {
     Ok(())
 }
 
-fn file_load(cache_dir: &Path, key: &str) -> Result<Option<String>> {
-    let cache = read_cache_file(cache_dir)?;
+fn file_load(config_dir: &Path, key: &str) -> Result<Option<String>> {
+    let cache = read_cache_file(config_dir)?;
     Ok(cache.tokens.get(key).cloned())
 }
 
-fn file_save(cache_dir: &Path, key: &str, refresh_token: &str) -> Result<()> {
-    ensure_cache_dir(cache_dir)?;
-    let mut cache = read_cache_file(cache_dir)?;
+fn file_save(config_dir: &Path, key: &str, refresh_token: &str) -> Result<()> {
+    ensure_config_dir(config_dir)?;
+    let mut cache = read_cache_file(config_dir)?;
     cache
         .tokens
         .insert(key.to_string(), refresh_token.to_string());
-    write_cache_file(cache_dir, &cache)
+    write_cache_file(config_dir, &cache)
 }
 
-fn file_delete(cache_dir: &Path, key: &str) -> Result<bool> {
-    let mut cache = read_cache_file(cache_dir)?;
+fn file_delete(config_dir: &Path, key: &str) -> Result<bool> {
+    let mut cache = read_cache_file(config_dir)?;
     let removed = cache.tokens.remove(key).is_some();
     if removed {
-        write_cache_file(cache_dir, &cache)?;
+        write_cache_file(config_dir, &cache)?;
     }
     Ok(removed)
 }
@@ -175,7 +175,7 @@ fn file_delete(cache_dir: &Path, key: &str) -> Result<bool> {
 
 /// Load a cached refresh token for the given parameters.
 pub fn load(
-    cache_dir: &Path,
+    config_dir: &Path,
     hostname: &str,
     client_id: &str,
     scopes: &[String],
@@ -186,7 +186,7 @@ pub fn load(
     let result = if use_keyring() {
         keyring_load(&key)?
     } else {
-        file_load(cache_dir, &key)?
+        file_load(config_dir, &key)?
     };
 
     match &result {
@@ -194,7 +194,7 @@ pub fn load(
             let backend = if use_keyring() { "keyring" } else { "file" };
             log::debug_log(
                 debug,
-                cache_dir,
+                config_dir,
                 "CACHE_HIT",
                 &format!("refresh token found in {}", backend),
             );
@@ -202,7 +202,7 @@ pub fn load(
         None => {
             log::debug_log(
                 debug,
-                cache_dir,
+                config_dir,
                 "CACHE_MISS",
                 &format!("no refresh token for key {}", &key[..12]),
             );
@@ -214,7 +214,7 @@ pub fn load(
 
 /// Save a refresh token to the cache.
 pub fn save(
-    cache_dir: &Path,
+    config_dir: &Path,
     hostname: &str,
     client_id: &str,
     scopes: &[String],
@@ -226,13 +226,13 @@ pub fn save(
     if use_keyring() {
         keyring_save(&key, refresh_token)?;
     } else {
-        file_save(cache_dir, &key, refresh_token)?;
+        file_save(config_dir, &key, refresh_token)?;
     }
 
     let backend = if use_keyring() { "keyring" } else { "file" };
     log::debug_log(
         debug,
-        cache_dir,
+        config_dir,
         "CACHE_SAVE",
         &format!("refresh token saved to {}", backend),
     );
@@ -241,7 +241,7 @@ pub fn save(
 
 /// Delete the cached credential for the given parameters.
 pub fn delete(
-    cache_dir: &Path,
+    config_dir: &Path,
     hostname: &str,
     client_id: &str,
     scopes: &[String],
@@ -251,18 +251,18 @@ pub fn delete(
     if use_keyring() {
         keyring_delete(&key)
     } else {
-        file_delete(cache_dir, &key)
+        file_delete(config_dir, &key)
     }
 }
 
 /// Execute a closure while holding an exclusive file lock.
-pub fn with_lock<F, T>(cache_dir: &Path, debug: bool, f: F) -> Result<T>
+pub fn with_lock<F, T>(config_dir: &Path, debug: bool, f: F) -> Result<T>
 where
     F: FnOnce() -> Result<T>,
 {
-    ensure_cache_dir(cache_dir)?;
+    ensure_config_dir(config_dir)?;
 
-    let lock_path = lock_file_path(cache_dir);
+    let lock_path = lock_file_path(config_dir);
     let lock_file = fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -281,7 +281,12 @@ where
     loop {
         match lock.try_write() {
             Ok(_guard) => {
-                log::debug_log(debug, cache_dir, "LOCK_ACQUIRED", "exclusive lock acquired");
+                log::debug_log(
+                    debug,
+                    config_dir,
+                    "LOCK_ACQUIRED",
+                    "exclusive lock acquired",
+                );
                 let result = f();
                 // _guard drops here, releasing the lock
                 return result;
@@ -294,7 +299,7 @@ where
                 }
                 log::debug_log(
                     debug,
-                    cache_dir,
+                    config_dir,
                     "LOCK_WAIT",
                     "waiting to acquire file lock",
                 );
@@ -348,35 +353,35 @@ mod tests {
     #[test]
     fn test_file_cache_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
-        let cache_dir = dir.path();
+        let config_dir = dir.path();
 
         let key = cache_key("host.example.com", "client123", &["offline_access".into()]);
 
         // Initially empty
-        assert!(file_load(cache_dir, &key).unwrap().is_none());
+        assert!(file_load(config_dir, &key).unwrap().is_none());
 
         // Save
-        file_save(cache_dir, &key, "refresh_tok").unwrap();
+        file_save(config_dir, &key, "refresh_tok").unwrap();
 
         // Load back
-        assert_eq!(file_load(cache_dir, &key).unwrap().unwrap(), "refresh_tok");
+        assert_eq!(file_load(config_dir, &key).unwrap().unwrap(), "refresh_tok");
 
         // Delete
-        assert!(file_delete(cache_dir, &key).unwrap());
+        assert!(file_delete(config_dir, &key).unwrap());
 
         // Gone
-        assert!(file_load(cache_dir, &key).unwrap().is_none());
+        assert!(file_load(config_dir, &key).unwrap().is_none());
     }
 
     // Integration test using the public API (dispatches to keyring on macOS/Windows)
     #[test]
     fn test_cache_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
-        let cache_dir = dir.path();
+        let config_dir = dir.path();
 
         // Initially empty
         let result = load(
-            cache_dir,
+            config_dir,
             "host.example.com",
             "client123",
             &["offline_access".into()],
@@ -387,7 +392,7 @@ mod tests {
 
         // Save
         save(
-            cache_dir,
+            config_dir,
             "host.example.com",
             "client123",
             &["offline_access".into()],
@@ -398,7 +403,7 @@ mod tests {
 
         // Load back
         let result = load(
-            cache_dir,
+            config_dir,
             "host.example.com",
             "client123",
             &["offline_access".into()],
@@ -409,7 +414,7 @@ mod tests {
 
         // Delete
         let removed = delete(
-            cache_dir,
+            config_dir,
             "host.example.com",
             "client123",
             &["offline_access".into()],
@@ -419,7 +424,7 @@ mod tests {
 
         // Gone
         let result = load(
-            cache_dir,
+            config_dir,
             "host.example.com",
             "client123",
             &["offline_access".into()],

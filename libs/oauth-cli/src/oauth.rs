@@ -210,7 +210,7 @@ mod tests {
             client_id: "my-client-id".into(),
             client_secret: None,
             scopes: vec!["offline_access".into()],
-            cache_dir: "/tmp/test".into(),
+            config_dir: "/tmp/test".into(),
             port: 8888,
             no_browser: false,
             debug: false,

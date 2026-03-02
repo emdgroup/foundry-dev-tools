@@ -10,7 +10,7 @@ use std::io::{self, BufRead, Write};
 pub fn login(config: &Config) -> Result<()> {
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "STARTED",
         &format!(
             "login — hostname={}, scopes={}",
@@ -49,7 +49,7 @@ pub fn login(config: &Config) -> Result<()> {
         // Browser mode: start local server, open browser
         log::debug_log(
             config.debug,
-            &config.cache_dir,
+            &config.config_dir,
             "LOGIN_TRIGGERED",
             "starting browser-based login",
         );
@@ -79,7 +79,7 @@ pub fn login(config: &Config) -> Result<()> {
     // Exchange the authorization code for tokens
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "LOGIN_PENDING",
         "exchanging authorization code for tokens",
     );
@@ -87,9 +87,9 @@ pub fn login(config: &Config) -> Result<()> {
 
     // Save refresh token
     if let Some(ref refresh_token) = token_resp.refresh_token {
-        cache::with_lock(&config.cache_dir, config.debug, || {
+        cache::with_lock(&config.config_dir, config.debug, || {
             cache::save(
-                &config.cache_dir,
+                &config.config_dir,
                 &config.hostname,
                 &config.client_id,
                 &config.scopes,
@@ -101,7 +101,7 @@ pub fn login(config: &Config) -> Result<()> {
 
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "LOGIN_OK",
         "login completed, refresh token saved",
     );
@@ -145,7 +145,7 @@ fn start_server_and_open_browser(
 pub fn token(config: &Config) -> Result<()> {
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "STARTED",
         &format!(
             "token — hostname={}, scopes={}",
@@ -155,7 +155,7 @@ pub fn token(config: &Config) -> Result<()> {
     );
 
     // Try refresh under the lock (fast path)
-    let result = cache::with_lock(&config.cache_dir, config.debug, || {
+    let result = cache::with_lock(&config.config_dir, config.debug, || {
         refresh_cached_token(config)
     });
 
@@ -167,7 +167,7 @@ pub fn token(config: &Config) -> Result<()> {
             if let Err(ref e) = result {
                 log::debug_log(
                     config.debug,
-                    &config.cache_dir,
+                    &config.config_dir,
                     "LOGIN_TRIGGERED",
                     &format!("attempting auto-login: {}", e),
                 );
@@ -181,11 +181,11 @@ pub fn token(config: &Config) -> Result<()> {
     println!("{}", access_token);
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "TOKEN_OUTPUT",
         "access token printed to stdout",
     );
-    log::debug_log(config.debug, &config.cache_dir, "EXIT", "0");
+    log::debug_log(config.debug, &config.config_dir, "EXIT", "0");
 
     Ok(())
 }
@@ -194,7 +194,7 @@ pub fn token(config: &Config) -> Result<()> {
 /// Returns LoginRequired if no cached token exists.
 fn refresh_cached_token(config: &Config) -> Result<String> {
     let cached = cache::load(
-        &config.cache_dir,
+        &config.config_dir,
         &config.hostname,
         &config.client_id,
         &config.scopes,
@@ -205,7 +205,7 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
         Some(refresh_tok) => {
             log::debug_log(
                 config.debug,
-                &config.cache_dir,
+                &config.config_dir,
                 "REFRESH_START",
                 "sending refresh token request",
             );
@@ -215,7 +215,7 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
                     // Save the rotated refresh token
                     if let Some(ref new_refresh) = resp.refresh_token {
                         cache::save(
-                            &config.cache_dir,
+                            &config.config_dir,
                             &config.hostname,
                             &config.client_id,
                             &config.scopes,
@@ -225,7 +225,7 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
                     }
                     log::debug_log(
                         config.debug,
-                        &config.cache_dir,
+                        &config.config_dir,
                         "REFRESH_OK",
                         "new access token received",
                     );
@@ -234,7 +234,7 @@ fn refresh_cached_token(config: &Config) -> Result<String> {
                 Err(e) => {
                     log::debug_log(
                         config.debug,
-                        &config.cache_dir,
+                        &config.config_dir,
                         "REFRESH_FAIL",
                         &format!("{}", e),
                     );
@@ -259,7 +259,7 @@ fn try_auto_login(config: &Config) -> Result<String> {
 
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "LOGIN_TRIGGERED",
         "no valid token, starting interactive login",
     );
@@ -269,9 +269,9 @@ fn try_auto_login(config: &Config) -> Result<String> {
     login(config)?;
 
     // After login, refresh under the lock to get an access token
-    cache::with_lock(&config.cache_dir, config.debug, || {
+    cache::with_lock(&config.config_dir, config.debug, || {
         let refresh_tok = cache::load(
-            &config.cache_dir,
+            &config.config_dir,
             &config.hostname,
             &config.client_id,
             &config.scopes,
@@ -282,7 +282,7 @@ fn try_auto_login(config: &Config) -> Result<String> {
         let resp = oauth::refresh_token(config, &refresh_tok)?;
         if let Some(ref new_refresh) = resp.refresh_token {
             cache::save(
-                &config.cache_dir,
+                &config.config_dir,
                 &config.hostname,
                 &config.client_id,
                 &config.scopes,
@@ -303,7 +303,7 @@ fn atty_is_terminal() -> bool {
 /// Show authentication status.
 pub fn status(config: &Config) -> Result<()> {
     let has_token = cache::load(
-        &config.cache_dir,
+        &config.config_dir,
         &config.hostname,
         &config.client_id,
         &config.scopes,
@@ -327,14 +327,14 @@ pub fn status(config: &Config) -> Result<()> {
 pub fn logout(config: &Config) -> Result<()> {
     log::debug_log(
         config.debug,
-        &config.cache_dir,
+        &config.config_dir,
         "STARTED",
         &format!("logout — hostname={}", config.hostname),
     );
 
-    let removed = cache::with_lock(&config.cache_dir, config.debug, || {
+    let removed = cache::with_lock(&config.config_dir, config.debug, || {
         cache::delete(
-            &config.cache_dir,
+            &config.config_dir,
             &config.hostname,
             &config.client_id,
             &config.scopes,

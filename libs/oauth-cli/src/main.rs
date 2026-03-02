@@ -36,15 +36,11 @@ struct Cli {
     #[arg(long, global = true)]
     scopes: Option<String>,
 
-    /// Cache directory (default: ~/.foundry/)
-    #[arg(long, global = true)]
-    cache_dir: Option<String>,
-
     /// Local server port for OAuth callback (default: 8888)
     #[arg(long, global = true)]
     port: Option<u16>,
 
-    /// Enable debug logging to ~/.foundry/oauth-debug.log
+    /// Enable debug logging to {config_dir}/oauth-debug.log
     #[arg(long, global = true)]
     debug: bool,
 
@@ -76,7 +72,6 @@ fn main() {
         client_id: cli.client_id,
         client_secret: cli.client_secret,
         scopes: cli.scopes,
-        cache_dir: cli.cache_dir,
         port: cli.port,
         no_browser: cli.no_browser,
         debug: cli.debug,
@@ -100,7 +95,7 @@ fn main() {
     if let Err(e) = result {
         log::debug_log(
             config.debug,
-            &config.cache_dir,
+            &config.config_dir,
             "EXIT",
             &format!("1 — {}", e),
         );

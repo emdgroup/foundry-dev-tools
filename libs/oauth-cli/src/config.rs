@@ -8,7 +8,7 @@ pub struct Config {
     pub client_id: String,
     pub client_secret: Option<String>,
     pub scopes: Vec<String>,
-    pub cache_dir: PathBuf,
+    pub config_dir: PathBuf,
     pub port: u16,
     pub no_browser: bool,
     pub debug: bool,
@@ -21,10 +21,36 @@ pub struct CliFlags {
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
     pub scopes: Option<String>,
-    pub cache_dir: Option<String>,
     pub port: Option<u16>,
     pub no_browser: bool,
     pub debug: bool,
+}
+
+/// Resolve the OAuth config directory by checking for an existing `config.toml`
+/// in the same candidate directories the Python side uses (config.py:63-66).
+/// Returns `{config_parent}/oauth/` where `config_parent` is the first directory
+/// containing a `config.toml`, or `~/.foundry-dev-tools/` as the default.
+fn resolve_config_dir() -> PathBuf {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+
+    // Candidates in the same order as the Python side (config.py:63-66)
+    let candidates = [
+        home.join(".foundry-dev-tools"),
+        home.join(".config").join("foundry-dev-tools"),
+        dirs::config_dir()
+            .unwrap_or_else(|| home.join(".config"))
+            .join("foundry-dev-tools"),
+    ];
+
+    // Use the first dir where config.toml exists (matches Python behavior)
+    for candidate in &candidates {
+        if candidate.join("config.toml").exists() {
+            return candidate.join("oauth");
+        }
+    }
+
+    // No config.toml found anywhere — default to ~/.foundry-dev-tools/oauth/
+    candidates[0].join("oauth")
 }
 
 impl Config {
@@ -56,16 +82,7 @@ impl Config {
             .map(|s| s.split_whitespace().map(String::from).collect())
             .unwrap_or_else(|| vec!["offline_access".to_string()]);
 
-        let cache_dir = flags
-            .cache_dir
-            .or_else(|| std::env::var("FOUNDRY_CACHE_DIR").ok())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".foundry")
-                    .join("oauth-cli")
-            });
+        let config_dir = resolve_config_dir();
 
         let port = flags
             .port
@@ -87,7 +104,7 @@ impl Config {
             client_id,
             client_secret,
             scopes,
-            cache_dir,
+            config_dir,
             port,
             no_browser: flags.no_browser,
             debug,
