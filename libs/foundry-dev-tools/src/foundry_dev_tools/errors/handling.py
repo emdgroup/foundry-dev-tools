@@ -47,9 +47,7 @@ from foundry_dev_tools.errors.dataset import (
 )
 from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.errors.multipass import DuplicateGroupNameError
-from foundry_dev_tools.errors.sql import (
-    FoundrySqlQueryFailedError,
-)
+from foundry_dev_tools.errors.sql import FoundrySqlQueryFailedError, FurnaceSqlSqlParseError
 from foundry_dev_tools.utils.misc import decamelize
 
 LOGGER = logging.getLogger(__name__)
@@ -59,6 +57,8 @@ DEFAULT_ERROR_MAPPING: dict[str | None, type[FoundryAPIError]] = {
     "DataProxy:SchemaNotFound": DatasetHasNoSchemaError,
     "DataProxy:FallbackBranchesNotSpecifiedInQuery": BranchNotFoundError,
     "DataProxy:BadSqlQuery": FoundrySqlQueryFailedError,
+    "FurnaceSql:SqlParseError": FurnaceSqlSqlParseError,
+    "SqlQueryService:SqlSyntaxError": FurnaceSqlSqlParseError,
     "DataProxy:DatasetNotFound": DatasetNotFoundError,
     "Catalog:DuplicateDatasetName": DatasetAlreadyExistsError,
     "Catalog:DatasetsNotFound": DatasetNotFoundError,
