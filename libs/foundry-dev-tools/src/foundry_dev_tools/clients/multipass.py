@@ -95,6 +95,53 @@ class MultipassClient(APIClient):
             **kwargs,
         )
 
+    def api_me_scope(self, **kwargs) -> requests.Response:
+        """Gets the current user's scope.
+
+        Args:
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
+
+        Returns:
+            requests.Response:
+                The response JSON is a recursive scope structure with a ``type`` field.
+
+        .. code-block:: python
+
+           # User token:
+           {"type": "universal"}
+
+           # Scoped token (e.g. TPA with authorization_code grant):
+           {
+               "type": "union",
+               "scopes": [
+                   {
+                       "type": "intersection",
+                       "scopes": [
+                           {"type": "operation", "operations": ["api:read-data", ...]},
+                           {"type": "operation", "operations": ["api:read-data", ...]},
+                       ],
+                   },
+                   {
+                       "type": "intersection",
+                       "scopes": [
+                           {
+                               "type": "resource",
+                               "resourceIds": ["ri.multipass..organization.root"],
+                               "includeChildren": True,
+                           },
+                           {"type": "operation", "operations": ["organization:discover", ...]},
+                       ],
+                   },
+               ],
+           }
+
+        """
+        return self.api_request(
+            "GET",
+            "me/scope",
+            **kwargs,
+        )
+
     def search(
         self, query: str, principal_types: set[api_types.PrincipalTypes] | None = None, **kwargs
     ) -> Iterator[dict]:
