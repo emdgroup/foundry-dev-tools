@@ -45,6 +45,15 @@ def _tear_down():
             raise
 
 
+def test_me_scope():
+    resp = TEST_SINGLETON.ctx.multipass.api_me_scope()
+
+    assert resp.status_code == 200
+
+    scope = resp.json()
+    assert isinstance(scope, dict)
+
+
 def test_organizations():
     user_info = TEST_SINGLETON.ctx.multipass.get_user_info()
 
