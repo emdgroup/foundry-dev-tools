@@ -102,7 +102,7 @@ class MultipassClient(APIClient):
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
 
         Returns:
-            :py:class:`requests.Response`:
+            requests.Response:
                 The response JSON is a recursive scope structure with a ``type`` field.
 
         .. code-block:: python
