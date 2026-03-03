@@ -52,6 +52,8 @@ def test_me_scope():
 
     scope = resp.json()
     assert isinstance(scope, dict)
+    assert "type" in scope
+    assert scope["type"] in ("universal", "union", "intersection", "operation", "resource")
 
 
 def test_organizations():
