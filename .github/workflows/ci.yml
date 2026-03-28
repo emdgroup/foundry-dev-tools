@@ -80,4 +80,4 @@ jobs:
       - name: Run tests
         run: cargo test --locked
       - name: Audit dependencies
-        run: cargo install cargo-audit && cargo audit
+        run: cargo install cargo-audit --version 0.22.1 --locked && cargo audit

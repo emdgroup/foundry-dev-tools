@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use std::path::PathBuf;
 
 /// Default OAuth2 scopes requested when none are explicitly provided.
-pub const DEFAULT_SCOPES: &[&str] = &["offline_access", "api:read-data"];
+pub const DEFAULT_SCOPES: &[&str] = &["offline_access", "api:use-language-models-execute", "api:language-models-execute"];
 
 /// Resolved configuration for the CLI.
 #[derive(Debug, Clone)]
