@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import secrets
 import time
 from functools import cached_property
 from typing import TYPE_CHECKING, ClassVar
@@ -273,12 +274,97 @@ class AppServiceTokenProvider(CachedTokenProvider):
         raise TokenProviderConfigError(msg)
 
 
+class PalantirMcpTokenProvider(CachedTokenProvider):
+    """Token provider using Foundry's browser-based interactive auth flow.
+
+    Mirrors the palantir-mcp TokenRefreshUtils flow:
+
+    1. Generate a 32-byte hex secret
+    2. Open browser to ``/workspace/data-integration/code/gradle/auth?secret=...&origin=palantir-mcp``
+    3. Poll ``POST /code/api/security/token/retrieve`` every second (max 60 attempts)
+    4. Return the token when received
+
+    Requires an initial token to authenticate poll requests against the Authoring service.
+    The initial token may be expired — the server accepts any valid Foundry token for this instance.
+
+    .. code-block:: toml
+
+        [credentials]
+        domain = "foundry.example.com"
+
+        [credentials.palantir_mcp]
+        initial_jwt = "eyJ..."
+    """
+
+    MINIMUM_TOKEN_TTL = 300  # seconds
+    POLL_INTERVAL = 1.0  # seconds
+    MAX_POLL_ATTEMPTS = 60
+
+    def __init__(self, host: Host | str, initial_jwt: Token) -> None:
+        """Initialize the PalantirMcpTokenProvider.
+
+        Args:
+            host: the foundry host
+            initial_jwt: an existing Foundry token used to authenticate poll requests;
+                may be expired but must be a valid token for this Foundry instance
+        """
+        super().__init__(host)
+        self._cached = initial_jwt
+        self._requests_session = requests.Session()
+
+    def _request_token(self) -> tuple[Token, float]:
+        secret = secrets.token_hex(32)
+        auth_url = (
+            f"{self.host.url}/workspace/data-integration/code/gradle/auth" f"?secret={secret}&origin=palantir-mcp"
+        )
+        self._open_browser(auth_url)
+        token = self._poll_for_token(secret)
+        return token, time.time() + self.MINIMUM_TOKEN_TTL
+
+    def _open_browser(self, url: str) -> None:
+        import webbrowser
+
+        webbrowser.open(url)
+
+    def _poll_for_token(self, secret: str) -> Token:
+        # FoundryContext injects the shared session via set_requests_session() before first use.
+        # Disable session.auth temporarily to avoid recursion (session.auth → self.token → _request_token).
+        auth_handler = self._requests_session.auth
+        self._requests_session.auth = None
+        url = f"{self.host.url}/code/api/security/token/retrieve"
+        try:
+            for _ in range(self.MAX_POLL_ATTEMPTS):
+                resp = self._requests_session.post(
+                    url,
+                    json=secret,
+                    headers={
+                        "Authorization": f"Bearer {self._cached or ''}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=10,
+                )
+                if resp.ok and resp.text:
+                    token = resp.json()
+                    if token:
+                        return token
+                time.sleep(self.POLL_INTERVAL)
+        finally:
+            self._requests_session.auth = auth_handler
+        msg = "Browser auth timed out after 60 seconds."
+        raise TimeoutError(msg)
+
+    def set_requests_session(self, session: requests.Session) -> None:
+        """Sets the request session used for token polling."""
+        self._requests_session = session
+
+
 # markers for documentation
 # [begin token_provider mapping]
 TOKEN_PROVIDER_MAPPING = {
     "jwt": JWTTokenProvider,
     "oauth": OAuthTokenProvider,
     "app_service": AppServiceTokenProvider,
+    "palantir_mcp": PalantirMcpTokenProvider,
     **entry_point_fdt_token_provider(),
 }
 # [end token_provider mapping]
