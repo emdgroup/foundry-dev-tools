@@ -1459,3 +1459,44 @@ class MultipassClient(APIClient):
                 the response contains the remaining lifetime (in seconds) of the token until it expires
         """
         return self.api_request("GET", "token/ttl")
+
+    def api_get_third_party_application_installation(
+        self,
+        client_id: str,
+    ) -> requests.Response:
+        """Returns the installation details of a third-party application for the current user.
+
+        Args:
+            client_id: The client ID of the third-party application.
+
+        Returns:
+            requests.Response:
+                JSON with two top-level keys:
+
+                - ``client``: ``clientId`` (str), ``displayName`` (str), ``description`` (str),
+                  ``logoUri`` (str), ``organizationRid`` (str)
+                - ``installation``: ``grantTypes`` (list[str]), ``operations`` (list[str]),
+                  ``resources`` (list[str]), ``markingIds`` (list[str] | None), ``requireConsent`` (bool)
+        """
+        return self.api_request("GET", f"client-installations/{client_id}")
+
+    def api_get_third_party_application(
+        self,
+        client_id: str,
+    ) -> requests.Response:
+        """Returns the details of a third-party application registration.
+
+        Args:
+            client_id: The client ID of the third-party application.
+
+        Returns:
+            requests.Response:
+                JSON with: ``clientId`` (str), ``clientType`` (str), ``clientSecret`` (str | None),
+                ``displayName`` (str), ``description`` (str), ``logoUri`` (str),
+                ``grantTypes`` (list[str]), ``redirectUris`` (list[str]), ``operations`` (list[str]),
+                ``resources`` (list[str]), ``markingIds`` (list[str] | None),
+                ``organizationRid`` (str), ``allowedOrganizationRids`` (list[str]),
+                ``ownerUserId`` (str | None), ``clientUserId`` (str),
+                ``roleSetId`` (str), ``roleGrants`` (dict[str, list[dict]]).
+        """
+        return self.api_request("GET", f"clients/{client_id}")
