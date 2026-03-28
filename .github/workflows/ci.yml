@@ -43,7 +43,7 @@ jobs:
         - "3.10"
         - "3.12"  # newest Python that is supported by pyspark
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with: {fetch-depth: 0}  # deep clone for git tag
       - uses: pdm-project/setup-pdm@v4
         with:
@@ -55,3 +55,29 @@ jobs:
         run: pdm run lint
       - name: Run python tests
         run: pdm run unit
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: libs/oauth-cli
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: libs/oauth-cli
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+      - name: Build
+        run: cargo build --locked
+      - name: Run tests
+        run: cargo test --locked
+      - name: Audit dependencies
+        run: cargo install cargo-audit --version 0.22.1 --locked && cargo audit

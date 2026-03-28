@@ -11,4 +11,11 @@ repos:
     - id: ruff
       args: ["--fix","--exit-non-zero-on-fix","--show-fixes"]
     - id: ruff-format
-      
+- repo: https://github.com/FeryET/pre-commit-rust
+  rev: v1.2.1
+  hooks:
+    - id: fmt
+      args: ["--manifest-path", "libs/oauth-cli/Cargo.toml", "--"]
+    - id: cargo-check
+      args: ["--manifest-path", "libs/oauth-cli/Cargo.toml"]
+
