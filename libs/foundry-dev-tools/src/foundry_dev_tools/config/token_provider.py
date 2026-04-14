@@ -287,6 +287,8 @@ class PalantirMcpTokenProvider(CachedTokenProvider):
     Requires an initial token to authenticate poll requests against the Authoring service.
     The initial token may be expired — the server accepts any valid Foundry token for this instance.
 
+    The acquired token is valid for 7 days.
+
     .. code-block:: toml
 
         [credentials]
@@ -296,7 +298,7 @@ class PalantirMcpTokenProvider(CachedTokenProvider):
         initial_jwt = "eyJ..."
     """
 
-    MINIMUM_TOKEN_TTL = 300  # seconds
+    MINIMUM_TOKEN_TTL = 7 * 24 * 3600 - 60  # seconds; tokens are valid for ~7 days, minus 60s buffer
     POLL_INTERVAL = 1.0  # seconds
     MAX_POLL_ATTEMPTS = 60
 
@@ -338,7 +340,7 @@ class PalantirMcpTokenProvider(CachedTokenProvider):
                     url,
                     json=secret,
                     headers={
-                        "Authorization": f"Bearer {self._cached or ''}",
+                        "Authorization": f"Bearer {self._cached}",
                         "Content-Type": "application/json",
                     },
                     timeout=10,
