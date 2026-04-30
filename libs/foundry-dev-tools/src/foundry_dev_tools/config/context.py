@@ -34,6 +34,7 @@ from foundry_dev_tools.resources.resource import Resource
 from foundry_dev_tools.utils.config import entry_point_fdt_api_client
 
 if TYPE_CHECKING:
+    from adbc_driver_manager.dbapi import Connection as AdbcConnection
     from foundry_sdk.v2 import FoundryClient as FoundrySdkV2Client
 
     from foundry_dev_tools.cached_foundry_client import CachedFoundryClient
@@ -321,6 +322,28 @@ class FoundryContext:
             **_kwargs: not used in base class
         """
         return Resource.from_path(self, path, decoration=decoration)
+
+    def get_flight_sql_connection(self) -> AdbcConnection:
+        """Return a DBAPI-compliant Arrow Flight SQL connection to Foundry.
+
+        Requires: pip install adbc-driver-flightsql  (or foundry-dev-tools[flightsql])
+
+        Use as a context manager. The cursor supports execute(), fetchall(),
+        and fetch_arrow_table().
+
+        Example:
+            >>> with ctx.get_flight_sql_connection() as conn:
+            ...     with conn.cursor() as cur:
+            ...         cur.execute("SELECT * FROM `/path/to/dataset` LIMIT 10")
+            ...         table = cur.fetch_arrow_table()   # pa.Table
+            ...         df = table.to_pandas()
+        """
+        from foundry_dev_tools._optional.adbc_flightsql import DatabaseOptions, adbc_driver_flightsql
+
+        return adbc_driver_flightsql.dbapi.connect(
+            f"grpc+tls://{self.host.domain}:443",
+            db_kwargs={DatabaseOptions.AUTHORIZATION_HEADER.value: f"Bearer {self.token}"},
+        )
 
     def get_user_info(self) -> User:
         """Returns the user's info."""

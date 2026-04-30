@@ -10,6 +10,13 @@ from foundry_dev_tools.errors.sql import (
 from tests.integration.conftest import TEST_SINGLETON
 
 
+def test_smoke_adbc():
+    with TEST_SINGLETON.ctx.get_flight_sql_connection() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1")
+        table = cur.fetch_arrow_table()
+    assert table.shape == (1, 1)
+
+
 def test_smoke():
     one_row_one_column = TEST_SINGLETON.ctx.foundry_sql_server.query_foundry_sql(
         f"SELECT sepal_width FROM `{TEST_SINGLETON.iris_new.rid}` LIMIT 1",
