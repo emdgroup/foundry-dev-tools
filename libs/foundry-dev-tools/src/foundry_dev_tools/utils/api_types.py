@@ -108,7 +108,7 @@ raw: Tuple of (foundry_schema, data) (can only be used in legacy)
 MultipassClientType = Literal["CONFIDENTIAL", "PUBLIC"]
 """Multipass client types."""
 
-MultipassGrantType = Literal["AUTHORIZATION_CODE", "CLIENT_CREDENTIALS", "REFRESH_TOKEN"]
+MultipassGrantType = Literal["AUTHORIZATION_CODE", "CLIENT_CREDENTIALS", "REFRESH_TOKEN", "JWT_BEARER"]
 """Multipass grant types."""
 
 ResourceDecoration = Literal[
