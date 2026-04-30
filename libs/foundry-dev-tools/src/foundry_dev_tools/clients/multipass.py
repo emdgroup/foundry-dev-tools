@@ -1459,3 +1459,27 @@ class MultipassClient(APIClient):
                 the response contains the remaining lifetime (in seconds) of the token until it expires
         """
         return self.api_request("GET", "token/ttl")
+
+    def api_get_third_party_application_installation(
+        self,
+        client_id: str,
+    ) -> requests.Response:
+        """Returns the installation information for the organization.
+
+        Returns:
+            requests.Response:
+                the response
+        """
+        return self.api_request("GET", f"client-installations/{client_id}")
+
+    def api_get_third_party_application(
+        self,
+        client_id: str,
+    ) -> requests.Response:
+        """Returns the client information.
+
+        Returns:
+            requests.Response:
+                the response
+        """
+        return self.api_request("GET", f"clients/{client_id}")
