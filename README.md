@@ -52,6 +52,35 @@ It consists of two parts:
     # Out[2]: (17, 10)
     ```
 
+  - FDT can also act as the auth provider for [foundry-platform-sdk](https://pypi.org/project/foundry-platform-sdk/) and any TPA-specific OSDK package. Install the optional dependency first:
+
+    ```shell
+    pip install 'foundry-dev-tools[public]'
+    ```
+
+    Use the built-in `foundry-platform-sdk` client:
+
+    ```python
+    import pyarrow as pa
+    import polars as pl
+    from foundry_dev_tools import FoundryContext
+
+    ctx = FoundryContext()
+    client = ctx.public_client_v2
+    ds = client.datasets.Dataset.read_table("<dataset-rid>", format="ARROW")
+    df = pl.from_arrow(pa.ipc.open_stream(ds).read_all())
+    ```
+
+    Or pass FDT's auth to any TPA OSDK client:
+
+    ```python
+    from foundry_dev_tools import FoundryContext
+    from my_tpa_sdk import FoundryClient  # your generated OSDK package
+
+    ctx = FoundryContext()
+    client = FoundryClient(auth=ctx.public_auth, hostname=ctx.host.domain)
+    ```
+
 ## Quickstart
 
 With pip:

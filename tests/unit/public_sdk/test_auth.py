@@ -26,6 +26,22 @@ def test_foundry_dev_tools_auth_get_token_bridges_context_token(test_context_moc
     assert token.access_token == expected_token
 
 
+def test_public_auth_returns_foundry_dev_tools_auth(test_context_mock):
+    """Verify FoundryContext.public_auth returns a FoundryDevToolsAuth wrapping the context."""
+    auth = test_context_mock.public_auth
+
+    assert isinstance(auth, FoundryDevToolsAuth)
+    assert auth._ctx is test_context_mock
+
+
+def test_public_auth_token_matches_context_token(test_context_mock):
+    """Verify public_auth reflects the current context token."""
+    expected_token = "public-auth-token-789"  # noqa: S105
+    test_context_mock.token_provider._jwt = expected_token
+
+    assert test_context_mock.public_auth.get_token().access_token == expected_token
+
+
 def test_public_client_v2_uses_foundry_dev_tools_auth(test_context_mock):
     """Verify FoundryContext.public_client_v2 creates FoundryClient with FoundryDevToolsAuth."""
     from foundry_sdk.v2 import FoundryClient
