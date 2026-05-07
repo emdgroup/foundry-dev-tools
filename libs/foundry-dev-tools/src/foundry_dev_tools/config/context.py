@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from foundry_dev_tools.config.config_types import Host, Token
     from foundry_dev_tools.config.token_provider import TokenProvider
     from foundry_dev_tools.foundry_api_client import FoundryRestClient
+    from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth
     from foundry_dev_tools.utils import api_types
 
 
@@ -192,6 +193,20 @@ class FoundryContext:
 
         return FoundryRestClient(ctx=self)
 
+    @property
+    def public_auth(self) -> FoundryDevToolsAuth:
+        """Returns :py:class:`foundry_dev_tools.public_sdk.auth.FoundryDevToolsAuth`.
+
+        Auth adapter for use with OSDK and foundry-platform-sdk clients.
+
+        Examples:
+            >>> from my_tpa_sdk import FoundryClient
+            >>> client = FoundryClient(auth=ctx.public_auth, hostname=ctx.host.domain)
+        """
+        from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth
+
+        return FoundryDevToolsAuth(self)
+
     @cached_property
     def public_client_v2(self) -> FoundrySdkV2Client:
         """Returns :py:class:`foundry_sdk.v2.FoundryClient`.
@@ -208,10 +223,9 @@ class FoundryContext:
             >>> polars_df = pl.from_arrow(pa_df)
         """
         from foundry_dev_tools._optional.foundry_platform_sdk import foundry_sdk
-        from foundry_dev_tools.public_sdk.auth import FoundryDevToolsAuth
 
         return foundry_sdk.v2.FoundryClient(
-            auth=FoundryDevToolsAuth(self),
+            auth=self.public_auth,
             hostname=self.host.domain,
         )
 

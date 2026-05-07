@@ -8,6 +8,6 @@ try:
 except ImportError:
     from foundry_dev_tools._optional import FakeModule
 
-    foundry_sdk = FakeModule("foundry_sdk")
+    foundry_sdk = FakeModule("foundry-platform-sdk")
 
 __all__ = ["foundry_sdk"]
