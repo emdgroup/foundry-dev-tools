@@ -305,6 +305,165 @@ def test_v2_query_failed_error_details(mocker, test_context_mock):
     assert "my_table" in exception_str
 
 
+def test_extract_dataset_rid_from_outputs():
+    from foundry_dev_tools.clients.foundry_sql_server import _extract_dataset_rid_from_outputs
+
+    rid = "ri.foundry.main.dataset.00000000-0000-0000-0000-000000000003"
+
+    # Primary path: RID in tableLike.value.rid
+    assert (
+        _extract_dataset_rid_from_outputs(
+            {
+                f"`{rid}`.`branch_master`": {
+                    "type": "tableLike",
+                    "tableLike": {"value": {"rid": rid}, "columns": []},
+                }
+            }
+        )
+        == rid
+    )
+
+    # Fallback path: no tableLike.value.rid, parse from backtick-quoted key
+    assert (
+        _extract_dataset_rid_from_outputs(
+            {
+                f"`{rid}`.`branch_master`": {"type": "tableLike", "tableLike": {"value": {}, "columns": []}},
+            }
+        )
+        == rid
+    )
+
+    # Empty outputs
+    assert _extract_dataset_rid_from_outputs({}) == ""
+
+    # Key with path instead of RID — not matched by fallback regex, returns empty
+    assert (
+        _extract_dataset_rid_from_outputs(
+            {
+                "`/some/path`.`branch_master`": {"type": "tableLike", "tableLike": {"value": {}, "columns": []}},
+            }
+        )
+        == ""
+    )
+
+
+_MOCK_BUILD_RID = "ri.foundry.main.build.00000000-0000-0000-0000-000000000001"
+_MOCK_INPUT_DATASET_RID = "ri.foundry.main.dataset.00000000-0000-0000-0000-000000000002"
+_MOCK_OUTPUT_DATASET_RID = "ri.foundry.main.dataset.00000000-0000-0000-0000-000000000003"
+
+_MOCK_CTAS_QUERY_HANDLE = {
+    "queryId": {"type": "build", "build": _MOCK_BUILD_RID},
+    "planningDurationMs": None,
+    "submissionDurationMs": 3096,
+    "executionEngine": "SPARK",
+    "cachedResult": None,
+    "queryParams": {
+        "sql": f"CREATE OR REPLACE TABLE `/path/output` USING parquet AS SELECT * FROM `{_MOCK_INPUT_DATASET_RID}`",
+        "rowLimit": None,
+        "compressionCodec": "NONE",
+        "includeLatitudeMetadata": False,
+        "skipCache": False,
+        "defaultBranchOverrides": ["master"],
+        "isInPlatformPreview": False,
+    },
+    "fallbackJobId": None,
+    "type": "furnace",
+}
+
+_MOCK_CTAS_RESPONSE = {
+    "type": "async",
+    "async": {
+        "queryHandle": _MOCK_CTAS_QUERY_HANDLE,
+        "queryStructure": {
+            "inputs": {
+                f"`{_MOCK_INPUT_DATASET_RID}`.`branch_master`": {
+                    "type": "tableLike",
+                    "tableLike": {
+                        "value": {
+                            "rid": _MOCK_INPUT_DATASET_RID,
+                            "branchId": "master",
+                            "endVersion": _MOCK_INPUT_DATASET_RID,
+                        },
+                        "columns": [],
+                    },
+                }
+            },
+            "outputs": {
+                f"`{_MOCK_OUTPUT_DATASET_RID}`.`branch_master`": {
+                    "type": "tableLike",
+                    "tableLike": {
+                        "value": {
+                            "rid": _MOCK_OUTPUT_DATASET_RID,
+                            "branchId": "master",
+                            "endVersion": _MOCK_OUTPUT_DATASET_RID,
+                        },
+                        "columns": [],
+                    },
+                }
+            },
+            "metadata": {"backend": "SPARK"},
+        },
+        "executionMetadata": {
+            "type": "dataset",
+            "dataset": {"type": "build", "build": {"buildRid": _MOCK_BUILD_RID}},
+        },
+    },
+}
+
+
+def test_v2_ctas_returns_write_result(mocker, test_context_mock):
+    """CTAS query returns SqlWriteResult with build_rid and dataset_rid, no polling needed."""
+    from foundry_dev_tools.utils.api_types import SqlWriteResult
+
+    mocker.patch("time.sleep")
+
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json=_MOCK_CTAS_RESPONSE,
+    )
+
+    result = test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+        f"CREATE OR REPLACE TABLE `/path/output` USING parquet AS SELECT * FROM `{_MOCK_INPUT_DATASET_RID}`",
+    )
+
+    assert isinstance(result, SqlWriteResult)
+    assert result.build_rid == _MOCK_BUILD_RID
+    assert result.dataset_rid == _MOCK_OUTPUT_DATASET_RID
+
+
+def test_v2_ctas_wait_for_build(mocker, test_context_mock):
+    """With wait_for_build_to_complete=True, polls status until 'finalized' before returning."""
+    from foundry_dev_tools.utils.api_types import SqlWriteResult
+
+    mocker.patch("time.sleep")
+
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/query"),
+        json=_MOCK_CTAS_RESPONSE,
+    )
+
+    # One "running" poll then "finalized" — matches the real API shape.
+    test_context_mock.mock_adapter.register_uri(
+        "POST",
+        build_api_url(TEST_HOST.url, "foundry-sql-server", "sql-endpoint/v1/queries/status"),
+        [
+            {"json": {"status": {"type": "running", "running": {}}}},
+            {"json": {"status": {"type": "finalized", "finalized": {}}}},
+        ],
+    )
+
+    result = test_context_mock.foundry_sql_server_v2.query_foundry_sql(
+        f"CREATE OR REPLACE TABLE `/path/output` USING parquet AS SELECT * FROM `{_MOCK_INPUT_DATASET_RID}`",
+        wait_for_build_to_complete=True,
+    )
+
+    assert isinstance(result, SqlWriteResult)
+    assert result.build_rid == _MOCK_BUILD_RID
+    assert result.dataset_rid == _MOCK_OUTPUT_DATASET_RID
+
+
 def test_v2_polling_error_includes_context(mocker, test_context_mock):
     """Test that polling errors include query context for better debugging."""
     mocker.patch("time.sleep")

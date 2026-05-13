@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args
 
 if TYPE_CHECKING:
@@ -102,6 +103,21 @@ ArrowCompressionCodec = Literal["NONE", "LZ4", "ZSTD"]
 """The Arrow compression codec for Foundry SQL queries."""
 
 SQLReturnType = Literal["pandas", "polars", "spark", "arrow", "raw"]
+
+
+@dataclass
+class SqlWriteResult:
+    """Result of a write SQL statement (CREATE TABLE / INSERT INTO).
+
+    Attributes:
+        build_rid: The RID of the Foundry build that executed the write.
+        dataset_rid: The RID of the output dataset produced by the write.
+    """
+
+    build_rid: str
+    dataset_rid: str
+
+
 """The return_types for sql queries.
 
 pandas: :external+pandas:py:class:`pandas.DataFrame`

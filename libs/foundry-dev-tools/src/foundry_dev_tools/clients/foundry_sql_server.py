@@ -19,6 +19,7 @@ from foundry_dev_tools.utils.api_types import (
     Ref,
     SqlDialect,
     SQLReturnType,
+    SqlWriteResult,
     assert_in_literal,
 )
 
@@ -325,6 +326,7 @@ class FoundrySqlServerClientV2(APIClient):
         sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        wait_for_build_to_complete: bool = ...,
         experimental_use_trino: bool = ...,
     ) -> pd.DataFrame: ...
 
@@ -337,6 +339,7 @@ class FoundrySqlServerClientV2(APIClient):
         sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        wait_for_build_to_complete: bool = ...,
         experimental_use_trino: bool = ...,
     ) -> pl.DataFrame: ...
 
@@ -349,6 +352,7 @@ class FoundrySqlServerClientV2(APIClient):
         sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        wait_for_build_to_complete: bool = ...,
         experimental_use_trino: bool = ...,
     ) -> pyspark.sql.DataFrame: ...
 
@@ -361,6 +365,7 @@ class FoundrySqlServerClientV2(APIClient):
         sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        wait_for_build_to_complete: bool = ...,
         experimental_use_trino: bool = ...,
     ) -> pa.Table: ...
 
@@ -373,6 +378,7 @@ class FoundrySqlServerClientV2(APIClient):
         sql_dialect: FurnaceSqlDialect = ...,
         arrow_compression_codec: ArrowCompressionCodec = ...,
         timeout: int = ...,
+        wait_for_build_to_complete: bool = ...,
         experimental_use_trino: bool = ...,
     ) -> pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame: ...
 
@@ -384,30 +390,42 @@ class FoundrySqlServerClientV2(APIClient):
         sql_dialect: FurnaceSqlDialect = "SPARK",
         arrow_compression_codec: ArrowCompressionCodec = "NONE",
         timeout: int = 600,
+        wait_for_build_to_complete: bool = False,
         experimental_use_trino: bool = False,
-    ) -> pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
+    ) -> SqlWriteResult | pd.DataFrame | pl.DataFrame | pa.Table | pyspark.sql.DataFrame:
         """Queries the Foundry SQL server using the V2 API.
 
         Uses Arrow IPC to communicate with the Foundry SQL Server Endpoint.
+
+        Supports read queries (SELECT) as well as write queries (CREATE TABLE / INSERT INTO).
+        Write queries return a :py:class:`~foundry_dev_tools.utils.api_types.SqlWriteResult`
+        with the build RID and output dataset RID.
 
         Example:
             df = client.query_foundry_sql(
                 query="SELECT * FROM `ri.foundry.main.dataset.abc` LIMIT 10"
             )
+            result = client.query_foundry_sql(
+                query="CREATE OR REPLACE TABLE `/path/output` USING parquet AS SELECT * FROM `ri.foundry.main.dataset.abc`"
+            )
+            print(result.build_rid, result.dataset_rid)
 
         Args:
             query: The SQL Query
-            return_type: The return type (pandas, polars, spark, or arrow). Note: "raw" is not supported in V2.
+            return_type: The return type for SELECT queries (pandas, polars, spark, or arrow).
+                Not applicable for write queries.
             branch: The dataset branch to query
             sql_dialect: The SQL dialect to use (only SPARK is supported for V2)
             arrow_compression_codec: Arrow compression codec (NONE, LZ4, ZSTD)
             timeout: Query timeout in seconds
+            wait_for_build_to_complete: For write queries, poll until the build finishes before returning.
+                Defaults to False (return immediately after build submission).
             experimental_use_trino: If True, modifies the query to use Trino backend by adding /*+ backend(trino) */ hint
 
         Returns:
-            :external+pandas:py:class:`~pandas.DataFrame` | :external+polars:py:class:`~polars.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`:
-
-            A pandas DataFrame, polars, Spark DataFrame or pyarrow.Table with the result.
+            :py:class:`~foundry_dev_tools.utils.api_types.SqlWriteResult` for write queries, or
+            :external+pandas:py:class:`~pandas.DataFrame` | :external+polars:py:class:`~polars.DataFrame` | :external+pyarrow:py:class:`~pyarrow.Table` | :external+spark:py:class:`~pyspark.sql.DataFrame`
+            for SELECT queries.
 
         Raises:
             FoundrySqlQueryFailedError: If the query fails
@@ -417,7 +435,6 @@ class FoundrySqlServerClientV2(APIClient):
 
         """  # noqa: E501
         if experimental_use_trino:
-            # Case-insensitive replacement of first SELECT keyword
             import re
 
             query = re.sub(r"\bSELECT\b", "SELECT /*+ backend(trino) */", query, count=1, flags=re.IGNORECASE)
@@ -430,21 +447,25 @@ class FoundrySqlServerClientV2(APIClient):
             timeout=timeout,
         ).json()
 
+        # Write queries (CTAS, INSERT) produce type=="async" with executionMetadata.dataset.type=="build".
+        # Regular SELECT queries also return type=="async" but with type=="interactive" — those follow
+        # the normal polling path below.
+        async_data = response_json.get("async", {})
+        is_write = (
+            response_json.get("type") == "async"
+            and async_data.get("executionMetadata", {}).get("dataset", {}).get("type") == "build"
+        )
+        if is_write:
+            return self._handle_async_write(
+                response_json, query, branch, sql_dialect, timeout, wait_for_build_to_complete
+            )
+
         query_handle = self._extract_query_handle(response_json)
-        start_time = time.time()
-
-        while response_json.get("status", {}).get("type") != "ready":
-            time.sleep(0.2)
-            response = self.api_status(query_handle)
-            response_json = response.json()
-
-            if response_json.get("status", {}).get("type") == "failed":
-                raise FoundrySqlQueryFailedError(response, query=query, branch=branch, dialect=sql_dialect)
-            if time.time() > start_time + timeout:
-                raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
+        response_json = self._poll_until_done(
+            query_handle, query=query, branch=branch, dialect=sql_dialect, timeout=timeout
+        )
 
         ticket = self._extract_ticket(response_json)
-
         arrow_stream_reader = self.read_stream_results_arrow(ticket)
 
         if return_type == "pandas":
@@ -466,11 +487,88 @@ class FoundrySqlServerClientV2(APIClient):
         if return_type == "arrow":
             return arrow_stream_reader.read_all()
 
-        msg = (
-            f"Unsupported return_type: {return_type}. "
-            f"V2 API supports: pandas, polars, spark, arrow (raw is not supported)"
-        )
+        msg = f"Unsupported return_type: {return_type}. V2 API supports: pandas, polars, spark, arrow (raw is not supported)"  # noqa: E501
         raise ValueError(msg)
+
+    def _poll_until_done(
+        self,
+        query_handle: dict[str, Any],
+        query: str,
+        branch: Ref,
+        dialect: FurnaceSqlDialect,
+        timeout: int,
+        terminal_states: tuple[str, ...] = ("ready", "finalized"),
+    ) -> dict[str, Any]:
+        """Poll api_status until the query reaches a terminal state, then return the final response JSON.
+
+        Args:
+            query_handle: Query handle dict to pass to api_status.
+            query: Original SQL query (for error context).
+            branch: Branch (for error context).
+            dialect: SQL dialect (for error context).
+            timeout: Maximum seconds to wait before raising FoundrySqlQueryClientTimedOutError.
+            terminal_states: Status types that end the loop successfully.
+        """
+        start_time = time.time()
+        response_json: dict[str, Any] = {}
+        while True:
+            time.sleep(0.2)
+            response = self.api_status(query_handle)
+            response_json = response.json()
+            status_type = response_json.get("status", {}).get("type")
+            if status_type == "failed":
+                raise FoundrySqlQueryFailedError(response, query=query, branch=branch, dialect=dialect)
+            if status_type in terminal_states:
+                return response_json
+            if time.time() > start_time + timeout:
+                raise FoundrySqlQueryClientTimedOutError(response, timeout=timeout)
+
+    def _handle_async_write(
+        self,
+        response_json: dict[str, Any],
+        query: str,
+        branch: Ref,
+        sql_dialect: FurnaceSqlDialect,
+        timeout: int,
+        wait_for_build_to_complete: bool,
+    ) -> SqlWriteResult:
+        """Handle an async write query response (CTAS / INSERT INTO).
+
+        The initial response for write queries looks like:
+        {
+          "type": "async",
+          "async": {
+            "executionMetadata": {"dataset": {"build": {"buildRid": "ri.foundry.main.build...."}, "type": "build"}, "type": "dataset"},
+            "queryHandle": {"queryId": {"build": "ri.foundry.main.build....", "type": "build"}, ...},
+            "queryStructure": {
+              "outputs": {"<`dataset_rid`.`branch_master`>": {...}},
+              ...
+            }
+          }
+        }
+        """  # noqa: E501
+        async_data = response_json["async"]
+
+        # build_rid: present when executionMetadata.dataset.type == "build" (CTAS/INSERT)
+        execution_metadata = async_data.get("executionMetadata", {})
+        inner = execution_metadata.get("dataset", {})
+        build_rid = inner.get("build", {}).get("buildRid", "")
+
+        # dataset RID: prefer the structured value inside tableLike, fall back to key parsing
+        outputs: dict = async_data.get("queryStructure", {}).get("outputs", {})
+        dataset_rid = _extract_dataset_rid_from_outputs(outputs)
+
+        if wait_for_build_to_complete:
+            self._poll_until_done(
+                async_data["queryHandle"],
+                query=query,
+                branch=branch,
+                dialect=sql_dialect,
+                timeout=timeout,
+                terminal_states=("finalized",),
+            )
+
+        return SqlWriteResult(build_rid=build_rid, dataset_rid=dataset_rid)
 
     def _extract_query_handle(self, response_json: dict[str, Any]) -> dict[str, Any]:
         """Extract query handle from execute response.
@@ -646,3 +744,25 @@ class FoundrySqlServerClientV2(APIClient):
             stream=True,
             **kwargs,
         )
+
+
+def _extract_dataset_rid_from_outputs(outputs: dict) -> str:
+    """Extract the output dataset RID from a CTAS/INSERT queryStructure outputs dict.
+
+    Prefers the structured RID at tableLike.value.rid; falls back to parsing the
+    backtick-quoted output key (e.g. "`ri.foundry.main.dataset.abc`.`branch_master`").
+
+    Returns the first dataset RID found, or an empty string if none can be parsed.
+    """
+    import re
+
+    for key, value in outputs.items():
+        # Prefer the structured path
+        rid = value.get("tableLike", {}).get("value", {}).get("rid", "")
+        if rid:
+            return rid
+        # Fall back to parsing the backtick-quoted key
+        match = re.match(r"^`(ri\.foundry\.main\.dataset\.[^`]+)`", key)
+        if match:
+            return match.group(1)
+    return ""

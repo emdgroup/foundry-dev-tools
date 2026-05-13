@@ -10,6 +10,7 @@ from foundry_dev_tools.errors.sql import (
     FoundrySqlSerializationFormatNotImplementedError,
     FurnaceSqlSqlParseError,
 )
+from foundry_dev_tools.utils.api_types import SqlWriteResult
 from tests.integration.conftest import TEST_SINGLETON
 from tests.integration.utils import INTEGRATION_TEST_COMPASS_ROOT_PATH
 
@@ -23,8 +24,7 @@ def test_smoke_adbc():
 
 def test_adbc_create_table():
     rnd = "".join(choice(ascii_uppercase) for _ in range(5))
-    name = "furnace_write_adbc_" + rnd
-    output_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/{name}"
+    output_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/iris_ctas_{rnd}"
     with TEST_SINGLETON.ctx.get_flight_sql_connection() as conn, conn.cursor() as cur:
         cur.execute(
             f"CREATE OR REPLACE TABLE `{output_path}` USING parquet AS"
@@ -33,11 +33,52 @@ def test_adbc_create_table():
         pa_table = cur.fetch_arrow_table()
         dataset_rid = str(pa_table.columns[0][0][0])
 
-    # Delete permanently with additional delete_options
     response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
         {dataset_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
     )
+    assert response.status_code == 200
 
+
+def test_v2_ctas():
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+    output_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/iris_ctas_{rnd}"
+
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"CREATE OR REPLACE TABLE `{output_path}` USING parquet AS" f" SELECT * FROM `{TEST_SINGLETON.iris_new.rid}`",
+    )
+
+    assert isinstance(result, SqlWriteResult)
+    assert result.build_rid.startswith("ri.foundry.main.build.")
+    assert result.dataset_rid.startswith("ri.foundry.main.dataset.")
+
+    response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
+        {result.dataset_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
+    )
+    assert response.status_code == 200
+
+
+def test_v2_ctas_wait_for_build():
+    rnd = "".join(choice(ascii_uppercase) for _ in range(5))
+    output_path = f"{INTEGRATION_TEST_COMPASS_ROOT_PATH}/iris_ctas_{rnd}"
+
+    result = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"CREATE OR REPLACE TABLE `{output_path}` USING parquet AS" f" SELECT * FROM `{TEST_SINGLETON.iris_new.rid}`",
+        wait_for_build_to_complete=True,
+    )
+
+    assert isinstance(result, SqlWriteResult)
+    assert result.build_rid.startswith("ri.foundry.main.build.")
+    assert result.dataset_rid.startswith("ri.foundry.main.dataset.")
+
+    # Build completed — the dataset should now be queryable
+    df = TEST_SINGLETON.ctx.foundry_sql_server_v2.query_foundry_sql(
+        f"SELECT * FROM `{result.dataset_rid}` LIMIT 1",
+    )
+    assert df.shape[0] == 1
+
+    response = TEST_SINGLETON.ctx.compass.api_delete_permanently(
+        {result.dataset_rid}, delete_options={"DO_NOT_REQUIRE_TRASHED"}
+    )
     assert response.status_code == 200
 
 
