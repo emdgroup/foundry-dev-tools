@@ -5,10 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
-## [2.1.24] - 2026-05-07
+## [2.1.24] - 2026-05-20
 
 ## Added
-- add `FoundryContext.public_auth` property returning a `FoundryDevToolsAuth` adapter for use with OSDK and foundry-platform-sdk clients
+- add `FoundryContext.public_auth` property returning a `FoundryDevToolsAuth` adapter for use with OSDK and foundry-platform-sdk clients (#121)
+- add Getter api implementations for Multipass TPAs (#120)
+- add api_me_scope to MultipassClient for me/scope endpoint (#119)
 
 ## Fixed
 - fix misleading error message when `foundry-platform-sdk` is not installed (was suggesting `pip install foundry_sdk`)
