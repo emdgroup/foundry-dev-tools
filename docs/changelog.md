@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [2.1.25] - 2026-07-27
+
+## Fixed
+- fix `MultipassClient.search` to support `page_size` and `max_results` parameters, preventing unbounded iteration on broad queries
+
 ## [2.1.24] - 2026-05-20
 
 ## Added
