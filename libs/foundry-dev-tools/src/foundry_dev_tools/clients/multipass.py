@@ -143,7 +143,12 @@ class MultipassClient(APIClient):
         )
 
     def search(
-        self, query: str, principal_types: set[api_types.PrincipalTypes] | None = None, **kwargs
+        self,
+        query: str,
+        principal_types: set[api_types.PrincipalTypes] | None = None,
+        page_size: int = 1000,
+        max_results: int | None = None,
+        **kwargs,
     ) -> Iterator[dict]:
         """Searches for multipass principals based on a text.
 
@@ -151,21 +156,37 @@ class MultipassClient(APIClient):
             query: the text string to search for
             principal_types: set of principal types to search in, e.g. "GROUP"
                 Default is GROUP and USER
+            page_size: number of results per page, defaults to 1000
+            max_results: stop after yielding this many results, or None for all.
+                A search token that is a common substring (e.g. a middle initial
+                like "M") can match thousands of users, causing unbounded iteration.
             **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
         if principal_types is None:
             principal_types = {"USER", "GROUP"}
 
-        json = {"attributeFilters": {}, "principalTypes": list(principal_types), "query": query}
+        json = {
+            "attributeFilters": {},
+            "principalTypes": list(principal_types),
+            "query": query,
+            "pageSize": page_size,
+        }
 
+        total = 0
         next_start = None
         while True:
             if next_start:
                 json["pageStart"] = next_start
 
             response_as_json = self.api_request("POST", "search/v2/search", json=json, **kwargs).json()
-            yield from response_as_json["values"]
-            if (next_start := response_as_json["nextPageToken"]) is None:
+            values = response_as_json["values"]
+            if max_results is not None:
+                values = values[: max_results - total]
+            yield from values
+            total += len(values)
+            if (next_start := response_as_json["nextPageToken"]) is None or (
+                max_results is not None and total >= max_results
+            ):
                 break
 
     def api_get_groups_of_user(self, **kwargs) -> requests.Response:
