@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from foundry_dev_tools.config.config_types import Host
+from foundry_dev_tools.config.palantir_mcp import (
+    discover_palantir_mcp_credential,
+    warn_auto_pickup,
+)
 from foundry_dev_tools.config.token_provider import (
     TOKEN_PROVIDER_MAPPING,
     AppServiceTokenProvider,
@@ -148,6 +152,49 @@ MISSING_TP_ERROR = TokenProviderConfigError(
 )
 
 
+def _auto_palantir_mcp_config() -> dict | None:
+    """Return a credentials config synthesized from the Palantir MCP cache, if available."""
+    if "APP_SERVICE_TS" in os.environ:
+        # App Service supplies its own token; do not override that environment.
+        return None
+    auto_credential = discover_palantir_mcp_credential()
+    if auto_credential is None:
+        return None
+    warn_auto_pickup(auto_credential)
+    return {
+        "credentials": {
+            "domain": auto_credential.host.domain,
+            "scheme": auto_credential.host.scheme,
+            "palantir_mcp": {},
+        },
+    }
+
+
+def _resolve_auto_credentials(
+    default_credentials: dict,
+    domain: str | None,
+    scheme: str | None,
+    token_provider_name: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Fill missing host/provider values from the Palantir MCP token cache."""
+    if (domain and token_provider_name) or "APP_SERVICE_TS" in os.environ:
+        return domain, scheme, token_provider_name
+
+    auto_credential = discover_palantir_mcp_credential()
+    if auto_credential is None:
+        return domain, scheme, token_provider_name
+
+    if not domain:
+        domain = auto_credential.host.domain
+    if not scheme:
+        scheme = auto_credential.host.scheme
+    if not token_provider_name:
+        token_provider_name = "palantir_mcp"  # noqa: S105
+        default_credentials.setdefault("palantir_mcp", {})
+        warn_auto_pickup(auto_credential)
+    return domain, scheme, token_provider_name
+
+
 def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None:
     """Loads config from the config files and environment variables.
 
@@ -170,7 +217,7 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
     """
     config = _pure_config_dict(env=env)
     if not config:
-        return None
+        return _auto_palantir_mcp_config()
     if profile is None:
         profile = config.get("profile")
     if profile in ("config", "credentials"):
@@ -188,14 +235,25 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
 
     default_credentials = config.get("credentials", {})
     domain = profile_credentials.pop("domain", default_credentials.pop("domain", None))
-    # a domain must always be provided
-    if not domain:
-        raise MissingFoundryHostError
-
     scheme = profile_credentials.pop("scheme", default_credentials.pop("scheme", None))
 
     # decide which will be the token provider used
     token_provider_name = _find_token_provider(profile_credentials) or _find_token_provider(default_credentials)
+
+    # If the Foundry DevTools configuration does not fully define credentials,
+    # fall back to the token Palantir MCP already cached. Explicit credentials
+    # always take precedence.
+    domain, scheme, token_provider_name = _resolve_auto_credentials(
+        default_credentials,
+        domain,
+        scheme,
+        token_provider_name,
+    )
+
+    # a domain must always be provided
+    if not domain:
+        raise MissingFoundryHostError
+
     if not token_provider_name:
         if "APP_SERVICE_TS" in os.environ:
             token_provider_name = "app_service"  # noqa: S105
@@ -235,7 +293,8 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
             if tp_config is None or len(tp_config) == 0:
                 tp_config = {}
             elif not isinstance(tp_config, dict):
-                tp_config = {tp_name: tp_config}
+                # palantir_mcp has no required option, allow `palantir_mcp = ""`
+                tp_config = {} if tp_name == "palantir_mcp" else {tp_name: tp_config}
         except KeyError:
             tp_name, tp_config = None, None
 

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [Unreleased]
+
+## Added
+- add `PalantirMCPTokenProvider` and automatic discovery of the token cached by Palantir MCP in `~/.palantir/mcp-config.json`; no Foundry DevTools configuration is required
+- append the Compass resources a scoped Palantir MCP token can access to `403` errors
+
 ## [2.1.25] - 2026-07-27
 
 ## Fixed

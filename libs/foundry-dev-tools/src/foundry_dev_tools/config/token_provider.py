@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import time
+from datetime import datetime, timezone
 from functools import cached_property
 from typing import TYPE_CHECKING, ClassVar
 
@@ -12,12 +13,21 @@ import requests
 from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import Host
+from foundry_dev_tools.config.palantir_mcp import (
+    REAUTHORIZE_HINT,
+    PalantirMCPCredential,
+    palantir_mcp_config_path,
+    read_palantir_mcp_credentials,
+    select_palantir_mcp_credential,
+)
 from foundry_dev_tools.errors.config import TokenProviderConfigError
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
 from foundry_dev_tools.errors.multipass import ClientAuthenticationFailedError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
 
 if TYPE_CHECKING:
+    from os import PathLike
+
     from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
 
 
@@ -273,12 +283,80 @@ class AppServiceTokenProvider(CachedTokenProvider):
         raise TokenProviderConfigError(msg)
 
 
+class PalantirMCPTokenProvider(TokenProvider):
+    """Uses the token that Palantir MCP cached in ``~/.palantir/mcp-config.json``.
+
+    Palantir MCP owns the re-authorization flow. This provider only reads the
+    cached token and fails with a clear message when the token is missing or
+    expired. The token is re-read on every access so that a re-authorization
+    performed by tux or the MCP is picked up without restarting the process.
+
+    .. code-block:: toml
+
+        [credentials]
+        domain = "foundry.example.com"
+
+        [credentials.palantir_mcp]
+        # optional, defaults to ~/.palantir/mcp-config.json
+        config_path = "/path/to/mcp-config.json"
+    """
+
+    supports_scope_diagnostics: ClassVar[bool] = True
+
+    def __init__(
+        self,
+        host: Host | str,
+        config_path: PathLike[str] | str | None = None,
+    ) -> None:
+        """Initialize the Palantir MCP token provider.
+
+        Args:
+            host: the Foundry host whose cached MCP token should be used
+            config_path: optional path to the Palantir MCP config file,
+                defaults to ``~/.palantir/mcp-config.json``
+        """
+        super().__init__(host)
+        self._config_path = config_path
+        self._credential = self._read_credential()
+        if self._credential is None:
+            msg = f"No Palantir MCP token found for {self.host.url} in {self._source_path()}. {REAUTHORIZE_HINT}"
+            raise TokenProviderConfigError(msg)
+
+    def _source_path(self) -> PathLike[str] | str:
+        return palantir_mcp_config_path() if self._config_path is None else self._config_path
+
+    def _read_credential(self) -> PalantirMCPCredential | None:
+        return select_palantir_mcp_credential(
+            read_palantir_mcp_credentials(self._config_path),
+            host=self.host,
+            config_path=self._config_path,
+        )
+
+    @property
+    def token(self) -> Token:
+        """Return the currently cached MCP token, refreshing from disk on every access."""
+        credential = self._read_credential()
+        if credential is None:
+            msg = f"No Palantir MCP token found for {self.host.url} in {self._source_path()}. {REAUTHORIZE_HINT}"
+            raise TokenProviderConfigError(msg)
+        if credential.is_expired():
+            expires_at = (
+                datetime.fromtimestamp(credential.expires_at, tz=timezone.utc).isoformat()
+                if credential.expires_at is not None
+                else "unknown"
+            )
+            msg = f"The Palantir MCP token for {credential.host.url} expired at {expires_at}. {REAUTHORIZE_HINT}"
+            raise TokenProviderConfigError(msg)
+        return credential.token
+
+
 # markers for documentation
 # [begin token_provider mapping]
 TOKEN_PROVIDER_MAPPING = {
     "jwt": JWTTokenProvider,
     "oauth": OAuthTokenProvider,
     "app_service": AppServiceTokenProvider,
+    "palantir_mcp": PalantirMCPTokenProvider,
     **entry_point_fdt_token_provider(),
 }
 # [end token_provider mapping]

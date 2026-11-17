@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
+from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils.clients import build_api_url, build_public_api_url
+from foundry_dev_tools.utils.scope import build_scope_hint
 
 if TYPE_CHECKING:
     from requests import Response
@@ -24,6 +26,24 @@ if TYPE_CHECKING:
     )
 
     from foundry_dev_tools.config.context import FoundryContext
+
+
+def _raise_foundry_api_error_with_scope_hint(
+    context: FoundryContext,
+    response: Response,
+    error_handling: ErrorHandlingConfig | Literal[False] | None,
+) -> None:
+    """Raise the regular API error and append scoped-token diagnostics when available."""
+    try:
+        raise_foundry_api_error(response, error_handling)
+    except FoundryAPIError as exc:
+        try:
+            hint = build_scope_hint(context, response.status_code)
+        except Exception:  # noqa: BLE001 - never mask the original API error
+            hint = None
+        if hint:
+            exc.add_info(hint)
+        raise
 
 
 class APIClient:
@@ -111,7 +131,7 @@ class APIClient:
             cert=cert,
             json=json,
         )
-        raise_foundry_api_error(response, error_handling)
+        _raise_foundry_api_error_with_scope_hint(self.context, response, error_handling)
         return response
 
 
@@ -215,5 +235,5 @@ class PublicAPIClient:
             cert=cert,
             json=json,
         )
-        raise_foundry_api_error(response, error_handling)
+        _raise_foundry_api_error_with_scope_hint(self.context, response, error_handling)
         return response
