@@ -45,6 +45,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with: {fetch-depth: 0}  # deep clone for git tag
+      # Spark 3.5 uses Hadoop's Subject.getSubject(), which throws on JDK 24+.
+      # Pin the JDK instead of inheriting the runner image's default.
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: pdm-project/setup-pdm@v4
         with:
           python-version: ${{matrix.python}}
