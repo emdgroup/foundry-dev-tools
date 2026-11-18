@@ -198,7 +198,8 @@ class _AutoPickupNotice:
         if cls.printed:
             return
         cls.printed = True
-        sys.stdout.write(
+        # stderr keeps machine-readable stdout, such as the git credential helper, clean.
+        sys.stderr.write(
             f"Foundry DevTools is using the Palantir MCP token for {credential.host.url} "
             f"from {palantir_mcp_config_path()}. "
             "Create an explicit Foundry DevTools configuration to silence this message.\n",

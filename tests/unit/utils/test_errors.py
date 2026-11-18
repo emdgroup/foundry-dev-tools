@@ -41,5 +41,6 @@ def test_foundry_api_error_add_info():
     error = FoundryAPIError(info="base")
     error.add_info("additional context")
 
+    assert error.info == "base\nadditional context"
     assert "base" in str(error)
     assert "additional context" in str(error)

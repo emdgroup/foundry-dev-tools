@@ -7,7 +7,17 @@ import warnings
 from urllib.parse import urlparse
 
 from foundry_dev_tools.config.config import TokenProvider, get_config_dict, parse_credentials_config
-from foundry_dev_tools.config.config_types import DEFAULT_SCHEME
+from foundry_dev_tools.config.config_types import DEFAULT_SCHEME, Host
+
+
+def _discovery_host(foundry_url: object) -> Host | None:
+    """Return the host described by an explicit v1 ``foundry_url``, if valid."""
+    if not isinstance(foundry_url, str) or not foundry_url:
+        return None
+    parsed = urlparse(foundry_url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return Host(parsed.netloc, parsed.scheme)
 
 
 def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True) -> dict:  # noqa: C901
@@ -20,7 +30,10 @@ def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True
     """
     # Explicit v1 credentials must not be blocked by an unrelated MCP token cache.
     auto_discover = not ("jwt" in config or "client_id" in config)
-    _config = (get_config_dict(env=env, auto_discover=auto_discover) if get_config else None) or {}
+    discovery_host = _discovery_host(config.get("foundry_url"))
+    _config = (
+        get_config_dict(env=env, auto_discover=auto_discover, discovery_host=discovery_host) if get_config else None
+    ) or {}
     jwt, client_id, client_secret, foundry_url, grant_type, scopes = (
         config.pop("jwt", False),
         config.pop("client_id", False),

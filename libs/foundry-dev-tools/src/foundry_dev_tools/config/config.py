@@ -154,12 +154,20 @@ MISSING_TP_ERROR = TokenProviderConfigError(
 )
 
 
-def _auto_palantir_mcp_config() -> dict | None:
+def _auto_palantir_mcp_config(discovery_host: Host | None = None) -> dict | None:
     """Return a credentials config synthesized from the Palantir MCP cache, if available."""
     if "APP_SERVICE_TS" in os.environ:
         # App Service supplies its own token; do not override that environment.
         return None
-    auto_credential = discover_palantir_mcp_credential()
+    if discovery_host is None:
+        auto_credential = discover_palantir_mcp_credential()
+    else:
+        # A known host makes discovery optional: no matching cache entry just means
+        # that the caller's own credentials are used.
+        try:
+            auto_credential = discover_palantir_mcp_credential(host=discovery_host)
+        except TokenProviderConfigError:
+            return None
     if auto_credential is None:
         return None
     print_auto_pickup_notice(auto_credential)
@@ -177,6 +185,7 @@ def _resolve_auto_credentials(
     domain: str | None,
     scheme: str | None,
     token_provider_name: str | None,
+    discovery_host: Host | None = None,
 ) -> tuple[str | None, str | None, str | None]:
     """Fill missing host/provider values from the Palantir MCP token cache."""
     if (domain and token_provider_name) or "APP_SERVICE_TS" in os.environ:
@@ -188,11 +197,13 @@ def _resolve_auto_credentials(
     if token_provider_name not in (None, PALANTIR_MCP_PROVIDER):
         return domain, scheme, token_provider_name
 
-    # When only a domain was configured, discovery is optional: a missing cache
-    # entry must not block the regular missing-provider error.
-    optional_discovery = token_provider_name is None and domain is not None
+    # Use the origin the provider will use, including the configured scheme.
+    host = Host(domain, scheme) if domain else discovery_host
+    # When a host is known, discovery is optional: a missing cache entry must not
+    # block the regular missing-provider error.
+    optional_discovery = token_provider_name is None and host is not None
     try:
-        auto_credential = discover_palantir_mcp_credential(host=domain)
+        auto_credential = discover_palantir_mcp_credential(host=host)
     except TokenProviderConfigError:
         if not optional_discovery:
             raise
@@ -228,6 +239,7 @@ def get_config_dict(
     profile: str | None = None,
     env: bool = True,
     auto_discover: bool = True,
+    discovery_host: Host | None = None,
 ) -> dict | None:
     """Loads config from the config files and environment variables.
 
@@ -250,10 +262,12 @@ def get_config_dict(
         auto_discover: Whether to fall back to the Palantir MCP token cache when the
             configuration does not define credentials. Set to False when credentials
             are passed explicitly.
+        discovery_host: Host to use when the configuration does not define one, for
+            example an explicit URL supplied by a v1 caller.
     """
     config = _pure_config_dict(env=env)
     if not config:
-        return _auto_palantir_mcp_config() if auto_discover else None
+        return _auto_palantir_mcp_config(discovery_host) if auto_discover else None
     profile_credentials, profile_config = _resolve_profile_config(config, profile)
 
     default_credentials = config.get("credentials", {})
@@ -272,6 +286,7 @@ def get_config_dict(
             domain,
             scheme,
             token_provider_name,
+            discovery_host,
         )
 
     # a domain must always be provided

@@ -4,9 +4,15 @@
 
 - Python >=3.10
 
-## Get Necessary Credentials
+## Authentication
 
-> Either JWT or OAuth
+> Palantir MCP (default), JWT, or OAuth
+
+```{tab} Palantir MCP (default)
+If you use Palantir MCP and have authorized your Foundry host there, no
+additional credentials are needed. Foundry DevTools uses the token cached in
+`~/.palantir/mcp-config.json` automatically.
+```
 
 ```{tab} JWT
 Go to https://your-stack.palantirfoundry.com/workspace/settings/tokens and generate a new token.
@@ -87,6 +93,18 @@ If you've never used TOML, [here](/configuration.md#quick-toml-overview) is a qu
 
 <!-- includes are for including that part in configuration.md -->
 <!-- include -->
+````{tab} Palantir MCP (default)
+If Palantir MCP has authorized your Foundry host, Foundry DevTools uses the
+cached token automatically and no Foundry DevTools configuration is required.
+To select the host explicitly or silence the one-time pickup message, use:
+
+```toml
+[credentials]
+domain = "palantir foundry domain"
+palantir_mcp = {}
+```
+````
+
 ````{tab} JWT
 The following contents are needed for the JWT authentication:
 ```toml

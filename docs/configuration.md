@@ -15,7 +15,7 @@ The credentials config consists of these keys:
 [credentials]
 domain = "your foundry domain"
 scheme = "scheme" # http/https
-# TOKEN_PROVIDER_NAME is for example jwt or oauth
+# TOKEN_PROVIDER_NAME is for example palantir_mcp, jwt or oauth
 TOKEN_PROVIDER_NAME = {} # token provider implementation specific configuration
 ```
 
