@@ -20,15 +20,16 @@ if TYPE_CHECKING:
 @pytest.fixture(autouse=True)
 def isolated_palantir_mcp_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
     """Keep unit tests away from the real ~/.palantir/mcp-config.json on this machine."""
-    path = tmp_path.joinpath("palantir-mcp-config.json")
+    path = tmp_path.joinpath(palantir_mcp.PALANTIR_MCP_CONFIG_DIR, palantir_mcp.PALANTIR_MCP_CONFIG_FILE)
+    path.parent.mkdir(parents=True)
     monkeypatch.setattr(palantir_mcp, "palantir_mcp_config_path", lambda: path)
     monkeypatch.setattr(
         "foundry_dev_tools.config.token_provider.palantir_mcp_config_path",
         lambda: path,
     )
-    palantir_mcp.reset_auto_pickup_warning()
+    palantir_mcp.reset_auto_pickup_notice()
     yield path
-    palantir_mcp.reset_auto_pickup_warning()
+    palantir_mcp.reset_auto_pickup_notice()
 
 
 @pytest.fixture()

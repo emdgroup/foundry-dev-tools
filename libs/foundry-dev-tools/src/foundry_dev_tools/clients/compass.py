@@ -499,6 +499,7 @@ class CompassClient(APIClient):
         decoration: api_types.ResourceDecorationSetAll | None = None,
         include_operations: bool = False,
         additional_operations: set[str] | None = None,
+        **kwargs,
     ) -> requests.Response:
         """Returns the resources for the RIDs.
 
@@ -508,6 +509,7 @@ class CompassClient(APIClient):
             include_operations: Controls inclusion of Compass GK operations.
                 Is set to false in Foundry DevTools to improve performance. Set to `None` for Foundry instance default.
             additional_operations: Adds specific user-permitted operations to response. Requires include_perations=True.
+            **kwargs: gets passed to :py:meth:`APIClient.api_request`
         """
         return self.api_request(
             "POST",
@@ -518,6 +520,7 @@ class CompassClient(APIClient):
                 "additionalOperations": list(additional_operations) if additional_operations else None,
             },
             json=list(rids),
+            **kwargs,
         )
 
     def api_process_marking(

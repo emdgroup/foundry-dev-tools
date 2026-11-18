@@ -26,8 +26,6 @@ from foundry_dev_tools.errors.multipass import ClientAuthenticationFailedError
 from foundry_dev_tools.utils.config import entry_point_fdt_token_provider
 
 if TYPE_CHECKING:
-    from os import PathLike
-
     from foundry_dev_tools.config.config_types import FoundryOAuthGrantType, Token
 
 
@@ -289,55 +287,45 @@ class PalantirMCPTokenProvider(TokenProvider):
     Palantir MCP owns the re-authorization flow. This provider only reads the
     cached token and fails with a clear message when the token is missing or
     expired. The token is re-read on every access so that a re-authorization
-    performed by tux or the MCP is picked up without restarting the process.
+    performed through the Palantir MCP client is picked up without restarting
+    the process.
 
     .. code-block:: toml
 
         [credentials]
         domain = "foundry.example.com"
-
-        [credentials.palantir_mcp]
-        # optional, defaults to ~/.palantir/mcp-config.json
-        config_path = "/path/to/mcp-config.json"
+        palantir_mcp = {}
     """
 
     supports_scope_diagnostics: ClassVar[bool] = True
 
-    def __init__(
-        self,
-        host: Host | str,
-        config_path: PathLike[str] | str | None = None,
-    ) -> None:
+    def __init__(self, host: Host | str) -> None:
         """Initialize the Palantir MCP token provider.
 
         Args:
             host: the Foundry host whose cached MCP token should be used
-            config_path: optional path to the Palantir MCP config file,
-                defaults to ``~/.palantir/mcp-config.json``
         """
         super().__init__(host)
-        self._config_path = config_path
         self._credential = self._read_credential()
         if self._credential is None:
-            msg = f"No Palantir MCP token found for {self.host.url} in {self._source_path()}. {REAUTHORIZE_HINT}"
+            msg = (
+                f"No Palantir MCP token found for {self.host.url} in {palantir_mcp_config_path()}. "
+                f"{REAUTHORIZE_HINT}"
+            )
             raise TokenProviderConfigError(msg)
 
-    def _source_path(self) -> PathLike[str] | str:
-        return palantir_mcp_config_path() if self._config_path is None else self._config_path
-
     def _read_credential(self) -> PalantirMCPCredential | None:
-        return select_palantir_mcp_credential(
-            read_palantir_mcp_credentials(self._config_path),
-            host=self.host,
-            config_path=self._config_path,
-        )
+        return select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=self.host)
 
     @property
     def token(self) -> Token:
         """Return the currently cached MCP token, refreshing from disk on every access."""
         credential = self._read_credential()
         if credential is None:
-            msg = f"No Palantir MCP token found for {self.host.url} in {self._source_path()}. {REAUTHORIZE_HINT}"
+            msg = (
+                f"No Palantir MCP token found for {self.host.url} in {palantir_mcp_config_path()}. "
+                f"{REAUTHORIZE_HINT}"
+            )
             raise TokenProviderConfigError(msg)
         if credential.is_expired():
             expires_at = (

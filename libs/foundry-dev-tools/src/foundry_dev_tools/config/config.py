@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.config.palantir_mcp import (
     discover_palantir_mcp_credential,
-    warn_auto_pickup,
+    print_auto_pickup_notice,
 )
 from foundry_dev_tools.config.token_provider import (
     TOKEN_PROVIDER_MAPPING,
@@ -160,7 +160,7 @@ def _auto_palantir_mcp_config() -> dict | None:
     auto_credential = discover_palantir_mcp_credential()
     if auto_credential is None:
         return None
-    warn_auto_pickup(auto_credential)
+    print_auto_pickup_notice(auto_credential)
     return {
         "credentials": {
             "domain": auto_credential.host.domain,
@@ -180,7 +180,21 @@ def _resolve_auto_credentials(
     if (domain and token_provider_name) or "APP_SERVICE_TS" in os.environ:
         return domain, scheme, token_provider_name
 
-    auto_credential = discover_palantir_mcp_credential()
+    # Only the Palantir MCP provider may be inferred. A provider that was selected
+    # explicitly keeps its existing configuration validation, so explicit
+    # credentials are never sent to a host discovered from the MCP cache.
+    if token_provider_name not in (None, "palantir_mcp"):
+        return domain, scheme, token_provider_name
+
+    # When only a domain was configured, discovery is optional: a missing cache
+    # entry must not block the regular missing-provider error.
+    optional_discovery = token_provider_name is None and domain is not None
+    try:
+        auto_credential = discover_palantir_mcp_credential(host=domain)
+    except TokenProviderConfigError:
+        if not optional_discovery:
+            raise
+        auto_credential = None
     if auto_credential is None:
         return domain, scheme, token_provider_name
 
@@ -191,11 +205,15 @@ def _resolve_auto_credentials(
     if not token_provider_name:
         token_provider_name = "palantir_mcp"  # noqa: S105
         default_credentials.setdefault("palantir_mcp", {})
-        warn_auto_pickup(auto_credential)
+        print_auto_pickup_notice(auto_credential)
     return domain, scheme, token_provider_name
 
 
-def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None:
+def get_config_dict(  # noqa: C901
+    profile: str | None = None,
+    env: bool = True,
+    auto_discover: bool = True,
+) -> dict | None:
     """Loads config from the config files and environment variables.
 
     Profiles make configs like this possible:
@@ -214,10 +232,13 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
     Args:
         profile: The profile to use, if None the default profile is used
         env: Whether to load the environment variables
+        auto_discover: Whether to fall back to the Palantir MCP token cache when the
+            configuration does not define credentials. Set to False when credentials
+            are passed explicitly.
     """
     config = _pure_config_dict(env=env)
     if not config:
-        return _auto_palantir_mcp_config()
+        return _auto_palantir_mcp_config() if auto_discover else None
     if profile is None:
         profile = config.get("profile")
     if profile in ("config", "credentials"):
@@ -243,12 +264,13 @@ def get_config_dict(profile: str | None = None, env: bool = True) -> dict | None
     # If the Foundry DevTools configuration does not fully define credentials,
     # fall back to the token Palantir MCP already cached. Explicit credentials
     # always take precedence.
-    domain, scheme, token_provider_name = _resolve_auto_credentials(
-        default_credentials,
-        domain,
-        scheme,
-        token_provider_name,
-    )
+    if auto_discover:
+        domain, scheme, token_provider_name = _resolve_auto_credentials(
+            default_credentials,
+            domain,
+            scheme,
+            token_provider_name,
+        )
 
     # a domain must always be provided
     if not domain:

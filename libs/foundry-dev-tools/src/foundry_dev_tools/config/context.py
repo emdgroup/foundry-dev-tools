@@ -58,7 +58,7 @@ class FoundryContext:
         profile: str | None = None,
     ) -> None:
         if config is None or token_provider is None:
-            config_dict = get_config_dict(profile)
+            config_dict = get_config_dict(profile, auto_discover=token_provider is None)
             self.config = config or parse_general_config(config_dict)
             self.token_provider = token_provider or parse_credentials_config(config_dict)
         else:

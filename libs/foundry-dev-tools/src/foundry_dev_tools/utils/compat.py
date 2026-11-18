@@ -18,7 +18,9 @@ def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True
         env: whether to include the environment variables in the conversion
         get_config: wether to get the config from files and merge it
     """
-    _config = (get_config_dict(env=env) if get_config else None) or {}
+    # Explicit v1 credentials must not be blocked by an unrelated MCP token cache.
+    auto_discover = not ("jwt" in config or "client_id" in config)
+    _config = (get_config_dict(env=env, auto_discover=auto_discover) if get_config else None) or {}
     jwt, client_id, client_secret, foundry_url, grant_type, scopes = (
         config.pop("jwt", False),
         config.pop("client_id", False),

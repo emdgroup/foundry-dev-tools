@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 COMPASS_RID_PREFIX = "ri.compass."
 """Only Compass resources are resolved to human-readable names."""
 
+SCOPE_DIAGNOSTICS_TIMEOUT = (5, 10)
+"""Connection/read timeout for diagnostic requests so they cannot delay the original error."""
+
 _DIAGNOSTICS = threading.local()
 
 
@@ -43,26 +46,33 @@ class TokenScope:
 
 
 def _collect_scope(node: object, operations: list[str], resources: list[str]) -> bool:
-    """Collect operation and resource identifiers from a recursive scope node."""
+    """Collect operation and resource identifiers and report whether the node is unrestricted."""
     if isinstance(node, list):
-        universal = False
-        for child in node:
-            universal = _collect_scope(child, operations, resources) or universal
-        return universal
+        # A bare list combines its children like a union. Visit every child so
+        # their operations and resources are collected too.
+        child_universal = [_collect_scope(child, operations, resources) for child in node]
+        return any(child_universal)
     if not isinstance(node, dict):
         return False
 
-    universal = node.get("type") == "universal"
-    if node.get("type") == "operation":
+    node_type = node.get("type")
+    if node_type == "operation":
         operations.extend(op for op in node.get("operations") or [] if isinstance(op, str))
-    elif node.get("type") == "resource":
+    elif node_type == "resource":
         resources.extend(rid for rid in node.get("resourceIds") or [] if isinstance(rid, str))
 
     scopes = node.get("scopes")
+    child_universal: list[bool] = []
     if isinstance(scopes, list):
-        for child in scopes:
-            universal = _collect_scope(child, operations, resources) or universal
-    return universal
+        child_universal = [_collect_scope(child, operations, resources) for child in scopes]
+
+    if node_type == "universal":
+        return True
+
+    if node_type == "intersection":
+        # Every intersecting branch must be unrestricted; one restriction still applies.
+        return bool(child_universal) and all(child_universal)
+    return any(child_universal)
 
 
 def parse_token_scope(payload: object) -> TokenScope:
@@ -83,7 +93,7 @@ def _resolve_compass_names(context: FoundryContext, scope: TokenScope) -> TokenS
         return scope
     rids = {resource.rid for resource in compass_resources}
     try:
-        details = context.compass.api_get_resources(rids).json()
+        details = context.compass.api_get_resources(rids, timeout=SCOPE_DIAGNOSTICS_TIMEOUT).json()
     except Exception:  # noqa: BLE001 - diagnostics are best-effort
         return scope
     if not isinstance(details, dict):
@@ -103,7 +113,7 @@ def describe_token_scope(context: FoundryContext) -> TokenScope:
     Raises whatever the underlying API calls raise; callers that use this for
     error diagnostics should treat it as best-effort.
     """
-    scope = parse_token_scope(context.multipass.api_me_scope().json())
+    scope = parse_token_scope(context.multipass.api_me_scope(timeout=SCOPE_DIAGNOSTICS_TIMEOUT).json())
     return _resolve_compass_names(context, scope)
 
 

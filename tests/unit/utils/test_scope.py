@@ -41,6 +41,34 @@ def test_parse_token_scope_universal():
     assert scope.resources == ()
 
 
+def test_parse_token_scope_intersection_with_universal_branch_is_restricted():
+    # A universal branch in an intersection does not lift the other restrictions.
+    scope = parse_token_scope(
+        {
+            "type": "intersection",
+            "scopes": [
+                {"type": "universal"},
+                {"type": "resource", "resourceIds": ["ri.compass.main.folder.1234"]},
+            ],
+        },
+    )
+    assert scope.universal is False
+    assert [resource.rid for resource in scope.resources] == ["ri.compass.main.folder.1234"]
+
+
+def test_parse_token_scope_union_with_universal_branch_is_universal():
+    scope = parse_token_scope(
+        {
+            "type": "union",
+            "scopes": [
+                {"type": "universal"},
+                {"type": "resource", "resourceIds": ["ri.compass.main.folder.1234"]},
+            ],
+        },
+    )
+    assert scope.universal is True
+
+
 def test_parse_token_scope_ignores_invalid_nodes():
     assert parse_token_scope(None).universal is False
     assert parse_token_scope({"type": "operation", "operations": [None, 1, "api:read-data"]}).operations == (
@@ -60,7 +88,7 @@ def make_context(provider_supports_scope: bool = True):
     folder_rid = "ri.compass.main.folder.1234"
     calls = SimpleNamespace(scope=0, resources=0)
 
-    def api_me_scope():
+    def api_me_scope(**kwargs):
         calls.scope += 1
         return FakeResponse(
             {
@@ -77,7 +105,7 @@ def make_context(provider_supports_scope: bool = True):
             },
         )
 
-    def api_get_resources(rids):
+    def api_get_resources(rids, **kwargs):
         calls.resources += 1
         assert rids == {folder_rid}
         return FakeResponse({folder_rid: {"rid": folder_rid, "name": "Project A"}})
@@ -108,7 +136,7 @@ def test_build_scope_hint_for_401_does_not_query_scope():
 
     assert hint is not None
     assert "HTTP 401" in hint
-    assert "tux palantir-mcp reauthorize" in hint
+    assert "Re-authorize the Palantir MCP token" in hint
     assert calls.scope == 0
     assert calls.resources == 0
 
@@ -128,4 +156,4 @@ def test_build_scope_hint_is_best_effort_when_scope_lookup_fails():
 
     assert hint is not None
     assert "HTTP 403" in hint
-    assert "tux palantir-mcp reauthorize" in hint
+    assert "Re-authorize the Palantir MCP token" in hint

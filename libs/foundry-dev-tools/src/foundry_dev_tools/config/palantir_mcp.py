@@ -13,8 +13,8 @@ Palantir MCP stores Foundry tokens in ``~/.palantir/mcp-config.json``:
    }
 
 This module only reads that cache. Triggering the MCP re-authorization flow and
-changing the token scope is deliberately out of scope; users do that through
-``tux palantir-mcp reauthorize``.
+changing the token scope is deliberately out of scope; re-authorize the token
+through your Palantir MCP client to refresh or expand its scope.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from __future__ import annotations
 import base64
 import json
 import time
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -32,8 +31,6 @@ from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.errors.config import TokenProviderConfigError
 
 if TYPE_CHECKING:
-    from os import PathLike
-
     from foundry_dev_tools.config.config_types import Token
 
 PALANTIR_MCP_CONFIG_DIR = ".palantir"
@@ -43,9 +40,9 @@ PALANTIR_MCP_CONFIG_FILE = "mcp-config.json"
 TOKEN_CLOCK_SKEW = 30
 """Treat tokens that expire within this many seconds as already expired."""
 
-REAUTHORIZE_HINT = "Run `tux palantir-mcp reauthorize` to refresh or expand the Palantir MCP token."
+REAUTHORIZE_HINT = "Re-authorize the Palantir MCP token to refresh or expand its scope."
 
-_AUTO_PICKUP_WARNING_EMITTED = False
+_AUTO_PICKUP_NOTICE_PRINTED = False
 
 
 @dataclass(frozen=True)
@@ -95,15 +92,13 @@ def _host_from_origin(origin: str) -> Host:
     return Host(parsed.netloc, parsed.scheme)
 
 
-def read_palantir_mcp_credentials(
-    config_path: PathLike[str] | str | None = None,
-) -> list[PalantirMCPCredential]:
+def read_palantir_mcp_credentials() -> list[PalantirMCPCredential]:
     """Read all usable host/token pairs from the Palantir MCP config.
 
     A missing, unreadable, or malformed file is treated as an empty cache. Invalid
     host entries are skipped so that one bad entry cannot break the others.
     """
-    path = Path(config_path).expanduser() if config_path is not None else palantir_mcp_config_path()
+    path = palantir_mcp_config_path()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -135,7 +130,6 @@ def read_palantir_mcp_credentials(
 def select_palantir_mcp_credential(
     credentials: list[PalantirMCPCredential],
     host: Host | str | None = None,
-    config_path: PathLike[str] | str | None = None,
 ) -> PalantirMCPCredential | None:
     """Select the credential for ``host``, or the only unambiguous cached credential.
 
@@ -150,7 +144,7 @@ def select_palantir_mcp_credential(
     if not credentials:
         return None
 
-    source = Path(config_path).expanduser() if config_path is not None else palantir_mcp_config_path()
+    source = palantir_mcp_config_path()
 
     if host is not None:
         selected_host = _host_from_origin(host) if isinstance(host, str) else host
@@ -159,7 +153,12 @@ def select_palantir_mcp_credential(
             msg = f"No Palantir MCP token found for {selected_host.url} in {source}. {REAUTHORIZE_HINT}"
             raise TokenProviderConfigError(msg)
         exact_scheme = [credential for credential in matches if credential.host.scheme == selected_host.scheme]
-        return (exact_scheme or matches)[0]
+        if not exact_scheme:
+            # The scheme is part of the credential's origin: never send a token cached
+            # for HTTPS to an HTTP host (or vice versa).
+            msg = f"No Palantir MCP token found for {selected_host.url} in {source}. {REAUTHORIZE_HINT}"
+            raise TokenProviderConfigError(msg)
+        return exact_scheme[0]
 
     valid = [credential for credential in credentials if not credential.is_expired()]
     if len(valid) == 1:
@@ -179,30 +178,29 @@ def select_palantir_mcp_credential(
 
 
 def discover_palantir_mcp_credential(
-    config_path: PathLike[str] | str | None = None,
+    host: Host | str | None = None,
 ) -> PalantirMCPCredential | None:
-    """Return the automatically selectable Palantir MCP credential, if any."""
-    return select_palantir_mcp_credential(
-        read_palantir_mcp_credentials(config_path),
-        config_path=config_path,
-    )
+    """Return the automatically selectable Palantir MCP credential, if any.
+
+    When ``host`` is provided, only a credential cached for that exact origin is
+    selected. Otherwise a single unambiguous unexpired credential is used.
+    """
+    return select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=host)
 
 
-def warn_auto_pickup(credential: PalantirMCPCredential) -> None:
-    """Emit one process-wide warning that the MCP credential was auto-detected."""
-    global _AUTO_PICKUP_WARNING_EMITTED  # noqa: PLW0603
-    if _AUTO_PICKUP_WARNING_EMITTED:
+def print_auto_pickup_notice(credential: PalantirMCPCredential) -> None:
+    """Print one process-wide notice that the MCP credential was auto-detected."""
+    global _AUTO_PICKUP_NOTICE_PRINTED  # noqa: PLW0603
+    if _AUTO_PICKUP_NOTICE_PRINTED:
         return
-    _AUTO_PICKUP_WARNING_EMITTED = True
-    warnings.warn(
+    _AUTO_PICKUP_NOTICE_PRINTED = True
+    print(  # noqa: T201
         f"Foundry DevTools is using the Palantir MCP token for {credential.host.url} "
         f"from {palantir_mcp_config_path()}. Create a Foundry DevTools configuration to override this.",
-        UserWarning,
-        stacklevel=2,
     )
 
 
-def reset_auto_pickup_warning() -> None:
-    """Reset the one-time auto-pickup warning (used by tests)."""
-    global _AUTO_PICKUP_WARNING_EMITTED  # noqa: PLW0603
-    _AUTO_PICKUP_WARNING_EMITTED = False
+def reset_auto_pickup_notice() -> None:
+    """Reset the one-time auto-pickup notice (used by tests)."""
+    global _AUTO_PICKUP_NOTICE_PRINTED  # noqa: PLW0603
+    _AUTO_PICKUP_NOTICE_PRINTED = False

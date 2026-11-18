@@ -35,26 +35,23 @@ Examples from [Getting Started - Credentials Configuration](/getting_started/ins
 Palantir MCP caches Foundry tokens in `~/.palantir/mcp-config.json`. If no
 Foundry DevTools credentials are configured, Foundry DevTools uses that cached
 token automatically and takes the Foundry host from the same entry. This means
-`FoundryContext()` keeps working after `tux palantir-mcp reauthorize` without
+`FoundryContext()` keeps working after re-authorizing Palantir MCP without
 creating a Foundry DevTools configuration file. A single message is printed the
 first time the token is picked up.
 
-The provider can also be selected explicitly:
+If several hosts have a valid token in `mcp-config.json`, set `domain` in the
+Foundry DevTools configuration to choose one:
 
 ```toml
 [credentials]
 domain = "foundry.example.com"
-
-[credentials.palantir_mcp]
-config_path = "/custom/path/mcp-config.json" # optional, defaults to ~/.palantir/mcp-config.json
 ```
 
-If several hosts have a valid token in `mcp-config.json`, set `domain` in the
-Foundry DevTools configuration to choose one. Foundry DevTools never triggers
-the Palantir MCP re-authorization flow; an expired token raises an error that
-points to `tux palantir-mcp reauthorize`. When a request fails with `403` and
-the token is resource-scoped, the error lists the Compass projects the token can
-currently access.
+Foundry DevTools never triggers the Palantir MCP re-authorization flow; an
+expired token raises an error explaining that the Palantir MCP token needs to
+be re-authorized. When a request fails with `403` and the token is
+resource-scoped, the error lists the Compass projects the token can currently
+access.
 
 ## Configuration Options
 
