@@ -18,9 +18,10 @@ from foundry_dev_tools.config.palantir_mcp import (
     read_palantir_mcp_credentials,
     select_palantir_mcp_credential,
 )
-from foundry_dev_tools.config.token_provider import PalantirMCPTokenProvider
+from foundry_dev_tools.config.token_provider import JWTTokenProvider, PalantirMCPTokenProvider
 from foundry_dev_tools.errors.config import MissingFoundryHostError, TokenProviderConfigError
 from foundry_dev_tools.errors.meta import FoundryAPIError
+from foundry_dev_tools.utils.compat import v1_to_v2_config
 from tests.unit.mocks import MOCK_ADAPTER, TEST_DOMAIN, TEST_HOST, FoundryMockContext, MockTokenProvider
 
 if TYPE_CHECKING:
@@ -171,7 +172,13 @@ def test_explicit_credentials_win_over_mcp_config(
 ):
     user_config = list(mock_config_location)[1]
     user_config.write_text('[credentials]\ndomain = "explicit.example.com"\njwt = "explicit-token"\n')
-    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": make_jwt(time.time() + 3600)})
+    write_mcp_config(
+        isolated_palantir_mcp_config,
+        {
+            "https://one.example.com": make_jwt(time.time() + 3600),
+            "https://two.example.com": make_jwt(time.time() + 3600),
+        },
+    )
 
     config = config_module.get_config_dict()
 
@@ -179,6 +186,71 @@ def test_explicit_credentials_win_over_mcp_config(
     assert config["credentials"]["jwt"] == "explicit-token"
     assert "palantir_mcp" not in config["credentials"]
     assert capsys.readouterr().out == ""
+
+
+def test_profile_credentials_are_not_affected_by_multiple_cached_hosts(
+    mock_config_location,
+    isolated_palantir_mcp_config: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    user_config = list(mock_config_location)[1]
+    user_config.write_text('[one.credentials]\ndomain = "profile.example.com"\njwt = "profile-token"\n')
+    write_mcp_config(
+        isolated_palantir_mcp_config,
+        {
+            "https://one.example.com": make_jwt(time.time() + 3600),
+            "https://two.example.com": make_jwt(time.time() + 3600),
+        },
+    )
+
+    config = config_module.get_config_dict(profile="one")
+
+    assert config["credentials"] == {"domain": "profile.example.com", "jwt": "profile-token"}
+    assert capsys.readouterr().out == ""
+
+
+def test_env_credentials_are_not_affected_by_multiple_cached_hosts(
+    mock_config_location,
+    isolated_palantir_mcp_config: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    write_mcp_config(
+        isolated_palantir_mcp_config,
+        {
+            "https://one.example.com": make_jwt(time.time() + 3600),
+            "https://two.example.com": make_jwt(time.time() + 3600),
+        },
+    )
+
+    with mock.patch.dict(
+        os.environ,
+        {"FDT_CREDENTIALS__DOMAIN": "env.example.com", "FDT_CREDENTIALS__JWT": "env-token"},
+        clear=True,
+    ):
+        config = config_module.get_config_dict()
+
+    assert config["credentials"]["domain"] == "env.example.com"
+    assert config["credentials"]["jwt"] == "env-token"
+    assert "palantir_mcp" not in config["credentials"]
+    assert capsys.readouterr().out == ""
+
+
+def test_v1_credentials_ignore_ambiguous_mcp_cache(
+    mock_config_location,
+    isolated_palantir_mcp_config: Path,
+):
+    write_mcp_config(
+        isolated_palantir_mcp_config,
+        {
+            "https://one.example.com": make_jwt(time.time() + 3600),
+            "https://two.example.com": make_jwt(time.time() + 3600),
+        },
+    )
+
+    token_provider, _ = v1_to_v2_config({"jwt": "v1-token", "foundry_url": "https://v1.example.com"})
+
+    assert isinstance(token_provider, JWTTokenProvider)
+    assert token_provider.token == "v1-token"  # noqa: S105
 
 
 def test_auto_pickup_errors_when_multiple_hosts_are_valid(mock_config_location, isolated_palantir_mcp_config: Path):
