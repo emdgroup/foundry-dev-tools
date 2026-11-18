@@ -37,14 +37,13 @@ Foundry DevTools credentials are configured, Foundry DevTools uses that cached
 token automatically and takes the Foundry host from the same entry. This means
 `FoundryContext()` keeps working after re-authorizing Palantir MCP without
 creating a Foundry DevTools configuration file. A single message is printed the
-first time the token is picked up.
-
-If several hosts have a valid token in `mcp-config.json`, set `domain` in the
-Foundry DevTools configuration to choose one:
+first time the token is picked up; configuring the provider explicitly silences
+that message, and setting `domain` selects the host when several are cached:
 
 ```toml
 [credentials]
 domain = "foundry.example.com"
+palantir_mcp = {}
 ```
 
 Foundry DevTools never triggers the Palantir MCP re-authorization flow; an
