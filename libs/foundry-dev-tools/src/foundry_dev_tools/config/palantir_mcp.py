@@ -196,8 +196,8 @@ def print_auto_pickup_notice(credential: PalantirMCPCredential) -> None:
     _AUTO_PICKUP_NOTICE_PRINTED = True
     print(  # noqa: T201
         f"Foundry DevTools is using the Palantir MCP token for {credential.host.url} "
-        f"from {palantir_mcp_config_path()}. Create a Foundry DevTools configuration to override this, "
-        "or set `palantir_mcp = {}` in the credentials configuration to silence this message.",
+        f"from {palantir_mcp_config_path()}. "
+        "Create an explicit Foundry DevTools configuration to silence this message.",
     )
 
 
