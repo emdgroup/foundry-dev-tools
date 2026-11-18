@@ -425,7 +425,7 @@ def test_mcp_provider_reports_expiry_without_refreshing(isolated_palantir_mcp_co
         _ = provider.token
 
 
-def test_403_adds_scoped_project_names_to_error():
+def test_403_adds_compass_scope_hint():
     context = FoundryMockContext(token_provider=ScopeDiagnosticsMockTokenProvider(jwt="token"))
     folder_rid = "ri.compass.main.folder.1234"
     scope = {
@@ -447,15 +447,13 @@ def test_403_adds_scoped_project_names_to_error():
         json={"errorCode": "PERMISSION_DENIED", "errorName": "test:PermissionDenied", "errorInstanceId": "id"},
     )
     MOCK_ADAPTER.register_uri("GET", f"{TEST_HOST.url}/multipass/api/me/scope", json=scope)
-    MOCK_ADAPTER.register_uri(
-        "POST",
-        f"{TEST_HOST.url}/compass/api/batch/resources",
-        json={folder_rid: {"rid": folder_rid, "name": "Project A"}},
-    )
     try:
-        with pytest.raises(Exception, match="Project A") as exc_info:
+        with pytest.raises(FoundryAPIError) as exc_info:
             context.multipass.api_me()
-        assert "Expand the token scope" in str(exc_info.value)
+        message = str(exc_info.value)
+        assert "HTTP 403" in message
+        assert folder_rid in message
+        assert "Expand the token scope" in message
     finally:
         MOCK_ADAPTER.reset()
 
@@ -483,17 +481,23 @@ def test_404_compass_not_found_adds_scope_hint():
         json={"errorCode": "NOT_FOUND", "errorName": "Compass:NotFound", "errorInstanceId": "id"},
     )
     MOCK_ADAPTER.register_uri("GET", f"{TEST_HOST.url}/multipass/api/me/scope", json=scope)
-    MOCK_ADAPTER.register_uri(
-        "POST",
-        f"{TEST_HOST.url}/compass/api/batch/resources",
-        json={folder_rid: {"rid": folder_rid, "name": "Project A"}},
-    )
     try:
         with pytest.raises(FoundryAPIError) as exc_info:
             context.compass.api_get_imports(project_rid, page_size=1)
         message = str(exc_info.value)
         assert "not found (HTTP 404)" in message
-        assert "Project A" in message
+        assert folder_rid in message
+    finally:
+        MOCK_ADAPTER.reset()
+
+
+def test_auth_override_skips_token_hints():
+    context = FoundryMockContext(token_provider=ScopeDiagnosticsMockTokenProvider(jwt="token"))
+    MOCK_ADAPTER.register_uri("GET", f"{TEST_HOST.url}/multipass/api/me", status_code=403)
+    try:
+        with pytest.raises(FoundryAPIError) as exc_info:
+            context.multipass.api_request("GET", "me", auth=lambda request: request)
+        assert "Palantir MCP token" not in str(exc_info.value)
     finally:
         MOCK_ADAPTER.reset()
 

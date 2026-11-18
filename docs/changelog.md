@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning].
 
 ## Added
 - add `PalantirMCPTokenProvider` and automatic discovery of the token cached by Palantir MCP in `~/.palantir/mcp-config.json`; no Foundry DevTools configuration is required
-- append the Compass resources a scoped Palantir MCP token can access to `403` errors and to Compass `404` responses that hide out-of-scope resources
+- append the Compass resources referenced by the Palantir MCP token scope to `403` errors and to Compass `404` responses that hide out-of-scope resources
 
 ## [2.1.25] - 2026-07-27
 

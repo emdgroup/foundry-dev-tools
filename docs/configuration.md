@@ -50,8 +50,8 @@ Foundry DevTools never triggers the Palantir MCP re-authorization flow; an
 expired token raises an error explaining that the Palantir MCP token needs to
 be re-authorized. When a request fails because the resource is outside the
 token's scope (a `403`, or a Compass `404` since Foundry hides out-of-scope
-resources), the error lists the Compass projects the token can currently
-access.
+resources), the error lists the Compass resources referenced by the token's
+scope.
 
 ## Configuration Options
 

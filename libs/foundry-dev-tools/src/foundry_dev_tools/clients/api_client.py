@@ -136,7 +136,11 @@ class APIClient:
             cert=cert,
             json=json,
         )
-        _raise_foundry_api_error_with_hint(self.context, response, error_handling)
+        if auth is None:
+            _raise_foundry_api_error_with_hint(self.context, response, error_handling)
+        else:
+            # A custom auth handler may use a different token than the context provider.
+            raise_foundry_api_error(response, error_handling)
         return response
 
 
@@ -240,5 +244,9 @@ class PublicAPIClient:
             cert=cert,
             json=json,
         )
-        _raise_foundry_api_error_with_hint(self.context, response, error_handling)
+        if auth is None:
+            _raise_foundry_api_error_with_hint(self.context, response, error_handling)
+        else:
+            # A custom auth handler may use a different token than the context provider.
+            raise_foundry_api_error(response, error_handling)
         return response
