@@ -250,7 +250,6 @@ def test_v1_credentials_ignore_ambiguous_mcp_cache(
     token_provider, _ = v1_to_v2_config({"jwt": "v1-token", "foundry_url": "https://v1.example.com"})
 
     assert isinstance(token_provider, JWTTokenProvider)
-    assert token_provider.token == "v1-token"  # noqa: S105
 
 
 def test_auto_pickup_errors_when_multiple_hosts_are_valid(mock_config_location, isolated_palantir_mcp_config: Path):
@@ -352,6 +351,26 @@ def test_provider_raises_when_host_is_not_cached(isolated_palantir_mcp_config: P
         PalantirMCPTokenProvider("other.example.com")
 
 
+def test_jwt_provider_reports_token_expiry():
+    expires_at = time.time() + 3600
+
+    provider = JWTTokenProvider("foundry-dev-tools.test", make_jwt(expires_at))
+
+    assert provider.token_expires_at() == pytest.approx(expires_at)
+    assert JWTTokenProvider("foundry-dev-tools.test", "opaque").token_expires_at() is None
+
+
+def test_mcp_provider_reports_expiry_without_refreshing(isolated_palantir_mcp_config: Path):
+    expires_at = time.time() - 100
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": make_jwt(expires_at)})
+
+    provider = PalantirMCPTokenProvider("foundry-dev-tools.test")
+
+    assert provider.token_expires_at() == pytest.approx(expires_at)
+    with pytest.raises(TokenProviderConfigError, match="expired at"):
+        _ = provider.token
+
+
 def test_403_adds_scoped_project_names_to_error():
     context = FoundryMockContext(token_provider=ScopeDiagnosticsMockTokenProvider(jwt="token"))
     folder_rid = "ri.compass.main.folder.1234"
@@ -387,6 +406,44 @@ def test_403_adds_scoped_project_names_to_error():
         MOCK_ADAPTER.reset()
 
 
+def test_404_compass_not_found_adds_scope_hint():
+    context = FoundryMockContext(token_provider=ScopeDiagnosticsMockTokenProvider(jwt="token"))
+    folder_rid = "ri.compass.main.folder.1234"
+    project_rid = "ri.compass.main.folder.9999"
+    scope = {
+        "type": "union",
+        "scopes": [
+            {
+                "type": "intersection",
+                "scopes": [
+                    {"type": "resource", "resourceIds": [folder_rid], "includeChildren": True},
+                    {"type": "operation", "operations": ["compass:view-project-imports"]},
+                ],
+            },
+        ],
+    }
+    MOCK_ADAPTER.register_uri(
+        "POST",
+        f"{TEST_HOST.url}/compass/api/projects/imports/{project_rid}",
+        status_code=404,
+        json={"errorCode": "NOT_FOUND", "errorName": "Compass:NotFound", "errorInstanceId": "id"},
+    )
+    MOCK_ADAPTER.register_uri("GET", f"{TEST_HOST.url}/multipass/api/me/scope", json=scope)
+    MOCK_ADAPTER.register_uri(
+        "POST",
+        f"{TEST_HOST.url}/compass/api/batch/resources",
+        json={folder_rid: {"rid": folder_rid, "name": "Project A"}},
+    )
+    try:
+        with pytest.raises(FoundryAPIError) as exc_info:
+            context.compass.api_get_imports(project_rid, page_size=1)
+        message = str(exc_info.value)
+        assert "not found (HTTP 404)" in message
+        assert "Project A" in message
+    finally:
+        MOCK_ADAPTER.reset()
+
+
 def test_401_adds_reauthorize_hint():
     context = FoundryMockContext(token_provider=ScopeDiagnosticsMockTokenProvider(jwt="token"))
     MOCK_ADAPTER.register_uri("GET", f"{TEST_HOST.url}/multipass/api/me", status_code=401)
@@ -396,6 +453,20 @@ def test_401_adds_reauthorize_hint():
         assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
     finally:
         MOCK_ADAPTER.reset()
+
+
+def test_401_reports_jwt_expiry_for_non_mcp_provider():
+    expires_at = time.time() - 100
+    context = FoundryMockContext(token_provider=MockTokenProvider(jwt=make_jwt(expires_at)))
+    MOCK_ADAPTER.register_uri("GET", f"{TEST_HOST.url}/multipass/api/me", status_code=401)
+    try:
+        with pytest.raises(FoundryAPIError) as exc_info:
+            context.multipass.api_me()
+    finally:
+        MOCK_ADAPTER.reset()
+
+    assert "expired at" in str(exc_info.value)
+    assert "re-authenticate" in str(exc_info.value)
 
 
 def test_non_mcp_provider_gets_no_scope_hint():

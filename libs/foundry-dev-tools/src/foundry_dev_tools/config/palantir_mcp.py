@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import base64
 import json
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,8 +42,6 @@ TOKEN_CLOCK_SKEW = 30
 """Treat tokens that expire within this many seconds as already expired."""
 
 REAUTHORIZE_HINT = "Re-authorize the Palantir MCP token to refresh or expand its scope."
-
-_AUTO_PICKUP_NOTICE_PRINTED = False
 
 
 @dataclass(frozen=True)
@@ -188,20 +187,34 @@ def discover_palantir_mcp_credential(
     return select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=host)
 
 
+class _AutoPickupNotice:
+    """Tracks whether the one-time auto-pickup notice has been printed."""
+
+    printed = False
+
+    @classmethod
+    def print_once(cls, credential: PalantirMCPCredential) -> None:
+        """Print the notice for ``credential`` unless it was already printed."""
+        if cls.printed:
+            return
+        cls.printed = True
+        sys.stdout.write(
+            f"Foundry DevTools is using the Palantir MCP token for {credential.host.url} "
+            f"from {palantir_mcp_config_path()}. "
+            "Create an explicit Foundry DevTools configuration to silence this message.\n",
+        )
+
+    @classmethod
+    def reset(cls) -> None:
+        """Allow the notice to be printed again (used by tests)."""
+        cls.printed = False
+
+
 def print_auto_pickup_notice(credential: PalantirMCPCredential) -> None:
     """Print one process-wide notice that the MCP credential was auto-detected."""
-    global _AUTO_PICKUP_NOTICE_PRINTED  # noqa: PLW0603
-    if _AUTO_PICKUP_NOTICE_PRINTED:
-        return
-    _AUTO_PICKUP_NOTICE_PRINTED = True
-    print(  # noqa: T201
-        f"Foundry DevTools is using the Palantir MCP token for {credential.host.url} "
-        f"from {palantir_mcp_config_path()}. "
-        "Create an explicit Foundry DevTools configuration to silence this message.",
-    )
+    _AutoPickupNotice.print_once(credential)
 
 
 def reset_auto_pickup_notice() -> None:
     """Reset the one-time auto-pickup notice (used by tests)."""
-    global _AUTO_PICKUP_NOTICE_PRINTED  # noqa: PLW0603
-    _AUTO_PICKUP_NOTICE_PRINTED = False
+    _AutoPickupNotice.reset()

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
 
-from foundry_dev_tools.utils.scope import build_scope_hint, parse_token_scope
+from foundry_dev_tools.utils.scope import build_auth_error_hint, parse_token_scope
 
 
 def test_parse_token_scope_collects_operations_and_resources():
@@ -84,7 +85,7 @@ class FakeResponse:
         return self._payload
 
 
-def make_context(provider_supports_scope: bool = True):
+def make_context(provider_supports_scope: bool = True, expires_at: float | None = None):
     folder_rid = "ri.compass.main.folder.1234"
     calls = SimpleNamespace(scope=0, resources=0)
 
@@ -111,16 +112,19 @@ def make_context(provider_supports_scope: bool = True):
         return FakeResponse({folder_rid: {"rid": folder_rid, "name": "Project A"}})
 
     context = SimpleNamespace(
-        token_provider=SimpleNamespace(supports_scope_diagnostics=provider_supports_scope),
+        token_provider=SimpleNamespace(
+            supports_scope_diagnostics=provider_supports_scope,
+            token_expires_at=lambda: expires_at,
+        ),
         multipass=SimpleNamespace(api_me_scope=api_me_scope),
         compass=SimpleNamespace(api_get_resources=api_get_resources),
     )
     return context, calls
 
 
-def test_build_scope_hint_lists_named_compass_resources():
+def test_build_auth_error_hint_lists_named_compass_resources():
     context, calls = make_context()
-    hint = build_scope_hint(context, 403)
+    hint = build_auth_error_hint(context, 403)
 
     assert hint is not None
     assert "Project A" in hint
@@ -130,9 +134,9 @@ def test_build_scope_hint_lists_named_compass_resources():
     assert calls.resources == 1
 
 
-def test_build_scope_hint_for_401_does_not_query_scope():
+def test_build_auth_error_hint_for_401_does_not_query_scope():
     context, calls = make_context()
-    hint = build_scope_hint(context, 401)
+    hint = build_auth_error_hint(context, 401)
 
     assert hint is not None
     assert "HTTP 401" in hint
@@ -141,19 +145,91 @@ def test_build_scope_hint_for_401_does_not_query_scope():
     assert calls.resources == 0
 
 
-def test_build_scope_hint_ignores_non_scoped_providers():
+def test_build_auth_error_hint_ignores_non_scoped_providers():
     context, calls = make_context(provider_supports_scope=False)
-    assert build_scope_hint(context, 403) is None
+    assert build_auth_error_hint(context, 403) is None
     assert calls.scope == 0
     assert calls.resources == 0
 
 
-def test_build_scope_hint_is_best_effort_when_scope_lookup_fails():
+def test_build_auth_error_hint_is_best_effort_when_scope_lookup_fails():
     context, _ = make_context()
     context.multipass.api_me_scope = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
 
-    hint = build_scope_hint(context, 403)
+    hint = build_auth_error_hint(context, 403)
 
     assert hint is not None
     assert "HTTP 403" in hint
     assert "Re-authorize the Palantir MCP token" in hint
+
+
+def test_build_auth_error_hint_reports_expired_token_for_any_provider():
+    context, calls = make_context(provider_supports_scope=False, expires_at=1000.0)
+
+    hint = build_auth_error_hint(context, 401)
+
+    assert hint is not None
+    assert "expired at 1970-01-01T00:16:40+00:00" in hint
+    assert "re-authenticate" in hint
+    assert calls.scope == 0
+
+
+def test_build_auth_error_hint_reports_expiry_on_403():
+    context, _ = make_context(provider_supports_scope=False, expires_at=1000.0)
+
+    hint = build_auth_error_hint(context, 403)
+
+    assert hint is not None
+    assert "expired at" in hint
+
+
+def test_build_auth_error_hint_is_silent_for_valid_token():
+    context, _ = make_context(provider_supports_scope=False, expires_at=time.time() + 3600)
+
+    assert build_auth_error_hint(context, 401) is None
+    assert build_auth_error_hint(context, 403) is None
+
+
+def test_build_auth_error_hint_ignores_unrelated_status_codes():
+    context, _ = make_context(expires_at=1000.0)
+
+    assert build_auth_error_hint(context, 404) is None
+
+
+def test_build_auth_error_hint_explains_masked_scope_on_compass_404():
+    context, calls = make_context()
+
+    hint = build_auth_error_hint(context, 404, "Compass:NotFound")
+
+    assert hint is not None
+    assert "not found (HTTP 404)" in hint
+    assert "Project A" in hint
+    assert "ri.compass.main.folder.1234" in hint
+    assert "Expand the token scope" in hint
+    assert calls.scope == 1
+    assert calls.resources == 1
+
+
+def test_build_auth_error_hint_ignores_other_404_error_names():
+    context, calls = make_context()
+
+    hint = build_auth_error_hint(context, 404, "DataProxy:FileDoesNotExistInTransaction")
+
+    assert hint is None
+    assert calls.scope == 0
+
+
+def test_build_auth_error_hint_ignores_compass_404_for_non_scoped_providers():
+    context, calls = make_context(provider_supports_scope=False)
+
+    hint = build_auth_error_hint(context, 404, "Compass:NotFound")
+
+    assert hint is None
+    assert calls.scope == 0
+
+
+def test_build_auth_error_hint_ignores_compass_404_for_universal_scope():
+    context, _ = make_context()
+    context.multipass.api_me_scope = lambda **_kwargs: FakeResponse({"type": "universal"})
+
+    assert build_auth_error_hint(context, 404, "Compass:NotFound") is None

@@ -146,6 +146,8 @@ def _find_token_provider(credentials: dict) -> str | None:
     return None
 
 
+PALANTIR_MCP_PROVIDER = "palantir_mcp"
+
 MISSING_TP_ERROR = TokenProviderConfigError(
     "To authenticate with Foundry you need a TokenProvider. The token provider can be configured either via the"
     " configuration file or the token_provider FoundryContext parameter."
@@ -165,7 +167,7 @@ def _auto_palantir_mcp_config() -> dict | None:
         "credentials": {
             "domain": auto_credential.host.domain,
             "scheme": auto_credential.host.scheme,
-            "palantir_mcp": {},
+            PALANTIR_MCP_PROVIDER: {},
         },
     }
 
@@ -183,7 +185,7 @@ def _resolve_auto_credentials(
     # Only the Palantir MCP provider may be inferred. A provider that was selected
     # explicitly keeps its existing configuration validation, so explicit
     # credentials are never sent to a host discovered from the MCP cache.
-    if token_provider_name not in (None, "palantir_mcp"):
+    if token_provider_name not in (None, PALANTIR_MCP_PROVIDER):
         return domain, scheme, token_provider_name
 
     # When only a domain was configured, discovery is optional: a missing cache
@@ -203,13 +205,26 @@ def _resolve_auto_credentials(
     if not scheme:
         scheme = auto_credential.host.scheme
     if not token_provider_name:
-        token_provider_name = "palantir_mcp"  # noqa: S105
-        default_credentials.setdefault("palantir_mcp", {})
+        token_provider_name = PALANTIR_MCP_PROVIDER
+        default_credentials.setdefault(PALANTIR_MCP_PROVIDER, {})
         print_auto_pickup_notice(auto_credential)
     return domain, scheme, token_provider_name
 
 
-def get_config_dict(  # noqa: C901
+def _resolve_profile_config(config: dict, profile: str | None) -> tuple[dict, dict]:
+    """Return the profile's credentials and config sections."""
+    if profile is None:
+        profile = config.get("profile")
+    if profile in ("config", "credentials"):
+        msg = f"Profile name can't be {profile}"
+        raise AttributeError(msg)
+    if profile and (profile_config := config.get(profile)) and isinstance(profile_config, dict):
+        return profile_config.get("credentials", {}), profile_config.get("config", {})
+    # use empty profile sections if no profile is specified
+    return {}, {}
+
+
+def get_config_dict(
     profile: str | None = None,
     env: bool = True,
     auto_discover: bool = True,
@@ -239,20 +254,7 @@ def get_config_dict(  # noqa: C901
     config = _pure_config_dict(env=env)
     if not config:
         return _auto_palantir_mcp_config() if auto_discover else None
-    if profile is None:
-        profile = config.get("profile")
-    if profile in ("config", "credentials"):
-        msg = f"Profile name can't be {profile}"
-        raise AttributeError(msg)
-    if profile and (profile_config := config.get(profile)) and isinstance(profile_config, dict):
-        profile_credentials = profile_config.get("credentials", {})
-        profile_config = profile_config.get("config", {})
-    else:
-        # use an empty profile config if no profile is specified
-        # this aims to reduce duplicate code
-        # but is going to do useless operations
-        profile_credentials = {}
-        profile_config = {}
+    profile_credentials, profile_config = _resolve_profile_config(config, profile)
 
     default_credentials = config.get("credentials", {})
     domain = profile_credentials.pop("domain", default_credentials.pop("domain", None))
@@ -316,7 +318,7 @@ def parse_credentials_config(config_dict: dict | None) -> TokenProvider:
                 tp_config = {}
             elif not isinstance(tp_config, dict):
                 # palantir_mcp has no required option, allow `palantir_mcp = ""`
-                tp_config = {} if tp_name == "palantir_mcp" else {tp_name: tp_config}
+                tp_config = {} if tp_name == PALANTIR_MCP_PROVIDER else {tp_name: tp_config}
         except KeyError:
             tp_name, tp_config = None, None
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import threading
+import time
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from foundry_dev_tools.config.palantir_mcp import REAUTHORIZE_HINT
@@ -16,6 +18,9 @@ if TYPE_CHECKING:
 
 COMPASS_RID_PREFIX = "ri.compass."
 """Only Compass resources are resolved to human-readable names."""
+
+COMPASS_NOT_FOUND_ERROR_NAME = "Compass:NotFound"
+"""Foundry reports resources outside a token's scope as not found instead of forbidden."""
 
 SCOPE_DIAGNOSTICS_TIMEOUT = (5, 10)
 """Connection/read timeout for diagnostic requests so they cannot delay the original error."""
@@ -92,10 +97,10 @@ def _resolve_compass_names(context: FoundryContext, scope: TokenScope) -> TokenS
     if not compass_resources:
         return scope
     rids = {resource.rid for resource in compass_resources}
-    try:
+    details: object = None
+    # Diagnostics are best-effort; resolving names must never mask the original error.
+    with contextlib.suppress(Exception):
         details = context.compass.api_get_resources(rids, timeout=SCOPE_DIAGNOSTICS_TIMEOUT).json()
-    except Exception:  # noqa: BLE001 - diagnostics are best-effort
-        return scope
     if not isinstance(details, dict):
         return scope
 
@@ -160,31 +165,101 @@ def _format_scope_hint(scope: TokenScope) -> str:
     return "\n".join(lines)
 
 
-def build_scope_hint(context: FoundryContext, status_code: int) -> str | None:
-    """Build a user-facing hint for 401/403 responses from a scoped MCP token.
-
-    Only token providers that opt in via ``supports_scope_diagnostics`` are
-    diagnosed. The original exception is never replaced; callers append the
-    returned text to it.
-    """
-    if not getattr(context.token_provider, "supports_scope_diagnostics", False):
+def _token_expires_at(context: FoundryContext) -> float | None:
+    getter = getattr(context.token_provider, "token_expires_at", None)
+    if getter is None:
         return None
+    expires_at: float | None = None
+    with contextlib.suppress(Exception):
+        expires_at = getter()
+    return expires_at
 
-    if status_code == 401:
-        return (
-            "Foundry rejected the Palantir MCP token (HTTP 401). The token has probably expired. " f"{REAUTHORIZE_HINT}"
-        )
-    if status_code != 403:
-        return None
 
+def _format_expiry(expires_at: float) -> str:
+    return datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(timespec="seconds")
+
+
+def _scope_hint_for_403(context: FoundryContext) -> str | None:
     with _scope_diagnostics_guard() as allowed:
         if not allowed:
             return None
-        try:
+        scope: TokenScope | None = None
+        # Diagnostics are best-effort; scope lookup failures must not mask the original error.
+        with contextlib.suppress(Exception):
             scope = describe_token_scope(context)
-        except Exception:  # noqa: BLE001 - diagnostics are best-effort
-            return (
-                "Foundry denied access (HTTP 403). The Palantir MCP token is scoped to specific "
-                f"resources and this token cannot read the scope right now. {REAUTHORIZE_HINT}"
-            )
+    if scope is None:
+        return (
+            "Foundry denied access (HTTP 403). The Palantir MCP token is scoped to specific "
+            f"resources and this token cannot read the scope right now. {REAUTHORIZE_HINT}"
+        )
     return _format_scope_hint(scope)
+
+
+def _format_not_found_scope_hint(scope: TokenScope) -> str | None:
+    compass_resources = scope.compass_resources
+    if scope.universal or not compass_resources:
+        return None
+
+    lines = [
+        "Foundry reported this resource as not found (HTTP 404). The Palantir MCP token is "
+        "scoped to these Compass resources, so resources outside this list appear as not found:",
+    ]
+    for resource in compass_resources:
+        if resource.name:
+            lines.append(f"  - {resource.name} ({resource.rid})")
+        else:
+            lines.append(f"  - {resource.rid}")
+    lines.append(f"Expand the token scope if you expected to access this resource. {REAUTHORIZE_HINT}")
+    return "\n".join(lines)
+
+
+def _scope_hint_for_404(context: FoundryContext) -> str | None:
+    with _scope_diagnostics_guard() as allowed:
+        if not allowed:
+            return None
+        scope: TokenScope | None = None
+        with contextlib.suppress(Exception):
+            scope = describe_token_scope(context)
+    return _format_not_found_scope_hint(scope) if scope is not None else None
+
+
+def build_auth_error_hint(
+    context: FoundryContext,
+    status_code: int,
+    error_name: str | None = None,
+) -> str | None:
+    """Build a user-facing hint for authentication and permission responses.
+
+    An expiry note is added for any token provider that knows when its current
+    token expires, so expired JWTs are reported exactly. Providers that opt in
+    via ``supports_scope_diagnostics`` additionally get Palantir MCP-specific
+    guidance for ``403`` responses and for ``404`` Compass responses, which
+    Foundry uses to mask resources outside the token's scope. The original
+    exception is never replaced; callers append the returned text to it.
+    """
+    if status_code not in (401, 403, 404):
+        return None
+
+    supports_scope = getattr(context.token_provider, "supports_scope_diagnostics", False)
+    hints: list[str] = []
+
+    expired = False
+    if status_code in (401, 403):
+        expires_at = _token_expires_at(context)
+        expired = expires_at is not None and expires_at <= time.time()
+        if expired:
+            hints.append(f"The Foundry token expired at {_format_expiry(expires_at)} (UTC).")
+
+    if status_code == 401:
+        if supports_scope:
+            reason = "" if expired else "The token has probably expired. "
+            hints.append(f"Foundry rejected the Palantir MCP token (HTTP 401). {reason}{REAUTHORIZE_HINT}")
+        elif expired:
+            hints.append("Obtain a new Foundry token or re-authenticate.")
+    elif status_code == 403:
+        if supports_scope and (scope_hint := _scope_hint_for_403(context)):
+            hints.append(scope_hint)
+    elif error_name == COMPASS_NOT_FOUND_ERROR_NAME and supports_scope and (scope_hint := _scope_hint_for_404(context)):
+        hints.append(scope_hint)
+
+    return "\n".join(hints) or None

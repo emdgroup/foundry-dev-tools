@@ -19,6 +19,7 @@ from foundry_dev_tools.config.palantir_mcp import (
     palantir_mcp_config_path,
     read_palantir_mcp_credentials,
     select_palantir_mcp_credential,
+    token_expiry,
 )
 from foundry_dev_tools.errors.config import TokenProviderConfigError
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
@@ -53,6 +54,14 @@ class TokenProvider:
         msg = "This is only the base TokenProvider class and does not implement getting a token."
         raise NotImplementedError(msg)
 
+    def token_expires_at(self) -> float | None:
+        """Return when the current token expires as a Unix timestamp, if it is known.
+
+        Implementations must not trigger a token refresh or any network request;
+        this is used for error diagnostics.
+        """
+        return None
+
     def requests_auth_handler(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         """Sets bearer authentication header on PreparedRequest object.
 
@@ -83,6 +92,10 @@ class JWTTokenProvider(TokenProvider):
         """Returns the token supplied when creating this Provider."""
         return self._jwt
 
+    def token_expires_at(self) -> float | None:
+        """Return the expiry encoded in the JWT, if it can be decoded."""
+        return token_expiry(self._jwt)
+
 
 class CachedTokenProvider(TokenProvider):
     """Parent class for token providers which get their token dynamically and need caching."""
@@ -109,6 +122,10 @@ class CachedTokenProvider(TokenProvider):
         if not self._cached or self._valid_until < time.time() + 10:
             self._cached, self._valid_until = self._request_token()
         return self._cached
+
+    def token_expires_at(self) -> float | None:
+        """Return the expiry of the cached token without triggering a refresh."""
+        return token_expiry(self._cached) if self._cached else None
 
 
 DEFAULT_OAUTH_SCOPES = [
@@ -316,6 +333,11 @@ class PalantirMCPTokenProvider(TokenProvider):
 
     def _read_credential(self) -> PalantirMCPCredential | None:
         return select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=self.host)
+
+    def token_expires_at(self) -> float | None:
+        """Return the cached MCP token's expiry, even if it has already expired."""
+        credential = self._read_credential()
+        return credential.expires_at if credential is not None else None
 
     @property
     def token(self) -> Token:
