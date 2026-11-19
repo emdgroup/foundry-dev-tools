@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING
 
 from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.config.palantir_mcp import (
+    REAUTHORIZE_HINT,
     discover_palantir_mcp_credential,
+    palantir_mcp_config_path,
     print_auto_pickup_notice,
 )
 from foundry_dev_tools.config.token_provider import (
@@ -268,7 +270,7 @@ def get_config_dict(
     config = _pure_config_dict(env=env)
     if not config:
         return _auto_palantir_mcp_config(discovery_host) if auto_discover else None
-    profile_credentials, profile_config = _resolve_profile_config(config, profile)
+    profile_credentials, profile_general_config = _resolve_profile_config(config, profile)
 
     default_credentials = config.get("credentials", {})
     domain = profile_credentials.pop("domain", default_credentials.pop("domain", None))
@@ -291,6 +293,11 @@ def get_config_dict(
 
     # a domain must always be provided
     if not domain:
+        if auto_discover and token_provider_name == PALANTIR_MCP_PROVIDER:
+            # The provider was configured explicitly, so point at the missing token
+            # instead of complaining about the host it could not discover.
+            msg = f"No Palantir MCP token found in {palantir_mcp_config_path()}. {REAUTHORIZE_HINT}"
+            raise TokenProviderConfigError(msg)
         raise MissingFoundryHostError
 
     if not token_provider_name:
@@ -300,7 +307,7 @@ def get_config_dict(
             raise MISSING_TP_ERROR
     # merge the profile config with the non-prefixed config
     return_config = {}
-    merged_config = merge_dicts(config.get("config", {}), profile_config.get("config", {}))
+    merged_config = merge_dicts(config.get("config", {}), profile_general_config)
     if merged_config:
         return_config["config"] = merged_config
     return_config["credentials"] = {

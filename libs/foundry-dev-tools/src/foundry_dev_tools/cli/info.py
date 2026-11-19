@@ -8,7 +8,10 @@ import os
 import platform
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from packaging.markers import _evaluate_markers, default_environment
@@ -21,6 +24,8 @@ from rich.tree import Tree
 
 from foundry_dev_tools.__about__ import __version__
 from foundry_dev_tools.config.config import (
+    Config,
+    TokenProvider,
     _pure_config_dict,
     get_config_dict,
     parse_credentials_config,
@@ -29,6 +34,9 @@ from foundry_dev_tools.config.config import (
 from foundry_dev_tools.config.context import FoundryContext
 from foundry_dev_tools.utils.cli import _bool_color, _bool_icon
 from foundry_dev_tools.utils.config import cfg_files
+
+if TYPE_CHECKING:
+    from rich.console import RenderableType
 
 HIGHLIGHT_BEGIN = "[bold color(5)]"
 HIGHLIGHT_END = "[/bold color(5)]"
@@ -207,23 +215,36 @@ def _dependency_section() -> Tree:  # noqa: C901,PLR0912
     return dependency_node
 
 
-def _config_section(profile: str | None) -> Tree:
-    if profile is None:
-        pure_config = _pure_config_dict()
-        if pure_config is not None:
-            profile = pure_config.get("profile")
-    config_node = Tree("Configuration" + ((f"(Profile '{profile}')") if profile is not None else ""))
-    config_table = Table("Config Name", "Value")
-    config_file_table = Table("Config File Path", "Exists")
+def _format_duration(seconds: float) -> str:
+    total = max(int(seconds), 0)
+    days, remainder = divmod(total, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if days or hours:
+        parts.append(f"{hours}h")
+    if days or hours or minutes:
+        parts.append(f"{minutes}m")
+    parts.append(f"{seconds}s")
+    return " ".join(parts)
 
-    config_dict = get_config_dict(profile=profile)
-    config = parse_general_config(config_dict)
-    for config_item, value in config.__dict__.items():
-        if isinstance(value, bool):
-            config_table.add_row(config_item, _bool_icon(value))
-        else:
-            config_table.add_row(config_item, str(value))
-    config_node.add(config_table)
+
+def _format_token_ttl(token_provider: TokenProvider) -> str | None:
+    """Format the remaining lifetime of the provider's token, if the provider knows it."""
+    expires_at: float | None = None
+    with contextlib.suppress(Exception):
+        expires_at = token_provider.token_expires_at()
+    if expires_at is None:
+        return None
+    expires = datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(timespec="seconds")
+    if expires_at <= time.time():
+        return f"expired at {expires}"
+    return f"expires in {_format_duration(expires_at - time.time())} (at {expires})"
+
+
+def _credentials_section(config: Config, config_dict: dict | None) -> list[RenderableType]:
     try:
         cred_config = parse_credentials_config(config_dict)
 
@@ -253,25 +274,64 @@ def _config_section(profile: str | None) -> Tree:
                     str(value),
                 )
 
+        if ttl := _format_token_ttl(cred_config):
+            cred_table.add_row("token_ttl", ttl)
+
         ctx = FoundryContext(config=config, token_provider=cred_config)
-        config_node.add(cred_table)
         username = None
         with contextlib.suppress(Exception):
             username = ctx.multipass.api_me().json()["username"]
-        config_node.add(
+        return [
+            cred_table,
             _bool_color(
                 bool(username),
                 (f"Successfully authenticated as '{username}'" if username else "Failed to authenticate"),
-            )
-        )
+            ),
+        ]
     except Exception as e:  # noqa: BLE001
-        config_node.add(
+        return [
             (
                 _bool_icon(False) + "Can't create a TokenProvider,"
                 " please refer to the documentation how to configure FoundryDevTools for authentication.\n"
                 f"Following Error was raised: {e}"
             ),
+        ]
+
+
+def _config_section(profile: str | None) -> Tree:
+    config_node = Tree("Configuration")
+    config_table = Table("Config Name", "Value")
+    config_file_table = Table("Config File Path", "Exists")
+
+    config_dict = None
+    load_error: Exception | None = None
+    try:
+        if profile is None:
+            pure_config = _pure_config_dict()
+            if pure_config is not None:
+                profile = pure_config.get("profile")
+        config_dict = get_config_dict(profile=profile)
+        config = parse_general_config(config_dict)
+    except Exception as e:  # noqa: BLE001
+        # `fdt info` is a diagnostic command: an invalid or ambiguous configuration
+        # must be reported here instead of aborting with a traceback.
+        load_error = e
+
+    config_node.label = "Configuration" + ((f"(Profile '{profile}')") if profile is not None else "")
+    if load_error is not None:
+        config_node.add(
+            _bool_icon(False) + "Could not load the Foundry DevTools configuration.\n"
+            f"Following Error was raised: {load_error}"
         )
+    else:
+        for config_item, value in config.__dict__.items():
+            if isinstance(value, bool):
+                config_table.add_row(config_item, _bool_icon(value))
+            else:
+                config_table.add_row(config_item, str(value))
+        config_node.add(config_table)
+        for renderable in _credentials_section(config, config_dict):
+            config_node.add(renderable)
     for cfg_file in cfg_files():
         config_file_table.add_row(os.fspath(cfg_file), _bool_icon(cfg_file.is_file()))
     config_node.add(config_file_table)

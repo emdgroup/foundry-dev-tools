@@ -301,11 +301,14 @@ class AppServiceTokenProvider(CachedTokenProvider):
 class PalantirMCPTokenProvider(TokenProvider):
     """Uses the token that Palantir MCP cached in ``~/.palantir/mcp-config.json``.
 
-    Palantir MCP owns the re-authorization flow. This provider only reads the
-    cached token and fails with a clear message when the token is missing or
-    expired. The token is re-read on every access so that a re-authorization
-    performed through the Palantir MCP client is picked up without restarting
-    the process.
+    Palantir MCP owns the re-authorization flow. This provider reads the cached
+    token and fails with a clear message when the token is missing or expired.
+    The credential is kept in memory until its token is about to expire, using
+    the expiry decoded by :py:func:`~foundry_dev_tools.config.palantir_mcp.token_expiry`,
+    so a re-authorization performed through the Palantir MCP client is picked up
+    without restarting the process while routine API calls do not read the file.
+    The token must carry an expiry; a missing or unreadable cache fails right away
+    instead of guessing how long a credential stays valid.
 
     .. code-block:: toml
 
@@ -316,6 +319,9 @@ class PalantirMCPTokenProvider(TokenProvider):
 
     supports_scope_diagnostics: ClassVar[bool] = True
 
+    _credential_refresh_skew = 60
+    """Re-read the MCP config this many seconds before the cached token expires."""
+
     def __init__(self, host: Host | str) -> None:
         """Initialize the Palantir MCP token provider.
 
@@ -323,38 +329,50 @@ class PalantirMCPTokenProvider(TokenProvider):
             host: the Foundry host whose cached MCP token should be used
         """
         super().__init__(host)
-        self._credential = self._read_credential()
-        if self._credential is None:
-            msg = (
-                f"No Palantir MCP token found for {self.host.url} in {palantir_mcp_config_path()}. "
-                f"{REAUTHORIZE_HINT}"
-            )
-            raise TokenProviderConfigError(msg)
+        self._credential: PalantirMCPCredential = self._read_credential()
+        self._credential_stale_after = self._stale_after(self._credential)
 
-    def _read_credential(self) -> PalantirMCPCredential | None:
-        return select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=self.host)
-
-    def token_expires_at(self) -> float | None:
-        """Return the cached MCP token's expiry, even if it has already expired."""
-        credential = self._read_credential()
-        return credential.expires_at if credential is not None else None
-
-    @property
-    def token(self) -> Token:
-        """Return the currently cached MCP token, refreshing from disk on every access."""
-        credential = self._read_credential()
+    def _read_credential(self) -> PalantirMCPCredential:
+        credential = select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=self.host)
         if credential is None:
             msg = (
                 f"No Palantir MCP token found for {self.host.url} in {palantir_mcp_config_path()}. "
                 f"{REAUTHORIZE_HINT}"
             )
             raise TokenProviderConfigError(msg)
-        if credential.is_expired():
-            expires_at = (
-                datetime.fromtimestamp(credential.expires_at, tz=timezone.utc).isoformat()
-                if credential.expires_at is not None
-                else "unknown"
+        return credential
+
+    def _stale_after(self, credential: PalantirMCPCredential) -> float:
+        """Return when the credential should be read from disk again."""
+        if credential.expires_at is None:
+            msg = (
+                f"The Palantir MCP token for {credential.host.url} has no decodable expiry, "
+                "so Foundry DevTools cannot tell when to refresh it. "
+                f"{REAUTHORIZE_HINT}"
             )
+            raise TokenProviderConfigError(msg)
+        return credential.expires_at - self._credential_refresh_skew
+
+    def _cached_credential(self) -> PalantirMCPCredential:
+        """Return the cached credential, re-reading the MCP config when it is stale."""
+        if time.time() < self._credential_stale_after:
+            return self._credential
+        self._credential = self._read_credential()
+        self._credential_stale_after = self._stale_after(self._credential)
+        return self._credential
+
+    def token_expires_at(self) -> float | None:
+        """Return the cached MCP token's expiry, even if it has already expired."""
+        return self._credential.expires_at
+
+    @property
+    def token(self) -> Token:
+        """Return the currently cached MCP token without reading the config on every access."""
+        credential = self._cached_credential()
+        if credential.is_expired():
+            # The credential cannot exist without an expiry: `_stale_after` rejects
+            # tokens without one when the provider is created or refreshed.
+            expires_at = datetime.fromtimestamp(credential.expires_at, tz=timezone.utc).isoformat()
             msg = f"The Palantir MCP token for {credential.host.url} expired at {expires_at}. {REAUTHORIZE_HINT}"
             raise TokenProviderConfigError(msg)
         return credential.token

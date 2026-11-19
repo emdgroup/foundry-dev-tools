@@ -80,7 +80,12 @@ def token_expiry(token: str) -> float | None:
     return None
 
 
-def _host_from_origin(origin: str) -> Host:
+def host_from_origin(origin: str) -> Host:
+    """Return the :class:`Host` for an MCP origin like ``https://foundry.example.com``.
+
+    A missing scheme defaults to HTTPS. Raises :class:`ValueError` for anything
+    that is not an HTTP(S) origin with a netloc.
+    """
     value = origin.strip()
     if "://" not in value:
         value = f"https://{value}"
@@ -117,7 +122,7 @@ def read_palantir_mcp_credentials() -> list[PalantirMCPCredential]:
             continue
         token = token.strip()
         try:
-            host = _host_from_origin(origin)
+            host = host_from_origin(origin)
         except ValueError:
             continue
         credentials.append(
@@ -146,7 +151,7 @@ def select_palantir_mcp_credential(
     source = palantir_mcp_config_path()
 
     if host is not None:
-        selected_host = _host_from_origin(host) if isinstance(host, str) else host
+        selected_host = host_from_origin(host) if isinstance(host, str) else host
         matches = [credential for credential in credentials if credential.host.domain == selected_host.domain]
         if not matches:
             msg = f"No Palantir MCP token found for {selected_host.url} in {source}. {REAUTHORIZE_HINT}"

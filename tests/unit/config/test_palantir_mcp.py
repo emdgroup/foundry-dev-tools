@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 import time
@@ -8,6 +7,7 @@ from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
+from freezegun import freeze_time
 
 from foundry_dev_tools.config import config as config_module
 from foundry_dev_tools.config.config_types import Host
@@ -22,16 +22,17 @@ from foundry_dev_tools.config.token_provider import JWTTokenProvider, PalantirMC
 from foundry_dev_tools.errors.config import MissingFoundryHostError, TokenProviderConfigError
 from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils.compat import v1_to_v2_config
-from tests.unit.mocks import MOCK_ADAPTER, TEST_DOMAIN, TEST_HOST, FoundryMockContext, MockTokenProvider
+from tests.unit.mocks import (
+    MOCK_ADAPTER,
+    TEST_DOMAIN,
+    TEST_HOST,
+    FoundryMockContext,
+    MockTokenProvider,
+    make_jwt,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-def make_jwt(exp: float | None) -> str:
-    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp} if exp else {}).encode()).rstrip(b"=").decode()
-    return f"{header}.{payload}.signature"
 
 
 def write_mcp_config(path: Path, hosts: dict[str, str]) -> None:
@@ -354,6 +355,25 @@ def test_explicit_non_mcp_provider_does_not_inherit_a_discovered_domain(
         config_module.get_config_dict()
 
 
+def test_explicit_mcp_provider_without_cached_token_reports_the_missing_token(
+    mock_config_location,
+    isolated_palantir_mcp_config: Path,
+):
+    user_config = list(mock_config_location)[1]
+    user_config.write_text("[credentials]\npalantir_mcp = {}\n")
+
+    with (
+        mock.patch.dict(os.environ, {}, clear=True),
+        pytest.raises(
+            TokenProviderConfigError,
+            match="No Palantir MCP token found",
+        ) as exc_info,
+    ):
+        config_module.get_config_dict()
+
+    assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
+
+
 def test_explicit_token_provider_does_not_require_mcp_discovery(
     mock_config_location,
     isolated_palantir_mcp_config: Path,
@@ -377,16 +397,59 @@ def test_discover_returns_none_without_mcp_config(isolated_palantir_mcp_config: 
     assert discover_palantir_mcp_credential() is None
 
 
-def test_provider_reads_token_and_refreshes_from_disk(isolated_palantir_mcp_config: Path):
+def test_provider_reuses_the_cached_token(isolated_palantir_mcp_config: Path):
     first = make_jwt(time.time() + 3600)
-    second = make_jwt(time.time() + 7200)
     write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": first})
 
     provider = PalantirMCPTokenProvider("foundry-dev-tools.test")
-    assert provider.token == first
+    # Removing the file makes any further read fail, so this proves the token is cached.
+    isolated_palantir_mcp_config.unlink()
 
-    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": second})
-    assert provider.token == second
+    assert provider.token == first
+    assert provider.token == first
+    assert provider.token_expires_at() is not None
+
+
+def test_provider_refreshes_from_disk_when_the_token_is_about_to_expire(isolated_palantir_mcp_config: Path):
+    with freeze_time("2020-01-01 00:00:00") as frozen:
+        first = make_jwt(time.time() + 3600)
+        second = make_jwt(time.time() + 7200)
+        write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": first})
+
+        provider = PalantirMCPTokenProvider("foundry-dev-tools.test")
+        assert provider.token == first
+
+        write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": second})
+        # The cache follows the token's lifetime: no re-read while the token is fresh.
+        frozen.tick(120)
+        assert provider.token == first
+
+        # Within the refresh window before the expiry the new token is picked up.
+        frozen.tick(3500)
+        assert provider.token == second
+
+
+def test_provider_fails_for_token_without_an_expiry(isolated_palantir_mcp_config: Path):
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": "opaque-token"})
+
+    with pytest.raises(TokenProviderConfigError, match="no decodable expiry"):
+        PalantirMCPTokenProvider("foundry-dev-tools.test")
+
+
+def test_provider_fails_when_the_cache_file_becomes_unreadable(isolated_palantir_mcp_config: Path):
+    with freeze_time("2020-01-01 00:00:00") as frozen:
+        first = make_jwt(time.time() + 3600)
+        write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": first})
+
+        provider = PalantirMCPTokenProvider("foundry-dev-tools.test")
+        assert provider.token == first
+
+        # Simulate a partial write by Palantir MCP: the stale cache is re-read and fails early.
+        isolated_palantir_mcp_config.write_text("{")
+        frozen.tick(3541)
+
+        with pytest.raises(TokenProviderConfigError, match="No Palantir MCP token found"):
+            _ = provider.token
 
 
 def test_provider_raises_clear_error_for_expired_token(isolated_palantir_mcp_config: Path):
