@@ -207,7 +207,7 @@ class _AutoPickupNotice:
         sys.stderr.write(
             f"Foundry DevTools is using the Palantir MCP token for {credential.host.url} "
             f"from {palantir_mcp_config_path()}. "
-            "Create an explicit Foundry DevTools configuration to silence this message.\n",
+            "Run `fdt config init` to create a minimal configuration and silence this message.\n",
         )
 
     @classmethod

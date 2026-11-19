@@ -24,11 +24,16 @@ from rich.markdown import Markdown
 from rich.prompt import IntPrompt
 
 from foundry_dev_tools.cli.info import _config_section
+from foundry_dev_tools.config import palantir_mcp
+from foundry_dev_tools.config.config_types import DEFAULT_SCHEME
+from foundry_dev_tools.errors.config import FoundryConfigError
 from foundry_dev_tools.utils.compat import v1_to_v2_config_dict
 from foundry_dev_tools.utils.config import (
     PROJECT_CFG_FILE_NAME,
+    cfg_files,
     find_project_config_file,
     site_cfg_file,
+    user_cfg_file,
     user_cfg_files,
 )
 from foundry_dev_tools.utils.repo import git_toplevel_dir
@@ -103,6 +108,44 @@ def config_cli(ctx: click.Context, profile: str | None):
     if ctx.invoked_subcommand is None:
         console = Console(markup=True)
         console.print(_config_section(profile=profile))
+
+
+@config_cli.command("init")
+def init():
+    """Create a minimal configuration for the Palantir MCP token Foundry DevTools uses."""
+    console = Console(markup=True)
+    existing = [path for path in cfg_files() if path.exists() and path.read_text().strip()]
+    if existing:
+        console.print(
+            f"A configuration already exists at {existing[0]!s}. Run `fdt config edit` to change it.",
+        )
+        sys.exit(1)
+
+    try:
+        credential = palantir_mcp.discover_palantir_mcp_credential()
+    except FoundryConfigError as e:
+        console.print(f"Can't create a configuration: {e}")
+        sys.exit(1)
+    if credential is None:
+        console.print(
+            f"No Palantir MCP token found in {palantir_mcp.palantir_mcp_config_path()}. "
+            "Authorize a Foundry host in Palantir MCP first, or configure credentials manually"
+            " with `fdt config edit`.",
+        )
+        sys.exit(1)
+
+    credentials: dict[str, object] = {"domain": credential.host.domain}
+    if credential.host.scheme != DEFAULT_SCHEME:
+        credentials["scheme"] = credential.host.scheme
+    credentials["palantir_mcp"] = {}
+
+    target = user_cfg_file()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(tomli_w.dumps({"credentials": credentials}))
+    console.print(
+        f"Created {target!s} with the credentials of the Palantir MCP token for {credential.host.url}. "
+        "The auto-pickup notice will no longer be printed.",
+    )
 
 
 @config_cli.command("edit")

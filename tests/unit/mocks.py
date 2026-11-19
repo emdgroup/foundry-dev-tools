@@ -23,6 +23,7 @@ DEFAULT_TOKEN = "default_mock_token"  # noqa: S105
 MOCK_ADAPTER = requests_mock.Adapter()
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 
 def make_jwt(exp: float | None) -> str:
@@ -30,6 +31,11 @@ def make_jwt(exp: float | None) -> str:
     header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
     payload = base64.urlsafe_b64encode(json.dumps({"exp": exp} if exp else {}).encode()).rstrip(b"=").decode()
     return f"{header}.{payload}.signature"
+
+
+def write_mcp_config(path: Path, hosts: dict[str, str]) -> None:
+    """Write a Palantir MCP config with ``origin -> token`` entries."""
+    path.write_text(json.dumps({"hosts": {host: {"token": token} for host, token in hosts.items()}}))
 
 
 class MockTokenProvider(JWTTokenProvider):

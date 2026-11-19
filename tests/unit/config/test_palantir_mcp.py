@@ -29,14 +29,11 @@ from tests.unit.mocks import (
     FoundryMockContext,
     MockTokenProvider,
     make_jwt,
+    write_mcp_config,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-def write_mcp_config(path: Path, hosts: dict[str, str]) -> None:
-    path.write_text(json.dumps({"hosts": {host: {"token": token} for host, token in hosts.items()}}))
 
 
 class ScopeDiagnosticsMockTokenProvider(MockTokenProvider):
@@ -107,7 +104,9 @@ def test_auto_pickup_when_no_foundry_dev_tools_config(
     with mock.patch.dict(os.environ, {}, clear=True):
         config = config_module.get_config_dict()
 
-    assert "using the Palantir MCP token" in capsys.readouterr().err
+    stderr = capsys.readouterr().err
+    assert "using the Palantir MCP token" in stderr
+    assert "fdt config init" in stderr
     assert config == {
         "credentials": {
             "domain": "foundry-dev-tools.test",
