@@ -254,6 +254,10 @@ def _credentials_section(config: Config, config_dict: dict | None) -> list[Rende
             title=f"Using the {cred_config.__class__.__name__} implementation for authentication.",
         )
         for cred_config_entry, value in cred_config.__dict__.items():
+            # Provider internals (the cached credential and its refresh deadline)
+            # are state, not credential configuration.
+            if cred_config_entry in {"_credential", "_credential_stale_after"}:
+                continue
             # This check needs to happend before the single underscore check
             # Otherwise this check would be unecessary
             if cred_config_entry.startswith("__"):
