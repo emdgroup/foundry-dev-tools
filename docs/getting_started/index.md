@@ -1,6 +1,6 @@
 # Getting Started
 
-[Installation](installation.md): Install Foundry DevTools and set up your credentials.
+[Installation](installation.md): Install Foundry DevTools and connect it to Foundry. The Palantir MCP token is picked up automatically.
 
 [Foundry DevTools](foundry_dev_tools.md): Get started with Foundry DevTools as a Python Library.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import time
+from datetime import datetime, timezone
 from functools import cached_property
 from typing import TYPE_CHECKING, ClassVar
 
@@ -12,6 +13,14 @@ import requests
 from requests.structures import CaseInsensitiveDict
 
 from foundry_dev_tools.config.config_types import Host
+from foundry_dev_tools.config.palantir_mcp import (
+    REAUTHORIZE_HINT,
+    PalantirMCPCredential,
+    palantir_mcp_config_path,
+    read_palantir_mcp_credentials,
+    select_palantir_mcp_credential,
+    token_expiry,
+)
 from foundry_dev_tools.errors.config import TokenProviderConfigError
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
 from foundry_dev_tools.errors.multipass import ClientAuthenticationFailedError
@@ -45,6 +54,14 @@ class TokenProvider:
         msg = "This is only the base TokenProvider class and does not implement getting a token."
         raise NotImplementedError(msg)
 
+    def token_expires_at(self) -> float | None:
+        """Return when the current token expires as a Unix timestamp, if it is known.
+
+        Implementations must not trigger a token refresh or any network request;
+        this is used for error diagnostics.
+        """
+        return None
+
     def requests_auth_handler(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         """Sets bearer authentication header on PreparedRequest object.
 
@@ -75,6 +92,10 @@ class JWTTokenProvider(TokenProvider):
         """Returns the token supplied when creating this Provider."""
         return self._jwt
 
+    def token_expires_at(self) -> float | None:
+        """Return the expiry encoded in the JWT, if it can be decoded."""
+        return token_expiry(self._jwt)
+
 
 class CachedTokenProvider(TokenProvider):
     """Parent class for token providers which get their token dynamically and need caching."""
@@ -101,6 +122,10 @@ class CachedTokenProvider(TokenProvider):
         if not self._cached or self._valid_until < time.time() + 10:
             self._cached, self._valid_until = self._request_token()
         return self._cached
+
+    def token_expires_at(self) -> float | None:
+        """Return the expiry of the cached token without triggering a refresh."""
+        return token_expiry(self._cached) if self._cached else None
 
 
 DEFAULT_OAUTH_SCOPES = [
@@ -273,12 +298,93 @@ class AppServiceTokenProvider(CachedTokenProvider):
         raise TokenProviderConfigError(msg)
 
 
+class PalantirMCPTokenProvider(TokenProvider):
+    """Uses the token that Palantir MCP cached in ``~/.palantir/mcp-config.json``.
+
+    Palantir MCP owns the re-authorization flow. This provider reads the cached
+    token and fails with a clear message when the token is missing or expired.
+    The credential is kept in memory until its token is about to expire, using
+    the expiry decoded by :py:func:`~foundry_dev_tools.config.palantir_mcp.token_expiry`,
+    so a re-authorization performed through the Palantir MCP client is picked up
+    without restarting the process while routine API calls do not read the file.
+    The token must carry an expiry; a missing or unreadable cache fails right away
+    instead of guessing how long a credential stays valid.
+
+    .. code-block:: toml
+
+        [credentials]
+        domain = "foundry.example.com"
+        palantir_mcp = {}
+    """
+
+    supports_scope_diagnostics: ClassVar[bool] = True
+
+    _credential_refresh_skew = 60
+    """Re-read the MCP config this many seconds before the cached token expires."""
+
+    def __init__(self, host: Host | str) -> None:
+        """Initialize the Palantir MCP token provider.
+
+        Args:
+            host: the Foundry host whose cached MCP token should be used
+        """
+        super().__init__(host)
+        self._credential: PalantirMCPCredential = self._read_credential()
+        self._credential_stale_after = self._stale_after(self._credential)
+
+    def _read_credential(self) -> PalantirMCPCredential:
+        credential = select_palantir_mcp_credential(read_palantir_mcp_credentials(), host=self.host)
+        if credential is None:
+            msg = (
+                f"No Palantir MCP token found for {self.host.url} in {palantir_mcp_config_path()}. "
+                f"{REAUTHORIZE_HINT}"
+            )
+            raise TokenProviderConfigError(msg)
+        return credential
+
+    def _stale_after(self, credential: PalantirMCPCredential) -> float:
+        """Return when the credential should be read from disk again."""
+        if credential.expires_at is None:
+            msg = (
+                f"The Palantir MCP token for {credential.host.url} has no decodable expiry, "
+                "so Foundry DevTools cannot tell when to refresh it. "
+                f"{REAUTHORIZE_HINT}"
+            )
+            raise TokenProviderConfigError(msg)
+        return credential.expires_at - self._credential_refresh_skew
+
+    def _cached_credential(self) -> PalantirMCPCredential:
+        """Return the cached credential, re-reading the MCP config when it is stale."""
+        if time.time() < self._credential_stale_after:
+            return self._credential
+        self._credential = self._read_credential()
+        self._credential_stale_after = self._stale_after(self._credential)
+        return self._credential
+
+    def token_expires_at(self) -> float | None:
+        """Return the cached MCP token's expiry, even if it has already expired."""
+        return self._credential.expires_at
+
+    @property
+    def token(self) -> Token:
+        """Return the currently cached MCP token without reading the config on every access."""
+        credential = self._cached_credential()
+        if credential.is_expired():
+            # The credential cannot exist without an expiry: `_stale_after` rejects
+            # tokens without one when the provider is created or refreshed.
+            expires_at = datetime.fromtimestamp(credential.expires_at, tz=timezone.utc).isoformat()
+            msg = f"The Palantir MCP token for {credential.host.url} expired at {expires_at}. {REAUTHORIZE_HINT}"
+            raise TokenProviderConfigError(msg)
+        return credential.token
+
+
 # markers for documentation
 # [begin token_provider mapping]
 TOKEN_PROVIDER_MAPPING = {
     "jwt": JWTTokenProvider,
     "oauth": OAuthTokenProvider,
     "app_service": AppServiceTokenProvider,
+    "palantir_mcp": PalantirMCPTokenProvider,
     **entry_point_fdt_token_provider(),
 }
 # [end token_provider mapping]

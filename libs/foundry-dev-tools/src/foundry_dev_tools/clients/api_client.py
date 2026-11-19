@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from foundry_dev_tools.errors.handling import ErrorHandlingConfig, raise_foundry_api_error
+from foundry_dev_tools.errors.meta import FoundryAPIError
 from foundry_dev_tools.utils.clients import build_api_url, build_public_api_url
+from foundry_dev_tools.utils.scope import build_auth_error_hint
 
 if TYPE_CHECKING:
     from requests import Response
@@ -24,6 +27,28 @@ if TYPE_CHECKING:
     )
 
     from foundry_dev_tools.config.context import FoundryContext
+
+
+def _raise_foundry_api_error_with_hint(
+    context: FoundryContext,
+    response: Response,
+    error_handling: ErrorHandlingConfig | Literal[False] | None,
+) -> None:
+    """Raise the regular API error and append token diagnostics when available."""
+    try:
+        raise_foundry_api_error(response, error_handling)
+    except FoundryAPIError as exc:
+        try:
+            error_name = response.json().get("errorName")
+        except (AttributeError, ValueError):
+            error_name = None
+        hint = None
+        # Never mask the original API error.
+        with contextlib.suppress(Exception):
+            hint = build_auth_error_hint(context, response.status_code, error_name)
+        if hint:
+            exc.add_info(hint)
+        raise
 
 
 class APIClient:
@@ -111,7 +136,11 @@ class APIClient:
             cert=cert,
             json=json,
         )
-        raise_foundry_api_error(response, error_handling)
+        if auth is None:
+            _raise_foundry_api_error_with_hint(self.context, response, error_handling)
+        else:
+            # A custom auth handler may use a different token than the context provider.
+            raise_foundry_api_error(response, error_handling)
         return response
 
 
@@ -215,5 +244,9 @@ class PublicAPIClient:
             cert=cert,
             json=json,
         )
-        raise_foundry_api_error(response, error_handling)
+        if auth is None:
+            _raise_foundry_api_error_with_hint(self.context, response, error_handling)
+        else:
+            # A custom auth handler may use a different token than the context provider.
+            raise_foundry_api_error(response, error_handling)
         return response

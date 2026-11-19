@@ -67,6 +67,11 @@ def user_cfg_files() -> dict[Path, None]:
     }
 
 
+def user_cfg_file() -> Path:
+    """Return the default user configuration file path, e.g. used by ``fdt config init``."""
+    return Path.home().joinpath(".foundry-dev-tools", CFG_FILE_NAME)
+
+
 @cache
 def site_cfg_file() -> Path:
     """Returns the site_config_path from :py:mod:`platformdirs`."""

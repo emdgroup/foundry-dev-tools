@@ -15,7 +15,7 @@ The credentials config consists of these keys:
 [credentials]
 domain = "your foundry domain"
 scheme = "scheme" # http/https
-# TOKEN_PROVIDER_NAME is for example jwt or oauth
+# TOKEN_PROVIDER_NAME is for example palantir_mcp, jwt or oauth
 TOKEN_PROVIDER_NAME = {} # token provider implementation specific configuration
 ```
 
@@ -29,6 +29,30 @@ Examples from [Getting Started - Credentials Configuration](/getting_started/ins
 :start-after: "<!-- include -->"
 :end-before: "<!-- include_end -->"
 ```
+
+### Palantir MCP token
+
+Palantir MCP caches Foundry tokens in `~/.palantir/mcp-config.json`. If no
+Foundry DevTools credentials are configured, Foundry DevTools uses that cached
+token automatically and takes the Foundry host from the same entry. This means
+`FoundryContext()` keeps working after re-authorizing Palantir MCP without
+creating a Foundry DevTools configuration file. A single message is printed the
+first time the token is picked up; run `fdt config init` to create a minimal
+configuration in `~/.foundry-dev-tools/config.toml` and silence it, and setting
+`domain` selects the host when several are cached:
+
+```toml
+[credentials]
+domain = "foundry.example.com"
+palantir_mcp = {}
+```
+
+Foundry DevTools never triggers the Palantir MCP re-authorization flow; an
+expired token raises an error explaining that the Palantir MCP token needs to
+be re-authorized. When a request fails because the resource is outside the
+token's scope (a `403`, or a Compass `404` since Foundry hides out-of-scope
+resources), the error lists the Compass resources referenced by the token's
+scope.
 
 ## Configuration Options
 

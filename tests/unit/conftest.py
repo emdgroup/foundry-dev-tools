@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 from freezegun import freeze_time
 
+from foundry_dev_tools.config import palantir_mcp
 from foundry_dev_tools.config.config import Config
 from foundry_dev_tools.utils.config import CFG_FILE_NAME
 from tests.unit.mocks import MOCK_ADAPTER, FoundryMockContext, MockTokenProvider
@@ -14,6 +15,21 @@ from tests.unit.mocks import MOCK_ADAPTER, FoundryMockContext, MockTokenProvider
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def isolated_palantir_mcp_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+    """Keep unit tests away from the real ~/.palantir/mcp-config.json on this machine."""
+    path = tmp_path.joinpath(palantir_mcp.PALANTIR_MCP_CONFIG_DIR, palantir_mcp.PALANTIR_MCP_CONFIG_FILE)
+    path.parent.mkdir(parents=True)
+    monkeypatch.setattr(palantir_mcp, "palantir_mcp_config_path", lambda: path)
+    monkeypatch.setattr(
+        "foundry_dev_tools.config.token_provider.palantir_mcp_config_path",
+        lambda: path,
+    )
+    palantir_mcp.reset_auto_pickup_notice()
+    yield path
+    palantir_mcp.reset_auto_pickup_notice()
 
 
 @pytest.fixture()

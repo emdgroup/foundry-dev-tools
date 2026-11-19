@@ -44,7 +44,8 @@ It consists of two parts:
     ```python
     from foundry_dev_tools import FoundryContext
 
-    # the context, that contains your credentials and configuration
+    # uses the token cached by Palantir MCP if available,
+    # otherwise your configured credentials
     ctx = FoundryContext()
 
     df = ctx.foundry_sql_server.query_foundry_sql("SELECT * FROM `/Global/Foundry Training and Resources/Example Data/Aviation Ontology/airlines`", branch='master')
@@ -94,6 +95,11 @@ With conda or mamba on the conda-forge channel:
 ```shell
 conda install -c conda-forge foundry-dev-tools
 ```
+
+If Palantir MCP has authorized your Foundry host, `FoundryContext()` uses the
+token it cached in `~/.palantir/mcp-config.json` — no Foundry DevTools
+configuration is needed. Otherwise configure JWT or OAuth credentials as
+described in the installation guide.
 
 [Further instructions](https://emdgroup.github.io/foundry-dev-tools/getting_started/installation.html) can be found in our documentation.
 

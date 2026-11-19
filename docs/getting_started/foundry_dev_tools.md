@@ -19,7 +19,9 @@ Best practice is to use only one [FoundryContext] instance throughout your progr
 This leverages connection pooling through the requests library and avoids the overhead of repeatedly parsing your configuration files.
 
 A [`TokenProvider`] is used to authenticate the requests made by [API clients].
-It can be configured through the [credentials config].
+If Palantir MCP has cached a token, Foundry DevTools selects the
+[`PalantirMCPTokenProvider`] automatically; otherwise configure a token provider
+through the [credentials config].
 
 :::{seealso}
 If you want to provide your credentials through another way, you can easily implement your own token provider: [Implement a Token Provider]
@@ -33,12 +35,13 @@ The context can be created like this:
 from foundry_dev_tools import FoundryContext
 
 # this way it will take the configuration and credentials
-# from your configuration files and environment variables
+# from your configuration files and environment variables,
+# or fall back to the token cached by Palantir MCP
 ctx = FoundryContext()
 
 # or if you don't want to use configuration files,
 # you can supply the configuration and credentials as parameters
-# either jwt token provider or oauth token provider is needed,
+# a palantir_mcp, jwt or oauth token provider is needed,
 # or another custom token provider
 from foundry_dev_tools import Config, JWTTokenProvider, OAuthTokenProvider
 
@@ -51,7 +54,7 @@ ctx = FoundryContext(config=Config(), token_provider=OAuthTokenProvider(client_i
 
 The configuration can be accessed and changed through `ctx.config`. For all configuration options see [`Config`]
 
-To get your authentication token use `ctx.token`, for the [`JWTTokenProvider`] this will be the `jwt` value, and for the [`OAuthTokenProvider`] this will be a jwt token that has been obtained through OAuth, it is automatically cached and will renew itself automatically.
+To get your authentication token use `ctx.token`. For the [`PalantirMCPTokenProvider`] this is the token cached by Palantir MCP, for the [`JWTTokenProvider`] it is the `jwt` value, and for the [`OAuthTokenProvider`] it is a jwt token obtained through OAuth that is cached and renews itself automatically.
 
 For all attributes/methods see [`FoundryContext`].
 
@@ -160,6 +163,7 @@ More indepth information can be found here: [Errors](/dev/architecture/errors.md
 [credentials config]: ../configuration.md#credentials-configuration
 [Implement an API Client]: /dev/architecture/api_client_implementation.md 
 [Implement a Token Provider]: /dev/architecture/token_provider_implementation.md
+[`PalantirMCPTokenProvider`]: #foundry_dev_tools.config.token_provider.PalantirMCPTokenProvider
 [`JWTTokenProvider`]: #foundry_dev_tools.config.token_provider.JWTTokenProvider
 [`OAuthTokenProvider`]: #foundry_dev_tools.config.token_provider.OAuthTokenProvider
 [`FoundryContext`]: #foundry_dev_tools.config.context.FoundryContext

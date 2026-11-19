@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -6,8 +8,15 @@ from click.testing import CliRunner
 from pyfakefs.fake_filesystem import FakeFilesystem
 from pyfakefs.fake_filesystem_unittest import Patcher
 
-from foundry_dev_tools.cli.config import migrate, migrate_project
-from foundry_dev_tools.utils.config import cfg_files, site_cfg_file, user_cfg_files
+from foundry_dev_tools.cli.config import init, migrate, migrate_project
+from foundry_dev_tools.utils.config import cfg_files, site_cfg_file, user_cfg_file, user_cfg_files
+from tests.unit.mocks import make_jwt, write_mcp_config
+
+# compatibility for python version < 3.11
+if sys.version_info < (3, 11):
+    import tomli as tomllib
+else:
+    import tomllib
 
 
 @pytest.fixture()
@@ -18,6 +27,78 @@ def fs():
     cfg_files.cache_clear()
     site_cfg_file.cache_clear()
     user_cfg_files.cache_clear()
+
+
+def test_config_init_targets_the_dotdir_config():
+    assert user_cfg_file() == Path.home().joinpath(".foundry-dev-tools", "config.toml")
+
+
+def test_config_init_writes_minimal_mcp_config(
+    tmp_path: Path,
+    isolated_palantir_mcp_config: Path,
+    mocker,
+):
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": make_jwt(time.time() + 3600)})
+    target = tmp_path.joinpath("foundry-dev-tools", "config.toml")
+    mocker.patch("foundry_dev_tools.cli.config.cfg_files", return_value={target: None})
+    mocker.patch("foundry_dev_tools.cli.config.user_cfg_file", return_value=target)
+
+    res = CliRunner().invoke(init)
+
+    assert res.exit_code == 0
+    assert tomllib.loads(target.read_text()) == {
+        "credentials": {"domain": "foundry-dev-tools.test", "palantir_mcp": {}},
+    }
+    assert "will no longer be printed" in " ".join(res.stdout.split())
+
+
+def test_config_init_writes_a_non_default_scheme(
+    tmp_path: Path,
+    isolated_palantir_mcp_config: Path,
+    mocker,
+):
+    write_mcp_config(isolated_palantir_mcp_config, {"http://foundry-dev-tools.test": make_jwt(time.time() + 3600)})
+    target = tmp_path.joinpath("config.toml")
+    mocker.patch("foundry_dev_tools.cli.config.cfg_files", return_value={target: None})
+    mocker.patch("foundry_dev_tools.cli.config.user_cfg_file", return_value=target)
+
+    assert CliRunner().invoke(init).exit_code == 0
+
+    assert tomllib.loads(target.read_text())["credentials"]["scheme"] == "http"
+
+
+def test_config_init_does_not_overwrite_an_existing_config(
+    tmp_path: Path,
+    isolated_palantir_mcp_config: Path,
+    mocker,
+):
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": make_jwt(time.time() + 3600)})
+    target = tmp_path.joinpath("config.toml")
+    target.write_text("[config]\nrich_traceback = true\n")
+    mocker.patch("foundry_dev_tools.cli.config.cfg_files", return_value={target: None})
+    mocker.patch("foundry_dev_tools.cli.config.user_cfg_file", return_value=target)
+
+    res = CliRunner().invoke(init)
+
+    assert res.exit_code == 1
+    assert "already exists" in res.stdout
+    assert target.read_text() == "[config]\nrich_traceback = true\n"
+
+
+def test_config_init_requires_an_mcp_token(
+    tmp_path: Path,
+    isolated_palantir_mcp_config: Path,
+    mocker,
+):
+    target = tmp_path.joinpath("config.toml")
+    mocker.patch("foundry_dev_tools.cli.config.cfg_files", return_value={target: None})
+    mocker.patch("foundry_dev_tools.cli.config.user_cfg_file", return_value=target)
+
+    res = CliRunner().invoke(init)
+
+    assert res.exit_code == 1
+    assert "No Palantir MCP token found" in res.stdout
+    assert not target.exists()
 
 
 def test_migrate(fs: FakeFilesystem):

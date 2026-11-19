@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from foundry_dev_tools.config.config_types import Host
 from foundry_dev_tools.config.token_provider import JWTTokenProvider, OAuthTokenProvider
+from foundry_dev_tools.utils import compat
 from foundry_dev_tools.utils.compat import get_v1_environment_variables, v1_to_v2_config
 
 if TYPE_CHECKING:
@@ -68,6 +70,16 @@ def test_v1_to_v2_config(mocker: MockerFixture):
     assert tp._client_secret == "csec5"  # noqa: S105
     assert tp.host.url == "https://test"
     assert tp.grant_type == "authorization_code"
+
+
+def test_discovery_host_uses_the_mcp_origin_parser():
+    """The v1 discovery host and the MCP cache reader agree on valid origins."""
+    assert compat._discovery_host("https://foundry.example.com") == Host("foundry.example.com")
+    # A bare host gets the default https scheme, like an MCP cache entry without one.
+    assert compat._discovery_host("foundry.example.com") == Host("foundry.example.com")
+    # Origins the MCP cache rejects are not used for discovery either.
+    assert compat._discovery_host("ftp://foundry.example.com") is None
+    assert compat._discovery_host(None) is None
 
 
 def test_get_v1_environment_variables(mocker: MockerFixture):

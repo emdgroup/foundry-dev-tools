@@ -7,7 +7,20 @@ import warnings
 from urllib.parse import urlparse
 
 from foundry_dev_tools.config.config import TokenProvider, get_config_dict, parse_credentials_config
-from foundry_dev_tools.config.config_types import DEFAULT_SCHEME
+from foundry_dev_tools.config.config_types import DEFAULT_SCHEME, Host
+from foundry_dev_tools.config.palantir_mcp import host_from_origin
+
+
+def _discovery_host(foundry_url: object) -> Host | None:
+    """Return the host described by an explicit v1 ``foundry_url``, if valid."""
+    if not isinstance(foundry_url, str) or not foundry_url:
+        return None
+    try:
+        # Share the origin parsing with the Palantir MCP cache reader so both
+        # paths agree on which origins are valid.
+        return host_from_origin(foundry_url)
+    except ValueError:
+        return None
 
 
 def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True) -> dict:  # noqa: C901
@@ -18,7 +31,12 @@ def v1_to_v2_config_dict(config: dict, env: bool = True, get_config: bool = True
         env: whether to include the environment variables in the conversion
         get_config: wether to get the config from files and merge it
     """
-    _config = (get_config_dict(env=env) if get_config else None) or {}
+    # Explicit v1 credentials must not be blocked by an unrelated MCP token cache.
+    auto_discover = not ("jwt" in config or "client_id" in config)
+    discovery_host = _discovery_host(config.get("foundry_url"))
+    _config = (
+        get_config_dict(env=env, auto_discover=auto_discover, discovery_host=discovery_host) if get_config else None
+    ) or {}
     jwt, client_id, client_secret, foundry_url, grant_type, scopes = (
         config.pop("jwt", False),
         config.pop("client_id", False),

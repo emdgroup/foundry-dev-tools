@@ -1,7 +1,8 @@
 # SSO Authentication
 
-The recommendation how to connect to Foundry from Foundry DevTools is using the [Third Party Application Feature in Foundry](https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/).
-With this approach, no long-lived user tokens need to be generated.
+The default way to connect to Foundry from Foundry DevTools is the token cached
+by Palantir MCP. For a permanent OAuth setup that does not rely on long-lived
+user tokens, use the [Third Party Application Feature in Foundry](https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/).
 
 You can create a [Third Party Application in Foundry](https://www.palantir.com/docs/foundry/platform-security-third-party/third-party-apps-overview/) which is used for authenticating users.
 The actual oauth2 flow is implemented by the Palantir provided Python library `palantir-oauth-client`.

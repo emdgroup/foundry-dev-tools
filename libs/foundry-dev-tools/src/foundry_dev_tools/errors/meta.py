@@ -92,6 +92,15 @@ class FoundryAPIError(FoundryDevToolsError):
 
         super().__init__(msg)
 
+    def add_info(self, info: str) -> None:
+        """Append additional context to the rendered error message."""
+        # Keep the structured field in sync so translated errors retain the context.
+        self.info = f"{self.info}\n{info}" if self.info else info
+        if self.args and isinstance(self.args[0], str):
+            self.args = (f"{self.args[0]}\n{info}", *self.args[1:])
+        else:
+            self.args = (*self.args, info)
+
     def __dir__(self):
         yield from super().__dir__()
         yield from self.kwargs.keys()

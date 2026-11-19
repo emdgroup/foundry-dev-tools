@@ -66,6 +66,31 @@ oauth = { client_id = "get_config_dict_client_id" }
         assert config.get_config_dict()["credentials"]["oauth"]["scopes"] == "one:scope,two:scope"
 
 
+def test_profile_config_section_is_merged(mock_config_location: dict[Path, None]):
+    """Profile-specific [<profile>.config] options override the global [config] section."""
+    user_config = list(mock_config_location)[1]
+    user_config.write_text(
+        """
+[config]
+rich_traceback = false
+
+[one.config]
+rich_traceback = true
+cache_dir = "/profile-cache"
+
+[one.credentials]
+domain = "profile.example.com"
+jwt = "profile-token"
+""",
+    )
+
+    with mock.patch.dict(os.environ, {}, clear=True):
+        config_dict = config.get_config_dict(profile="one")
+
+    assert config_dict["config"] == {"rich_traceback": True, "cache_dir": "/profile-cache"}
+    assert config_dict["credentials"] == {"domain": "profile.example.com", "jwt": "profile-token"}
+
+
 def test_parse_credentials_config(mock_config_location: dict[Path, None]):
     path_list = list(mock_config_location)
     user_config = path_list[1]

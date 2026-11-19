@@ -35,3 +35,12 @@ def test_raise_on_foundry_api_error():
         "error_instance_id": "34ea0cb3-6d65-49ea-bec4-c6633890fd1e",
         "test": "param",
     }
+
+
+def test_foundry_api_error_add_info():
+    error = FoundryAPIError(info="base")
+    error.add_info("additional context")
+
+    assert error.info == "base\nadditional context"
+    assert "base" in str(error)
+    assert "additional context" in str(error)
