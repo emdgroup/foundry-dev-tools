@@ -6,9 +6,8 @@ It can be used to migrate existing Data Connection syncs to in-code solutions, b
 
 The helper does not include data transformation utilities and expects users to prepare the data using a Snowpark DataFrame.
 
-```shell
-pip install "foundry-dev-tools[snowflake]"
-```
+FSI requires `snowflake-snowpark-python` as an optional dependency, which is not installed with Foundry DevTools.
+Add it to the dependencies of your lightweight transforms repository next to `foundry-dev-tools`.
 
 **Contents**
 

@@ -12,9 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from snowflake.connector.errors import Error
-from snowflake.snowpark.exceptions import SnowparkSQLException
-
+from foundry_dev_tools._optional.snowflake import snowflake_errors, snowpark_exceptions
 from foundry_dev_tools.helpers.fast_snowflake_ingestion.utils import (
     filter_kwargs_for_function,
     get_output_foundry_path_components,
@@ -242,7 +240,7 @@ class FastSnowflakeIngestion:
             # Strategy 1: user-provided shared DB
             try:
                 self._setup_shared_database_stage(self._db_name, self._schema_name)
-            except (Error, SnowparkSQLException) as e:
+            except (snowflake_errors.Error, snowpark_exceptions.SnowparkSQLException) as e:
                 logger.warning(
                     "Shared database stage setup failed for '%s.%s': %s", self._db_name, self._schema_name, e
                 )
@@ -254,7 +252,7 @@ class FastSnowflakeIngestion:
             # Strategy 2: session default stage
             try:
                 self._setup_session_stage()
-            except (Error, SnowparkSQLException) as e:
+            except (snowflake_errors.Error, snowpark_exceptions.SnowparkSQLException) as e:
                 logger.warning("Session stage setup failed: %s", e)
                 if not self._can_fallback():
                     raise

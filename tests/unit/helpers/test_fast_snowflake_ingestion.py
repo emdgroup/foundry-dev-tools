@@ -57,7 +57,8 @@ def _fake_modules() -> dict[str, ModuleType]:
 @pytest.fixture(scope="module")
 def fsi_modules():
     with mock.patch.dict(sys.modules, _fake_modules()):
-        for name in [m for m in sys.modules if m.startswith("foundry_dev_tools.helpers.fast_snowflake_ingestion")]:
+        fsi_prefixes = ("foundry_dev_tools.helpers.fast_snowflake_ingestion", "foundry_dev_tools._optional.snowflake")
+        for name in [m for m in sys.modules if m.startswith(fsi_prefixes)]:
             del sys.modules[name]
         pkg = importlib.import_module("foundry_dev_tools.helpers.fast_snowflake_ingestion")
         yield SimpleNamespace(
@@ -371,3 +372,15 @@ def test_path_classes(fsi_modules):
     path = fsi_modules.pkg.FoundryPathWithBranchId(fsi_modules.pkg.TransactionPath("ds", "tx"), "master")
     assert path.branch_id == "master"
     assert path.foundry_path.dataset_rid == "ds"
+
+
+def test_optional_snowflake_missing():
+    blocked = dict.fromkeys(
+        ["snowflake", "snowflake.connector", "snowflake.snowpark", "foundry_dev_tools._optional.snowflake"]
+    )
+    with mock.patch.dict(sys.modules, blocked):
+        del sys.modules["foundry_dev_tools._optional.snowflake"]
+        optional = importlib.import_module("foundry_dev_tools._optional.snowflake")
+        assert optional.snowflake_errors.__fake__ is True
+        with pytest.raises(ImportError, match="snowflake-snowpark-python"):
+            optional.snowflake_errors.Error  # noqa: B018
