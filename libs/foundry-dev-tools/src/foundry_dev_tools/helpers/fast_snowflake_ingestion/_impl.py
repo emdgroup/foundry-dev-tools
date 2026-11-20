@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from snowflake.connector.errors import Error
+from snowflake.snowpark.exceptions import SnowparkSQLException
 
 from foundry_dev_tools.helpers.fast_snowflake_ingestion.utils import (
     filter_kwargs_for_function,
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
     from transforms.api import Output
 
 logger = logging.getLogger(__name__)
+
+QUERY_TAG_MAX_LENGTH = 2000
 
 
 def _get_bucket_accelerate_config_patch(self: SnowflakeS3RestClient, bucket_name: str) -> bool:  # noqa: ARG001
@@ -56,6 +59,23 @@ def disable_s3_transfer_acceleration() -> None:
 
         RequestExceedMaxRetryError: GET with url b'https://<bucket>.s3.amazonaws.com/?accelerate'
         failed for exceeding maximum retries
+
+    The regional endpoint also keeps the transfer cheap. When the Snowflake account (and therefore its
+    internal stage bucket) runs in the same AWS region as the Foundry instance, Foundry can reach the
+    bucket privately: its Control Panel sets up an AWS S3 gateway endpoint for a "same region S3 bucket
+    policy" network egress policy, which allows the regional bucket host. Traffic through an S3 gateway
+    endpoint stays on the AWS network and AWS charges nothing for it, neither for the endpoint
+    nor for the data transferred between AWS services and S3 within the same region. Gateway endpoints
+    only work within their own region, so a stage bucket in a different region than Foundry does not
+    get this benefit. References:
+
+    - https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html
+      ("There is no additional charge for using gateway endpoints.", "A gateway endpoint is available
+      only in the Region where you created it.")
+    - https://aws.amazon.com/s3/faqs/ ("There is no Data Transfer charge for data transferred between
+      Amazon EC2 (or any AWS service) and Amazon S3 within the same Region")
+    - https://palantir.com/docs/foundry/administration/configure-private-link-egress-aws/
+      ("Use same region S3 bucket policies for private connectivity to S3.")
 
     The patch replaces two methods of ``SnowflakeS3RestClient``:
 
@@ -213,16 +233,16 @@ class FastSnowflakeIngestion:
                DB/schema are provided, try the fallback shared database.
 
         Each strategy is attempted with a local try/except around the stage
-        creation call. On snowflake.connector.errors.Error the next strategy is tried.
+        creation call. On snowflake.connector.errors.Error or SnowparkSQLException the next strategy is tried.
 
         Raises:
-            snowflake.connector.errors.Error: If all attempted strategies fail.
+            snowflake.connector.errors.Error | SnowparkSQLException: If all attempted strategies fail.
         """
         if self._use_shared_db:
             # Strategy 1: user-provided shared DB
             try:
                 self._setup_shared_database_stage(self._db_name, self._schema_name)
-            except Error as e:
+            except (Error, SnowparkSQLException) as e:
                 logger.warning(
                     "Shared database stage setup failed for '%s.%s': %s", self._db_name, self._schema_name, e
                 )
@@ -234,7 +254,7 @@ class FastSnowflakeIngestion:
             # Strategy 2: session default stage
             try:
                 self._setup_session_stage()
-            except Error as e:
+            except (Error, SnowparkSQLException) as e:
                 logger.warning("Session stage setup failed: %s", e)
                 if not self._can_fallback():
                     raise
@@ -264,7 +284,8 @@ class FastSnowflakeIngestion:
             schema_name: The schema name within the database.
 
         Raises:
-            snowflake.connector.errors.Error: If the stage cannot be created (e.g. insufficient privileges).
+            snowflake.snowpark.exceptions.SnowparkSQLException: If the stage cannot be created
+                (e.g. insufficient privileges).
         """
         self._snowpark_session.use_database(db_name)
         self._snowpark_session.use_schema(schema_name)
@@ -328,7 +349,7 @@ class FastSnowflakeIngestion:
             ...     "copy_options": {
             ...         "OVERWRITE": True,
             ...         "SINGLE": False,
-            ...         "MAX_FILE_SIZE": 16_777_216 * 8,
+            ...         "MAX_FILE_SIZE": 200 * 1024 * 1024,
             ...         "INCLUDE_QUERY_ID": False,
             ...         "DETAILED_OUTPUT": True
             ...     },
@@ -430,8 +451,12 @@ class FastSnowflakeIngestion:
         format_type_options: dict[str, str] | None = None,
         copy_options: dict[str, Any] | None = None,
         explain_df: bool = False,
-    ) -> list[snow.Row] | snow.AsyncJob:
+    ) -> list[snow.Row]:
         """Writes a Snowpark DataFrame to a specified remote Snowflake stage location as Parquet.
+
+        ``TIMESTAMP_TZ`` and ``TIMESTAMP_LTZ`` columns cannot be unloaded to Parquet, as Parquet has no type
+        that stores a time zone (offset) per value. Cast them to ``TIMESTAMP_NTZ`` (drops the offset)
+        or ``DATE`` (also drops the time of day) before calling this method.
 
         Args:
             df: The DataFrame to write.
@@ -440,12 +465,11 @@ class FastSnowflakeIngestion:
             format_type_options: Format-specific options for Parquet.
                 Defaults to AUTO compression.
             copy_options: Additional COPY options. Defaults to standard
-                options with 128MB max file size.
+                options with 200MB max file size.
             explain_df: Whether to print the DataFrame's execution plan. Defaults to False.
 
         Returns:
-            A list of Row objects containing unloading results,
-            or an AsyncJob if ``"block": False`` is passed in ``copy_options``.
+            A list of Row objects containing unloading results.
         """
         if explain_df:
             df.explain()
@@ -454,7 +478,7 @@ class FastSnowflakeIngestion:
             copy_options = {
                 "OVERWRITE": True,
                 "SINGLE": False,
-                "MAX_FILE_SIZE": 16_777_216 * 8,  # 128 MB
+                "MAX_FILE_SIZE": 200 * 1024 * 1024,  # 200 MB
                 "INCLUDE_QUERY_ID": False,
                 "DETAILED_OUTPUT": True,
             }
@@ -568,12 +592,23 @@ class FastSnowflakeIngestion:
         For an example of the job info, see
         :py:func:`foundry_dev_tools.helpers.fast_snowflake_ingestion.utils.prepare_job_info`.
 
+        Snowflake limits ``QUERY_TAG`` to 2000 characters. A longer tag is truncated to that limit
+        (it is then no longer valid JSON, but still usable for substring matching) and the full tag is logged.
+
         Args:
             **custom_tags: optional, additional custom tags.
         """
         job_info = prepare_job_info(out=self._output, **custom_tags)
+        query_tag = json.dumps(job_info)
+        if len(query_tag) > QUERY_TAG_MAX_LENGTH:
+            logger.warning(
+                "Query tag exceeds %d characters and is truncated. Full query tag: %s",
+                QUERY_TAG_MAX_LENGTH,
+                query_tag,
+            )
+            query_tag = query_tag[:QUERY_TAG_MAX_LENGTH]
         # the setter escapes the value, so quotes in tag values are safe
-        self._snowpark_session.query_tag = json.dumps(job_info)
+        self._snowpark_session.query_tag = query_tag
 
     @staticmethod
     def upload_file(output: Output, file_path: Path, base_dir: Path | None = None) -> None:

@@ -19,6 +19,10 @@ class FakeSnowflakeError(Exception):
     pass
 
 
+class FakeSnowparkSQLException(Exception):  # noqa: N818
+    pass
+
+
 class FakeSnowflakeS3RestClient:
     def _get_bucket_accelerate_config(self, bucket_name):  # noqa: ARG002
         return True
@@ -34,6 +38,9 @@ def _fake_modules() -> dict[str, ModuleType]:
     errors.Error = FakeSnowflakeError
     s3_storage_client = ModuleType("snowflake.connector.s3_storage_client")
     s3_storage_client.SnowflakeS3RestClient = FakeSnowflakeS3RestClient
+    snowpark = ModuleType("snowflake.snowpark")
+    snowpark_exceptions = ModuleType("snowflake.snowpark.exceptions")
+    snowpark_exceptions.SnowparkSQLException = FakeSnowparkSQLException
     container_ops = ModuleType("transforms_container_ops_python")
     container_ops.io = mock.MagicMock()
     return {
@@ -41,6 +48,8 @@ def _fake_modules() -> dict[str, ModuleType]:
         "snowflake.connector": connector,
         "snowflake.connector.errors": errors,
         "snowflake.connector.s3_storage_client": s3_storage_client,
+        "snowflake.snowpark": snowpark,
+        "snowflake.snowpark.exceptions": snowpark_exceptions,
         "transforms_container_ops_python": container_ops,
     }
 
@@ -121,6 +130,16 @@ def test_session_stage_and_query_tag(fsi_modules, job_config):
     assert info["is_using_fallback"] is False
 
 
+def test_query_tag_truncated(fsi_modules, job_config, caplog):
+    session = session_mock()
+    long_value = "x" * 3000
+    fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), custom_tags={"long": long_value})
+
+    assert len(session.query_tag) == fsi_modules.impl.QUERY_TAG_MAX_LENGTH
+    assert session.query_tag.startswith('{"')
+    assert long_value in caplog.text
+
+
 def test_shared_db_stage(fsi_modules, job_config):
     session = session_mock()
     fsi = fsi_modules.pkg.FastSnowflakeIngestion(
@@ -161,7 +180,10 @@ def test_no_fallback_configured_raises_original_error(fsi_modules, job_config):
 def test_fallback_stage(fsi_modules, job_config, use_shared_db):
     session = session_mock()
     session.get_session_stage.side_effect = FakeSnowflakeError("no stage")
-    session.sql.side_effect = [FakeSnowflakeError("no privilege"), mock.MagicMock()] if use_shared_db else None
+    # a failing CREATE STAGE raises SnowparkSQLException from collect(), not a connector Error
+    session.sql.return_value.collect.side_effect = (
+        [FakeSnowparkSQLException("no privilege"), mock.MagicMock()] if use_shared_db else None
+    )
     fsi = fsi_modules.pkg.FastSnowflakeIngestion(
         session,
         mock.MagicMock(),
@@ -242,7 +264,7 @@ def test_save_snowpark_dataframe_to_foundry_output(fsi_modules, job_config, mock
     assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4, column_descriptions={"a": "b"})
 
     df.write.copy_into_location.assert_called_once()
-    assert df.write.copy_into_location.call_args.kwargs["MAX_FILE_SIZE"] == 16_777_216 * 8
+    assert df.write.copy_into_location.call_args.kwargs["MAX_FILE_SIZE"] == 200 * 1024 * 1024
     assert sorted(written) == [
         "_snowflake_session_metadata/1234.txt",
         "data_0.parquet",

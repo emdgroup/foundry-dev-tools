@@ -47,6 +47,10 @@ The recommended approach is `save_snowpark_dataframe_to_foundry_output`, which r
 
 - No built-in incremental ingestion.
 - No automatic type conversions; operates on the Snowpark DataFrame types you provide.
+- `TIMESTAMP_TZ` and `TIMESTAMP_LTZ` columns cannot be unloaded to Parquet, as Parquet has no type that stores a
+  time zone (offset) per value. Cast these columns to another type before calling FSI, see
+  [Full table sync with timestamp-to-date casting](#full-table-sync-with-timestamp-to-date-casting-shared-database)
+  and the Snowflake [data unloading considerations](https://docs.snowflake.com/en/user-guide/data-unload-considerations).
 - Intended for full or filtered table exports; does not transform data beyond what you do within Snowpark.
 - Only works inside a Foundry lightweight transform, as it uses the Foundry transforms runtime to commit the transaction.
 
@@ -357,7 +361,10 @@ def run_sync(ctx: LightweightContext, output: Output, virtual_table: TableInput)
 
     df = virtual_table.snowpark().dataframe()
 
-    # Cast timestamp/datetime columns to DateType
+    # TIMESTAMP_TZ/TIMESTAMP_LTZ cannot be unloaded to Parquet, so timestamp columns are cast before the sync.
+    # df.dtypes reports every timestamp variant (NTZ, LTZ, TZ) as "timestamp", so all of them are cast.
+    # Either cast to ST.TimestampType(ST.TimestampTimeZone.NTZ), which drops the time zone offset and keeps
+    # the local date and time, or to ST.DateType(), which also drops the time of day (used below).
     for name, dtype in df.dtypes:
         tname = str(dtype).upper()
         if "TIMESTAMP" in tname or tname == "DATETIME":
