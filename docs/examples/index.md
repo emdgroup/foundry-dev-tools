@@ -3,4 +3,5 @@
 api
 dataset
 aws-lambda
+fast-snowflake-ingestion
 ```

@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
-## [Unreleased]
+## [2.1.26] - 2026-11-20
 
 ## Added
 - add `PalantirMCPTokenProvider` and automatic discovery of the token cached by Palantir MCP in `~/.palantir/mcp-config.json`; no Foundry DevTools configuration is required
 - append the Compass resources referenced by the Palantir MCP token scope to `403` errors and to Compass `404` responses that hide out-of-scope resources
+- add FastSnowflakeIngestion helper for Snowpark based Snowflake to Foundry ingestion in lightweight transforms (#124)
 
 ## [2.1.25] - 2026-07-27
 
@@ -405,6 +406,10 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.26]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.25...v2.1.26
+[2.1.25]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.24...v2.1.25
+[2.1.24]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.23...v2.1.24
+[2.1.23]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.22...v2.1.23
 [2.1.22]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.21...v2.1.22
 [2.1.21]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.20...v2.1.21
 [2.1.20]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.19...v2.1.20
