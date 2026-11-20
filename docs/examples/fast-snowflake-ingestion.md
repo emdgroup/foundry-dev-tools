@@ -72,13 +72,12 @@ from transforms.tables import TableInput
 from foundry_dev_tools.helpers.fast_snowflake_ingestion import FastSnowflakeIngestion
 
 
-@lightweight(cpu_cores=4, memory_gb=4)
+@lightweight(cpu_cores=4, memory_gb=30)
 @transform(
     output=Output("foundry_output_path"),
     virtual_table=TableInput("virtual_table_rid"),
 )
 def run_sync(ctx: LightweightContext, output: Output, virtual_table: TableInput):
-
     session: snow.Session = virtual_table.snowpark().session
 
     fsi = FastSnowflakeIngestion(
@@ -89,7 +88,7 @@ def run_sync(ctx: LightweightContext, output: Output, virtual_table: TableInput)
 
     df = virtual_table.snowpark().dataframe()
 
-    # <optional dataframe transformations>
+    # <optional Snowpark transformations, pushed down to and executed in Snowflake>
 
     fsi.save_snowpark_dataframe_to_foundry_output(df)
 ```
@@ -341,7 +340,7 @@ from transforms.tables import TableInput
 from foundry_dev_tools.helpers.fast_snowflake_ingestion import FastSnowflakeIngestion
 
 
-@lightweight(cpu_cores=4, memory_gb=4)
+@lightweight(cpu_cores=4, memory_gb=30)
 @transform(
     output=Output("output_path"),
     virtual_table=TableInput("virtual_table_rid"),
@@ -383,7 +382,7 @@ from transforms.tables import TableInput
 from foundry_dev_tools.helpers.fast_snowflake_ingestion import FastSnowflakeIngestion
 
 
-@lightweight(cpu_cores=4, memory_gb=4)
+@lightweight(cpu_cores=4, memory_gb=30)
 @transform(
     output=Output("output_path"),
     virtual_table=TableInput("virtual_table_rid"),
