@@ -61,3 +61,6 @@ __about__.py
 # pdm
 .pdm-python
 .pdm-build
+
+# Rust
+target/
