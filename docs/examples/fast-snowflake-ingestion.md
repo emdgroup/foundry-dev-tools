@@ -122,9 +122,12 @@ which is why streaming needs its own `SNOWFLAKE_SSE` stage, and therefore the pr
   (for a virtual table, the schema the table lives in). If that fails, e.g. because the role may not create stages there
   or the database is a read-only share, FSI logs a warning and uses the session stage without streaming.
 
-Before the transaction is committed, every streamed file must have the listed size and start and end with the Parquet
-magic bytes, the streamed files must equal the `COPY INTO` result, and no file may have changed (md5) after it was streamed.
+Before the transaction is committed, every streamed file must have the listed size, the streamed files must equal
+the `COPY INTO` result, and no file may have changed (md5) after it was streamed.
 Any failure raises, so a partial or inconsistent unload is never committed.
+
+Streaming reads the per-file `COPY INTO` result, so a partial `copy_options` dict is merged into the defaults
+and `DETAILED_OUTPUT` is always `True`.
 
 Check which mode is active via `get_database_and_staging_info()`:
 

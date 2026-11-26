@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import requests
+import urllib3
 
 from foundry_dev_tools._optional.snowflake import snowflake_errors, snowpark_exceptions
 from foundry_dev_tools.helpers.fast_snowflake_ingestion.utils import (
@@ -34,7 +35,15 @@ QUERY_TAG_MAX_LENGTH = 2000
 # a presigned URL is a bearer credential for the (plaintext) file: keep it short-lived and never log it
 PRESIGNED_URL_EXPIRY_SECONDS = 900
 STREAM_CHUNK_SIZE = 8 * 1024 * 1024
-PARQUET_MAGIC = b"PAR1"
+# bounds the size of one GET_PRESIGNED_URL statement
+PRESIGN_BATCH_SIZE = 1000
+DEFAULT_COPY_OPTIONS = {
+    "OVERWRITE": True,
+    "SINGLE": False,
+    "MAX_FILE_SIZE": 200 * 1024 * 1024,  # 200 MB
+    "INCLUDE_QUERY_ID": False,
+    "DETAILED_OUTPUT": True,
+}
 
 
 def _get_bucket_accelerate_config_patch(self: SnowflakeS3RestClient, bucket_name: str) -> bool:  # noqa: ARG001
@@ -329,6 +338,9 @@ class FastSnowflakeIngestion:
                 e,
             )
             return False
+        # so get_database_and_staging_info() reports where the stage lives
+        self._db_name = db_name
+        self._schema_name = schema_name
         return True
 
     def _setup_shared_database_stage(self, db_name: str, schema_name: str) -> None:
@@ -455,6 +467,7 @@ class FastSnowflakeIngestion:
             snowflake.connector.errors.Error: If the write or download step fails.
             Exception: If any other step in the process fails.
         """
+        start = time.perf_counter()
         # (Optional, enabled by default) Save the current Session ID within the name of an empty txt file on the Output
         if save_session_id:
             self.save_session_id_to_output()
@@ -463,12 +476,19 @@ class FastSnowflakeIngestion:
             # 1. Write df to temp stage, without waiting for COPY INTO when streaming
             write_kwargs = filter_kwargs_for_function(self.write_df_into_location_parquet, kwargs)
             write_kwargs.update({"df": df, "remote_file_path": self._remote_file_path, "block": not self._is_streaming})
+            if self._is_streaming:
+                # streaming reads FILE_NAME/FILE_SIZE per file: merge partial copy_options into the defaults
+                write_kwargs["copy_options"] = {
+                    **DEFAULT_COPY_OPTIONS,
+                    **(write_kwargs.get("copy_options") or {}),
+                    "DETAILED_OUTPUT": True,
+                }
             copy_result = self.write_df_into_location_parquet(**write_kwargs)
 
             if self._is_streaming:
                 # 2. Stream the files into the output while COPY INTO runs
                 stream_kwargs = filter_kwargs_for_function(self.stream_stage_files_to_output_dataset, kwargs)
-                self.stream_stage_files_to_output_dataset(copy_result, **stream_kwargs)
+                copy_result = self.stream_stage_files_to_output_dataset(copy_result, **stream_kwargs)
             else:
                 # 2. Sync the files from Snowflake to Foundry's tempdir
                 download_kwargs = filter_kwargs_for_function(
@@ -494,6 +514,7 @@ class FastSnowflakeIngestion:
                 }
             )
             self.commit_dataset_upload(**commit_kwargs)
+            self._log_run_measures(copy_result, time.perf_counter() - start)
 
         except Exception:
             logger.exception("Error in save_snowpark_dataframe_to_foundry_output")
@@ -502,6 +523,23 @@ class FastSnowflakeIngestion:
             self.cleanup_temp_dir()
 
         return True
+
+    def _log_run_measures(self, copy_rows: list[snow.Row], seconds: float) -> None:
+        """Logs total time, MB uploaded, average ingestion speed (MB/s) and rows/s of a completed run."""
+        # DETAILED_OUTPUT=TRUE returns one row per file, FALSE a single summary row
+        rows = sum(getattr(row, "ROW_COUNT", None) or getattr(row, "rows_unloaded", 0) for row in copy_rows)
+        size = sum(getattr(row, "FILE_SIZE", None) or getattr(row, "output_bytes", 0) for row in copy_rows)
+        megabytes = size / 1024**2
+        seconds = max(seconds, 1e-9)
+        logger.info(
+            "FSI run completed in %.1f s (streaming=%s): %.1f MB uploaded at %.1f MB/s, %d rows at %.0f rows/s",
+            seconds,
+            self._is_streaming,
+            megabytes,
+            megabytes / seconds,
+            rows,
+            rows / seconds,
+        )
 
     def get_database_and_staging_info(self) -> dict[str, Any]:
         """Provides comprehensive metadata about the database type and staging configuration.
@@ -569,13 +607,7 @@ class FastSnowflakeIngestion:
             df.explain()
 
         if copy_options is None:
-            copy_options = {
-                "OVERWRITE": True,
-                "SINGLE": False,
-                "MAX_FILE_SIZE": 200 * 1024 * 1024,  # 200 MB
-                "INCLUDE_QUERY_ID": False,
-                "DETAILED_OUTPUT": True,
-            }
+            copy_options = DEFAULT_COPY_OPTIONS
 
         if format_type_options is None:
             format_type_options = {"COMPRESSION": "AUTO"}
@@ -591,21 +623,23 @@ class FastSnowflakeIngestion:
 
     def stream_stage_files_to_output_dataset(
         self, copy_job: snow.AsyncJob, cpu_cores: int | None = None, poll_interval: float = 2.0
-    ) -> None:
+    ) -> list[snow.Row]:
         """Streams each unloaded file from the SSE stage into the output while ``COPY INTO`` is still running.
 
         Polls ``LIST`` on the stage and streams every new file via a presigned URL in a thread pool.
         A file listed in an S3/Azure/GCS backed stage is complete (objects only become visible once fully
-        written), every stream is still checked: byte count equals the listed size and the file starts and
-        ends with the Parquet magic bytes. Before returning, the streamed files must equal the ``COPY INTO``
-        result and their md5 must not have changed since they were streamed, so a failed or inconsistent
-        unload raises before anything is committed.
+        written), every stream is still checked against the listed size. Before returning, the streamed files
+        must equal the ``COPY INTO`` result and their md5 must not have changed since they were streamed,
+        so a failed or inconsistent unload raises before anything is committed.
 
         Args:
             copy_job: the AsyncJob of :py:meth:`write_df_into_location_parquet` with block=False
             cpu_cores: amount of cores provisioned for the transform, N-1 or 1 parallel streams.
                 Defaults to provisioned_vcpus.
             poll_interval: seconds between stage listings while ``COPY INTO`` runs. Defaults to 2.
+
+        Returns:
+            The ``COPY INTO`` result, one row per file.
 
         Raises:
             RuntimeError: If a stream or the final comparison fails.
@@ -640,6 +674,7 @@ class FastSnowflakeIngestion:
             msg = "Stage files changed after they were streamed"
             raise RuntimeError(msg)
         logger.info("Streamed %d files (%d rows) into the output.", len(rows), sum(row.ROW_COUNT for row in rows))
+        return rows
 
     def _list_stage_files(self) -> dict[str, tuple[int, str]]:
         """{path relative to the stage: (size, md5)} of all files in the temporary stage."""
@@ -648,33 +683,38 @@ class FastSnowflakeIngestion:
         return {row["name"].split("/", 1)[1]: (row["size"], row["md5"]) for row in rows}
 
     def _presign(self, names: list[str]) -> dict[str, str]:
-        """{path relative to the stage: presigned URL}, in one query. The names come from LIST."""
-        values = ",".join(f"('{name}')" for name in names)
-        # names come from LIST on our own stage, not from user input; table functions take no bind parameters
-        query = (
-            f"SELECT column1, GET_PRESIGNED_URL(@{self._fully_qualified_stage_name}, column1, "  # noqa: S608
-            f"{PRESIGNED_URL_EXPIRY_SECONDS}) FROM VALUES {values}"
-        )
-        return dict(self._snowpark_session.sql(query).collect())
+        """{path relative to the stage: presigned URL}, one query per PRESIGN_BATCH_SIZE names from LIST."""
+        urls: dict[str, str] = {}
+        for start in range(0, len(names), PRESIGN_BATCH_SIZE):
+            values = ",".join(f"('{name}')" for name in names[start : start + PRESIGN_BATCH_SIZE])
+            # names come from LIST on our own stage, not from user input, table functions take no bind parameters
+            query = (
+                f"SELECT column1, GET_PRESIGNED_URL(@{self._fully_qualified_stage_name}, column1, "  # noqa: S608
+                f"{PRESIGNED_URL_EXPIRY_SECONDS}) FROM VALUES {values}"
+            )
+            urls.update(self._snowpark_session.sql(query).collect())
+        return urls
 
     @staticmethod
     def _stream_file(output: Output, name: str, url: str, size: int) -> None:
-        """Streams one file from a presigned URL into the output and checks it is a complete Parquet file."""
+        """Streams one file from a presigned URL into the output and checks that all ``size`` bytes arrived."""
         # each thread should have its own filesystem which should not be created inside of the context manager
         fs = output.filesystem()
-        written, head, tail = 0, b"", b""
-        with requests.get(url, stream=True, timeout=(30, 600)) as response:
-            response.raise_for_status()
-            response.raw.decode_content = False  # the stored bytes, no transparent decompression
-            with fs.open(name.rsplit("/", 1)[-1], "wb") as dst:
-                while chunk := response.raw.read(STREAM_CHUNK_SIZE):
-                    head = head or chunk[:4]
-                    tail = (tail + chunk[-4:])[-4:]
-                    written += len(chunk)
-                    dst.write(chunk)
-        if (written, head, tail) != (size, PARQUET_MAGIC, PARQUET_MAGIC):
-            # no Parquet magic bytes = client-side encrypted (not SSE) or truncated file
-            msg = f"Invalid stream for {name}: {written} of {size} bytes, head={head!r}, tail={tail!r}"
+        try:
+            with requests.get(url, stream=True, timeout=(30, 600)) as response:
+                response.raise_for_status()
+                response.raw.decode_content = False  # the stored bytes, no transparent decompression
+                with fs.open(name.rsplit("/", 1)[-1], "wb") as dst:
+                    shutil.copyfileobj(response.raw, dst, STREAM_CHUNK_SIZE)
+                # bytes read from the wire, holds also where urllib3 does not enforce Content-Length (1.x)
+                received = response.raw.tell()
+        except (requests.RequestException, urllib3.exceptions.HTTPError) as e:
+            # the exception text may contain the presigned URL, a live credential: keep it out of the job log
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            msg = f"Streaming {name} failed: {type(e).__name__} (HTTP status {status})"
+            raise RuntimeError(msg) from None
+        if received != size:
+            msg = f"Unexpected size for {name}: received {received} of {size} bytes"
             raise RuntimeError(msg)
 
     def download_snowflake_files_to_foundry_tmp_folder(self) -> list[snow.GetResult]:

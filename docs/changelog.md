@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning].
 ## [Unreleased]
 
 ## Changed
-- add `FastsnowflakeIngestion` streaming mode (default) (#125)
+- add `FastSnowflakeIngestion` streaming mode (default) (#125)
 
 ## [2.1.26] - 2026-11-20
 

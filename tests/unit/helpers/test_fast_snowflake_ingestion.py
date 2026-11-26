@@ -10,6 +10,7 @@ from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 import pytest
+import requests
 
 # snowflake-snowpark-python is an optional dependency and not installed in the dev environment,
 # so the snowflake modules used at runtime are replaced by fakes.
@@ -181,6 +182,7 @@ def test_streaming_stage_in_current_schema(fsi_modules, job_config):
     info = fsi.get_database_and_staging_info()
     assert info["is_streaming"] is True
     assert info["fully_qualified_stage_name"].startswith("CUR_DB.CUR_SCHEMA.TEMP_EXPORT_")
+    assert (info["db_name"], info["schema_name"]) == ("CUR_DB", "CUR_SCHEMA")
     assert "SNOWFLAKE_SSE" in session.sql.call_args.args[0]
     session.get_session_stage.assert_not_called()
 
@@ -336,7 +338,8 @@ def test_temp_dir_removed_on_failure(fsi_modules, job_config):
     assert fsi._temp_dir is None
 
 
-PARQUET = {"a.parquet": b"PAR1aaaaPAR1", "b.parquet": b"PAR1bbbbbbPAR1"}
+# paths relative to the stage, as COPY INTO reports them; LIST prefixes them with the stage name
+FILES = {"ABCDEFGH/data_0_0_0.snappy.parquet": b"aaaa", "ABCDEFGH/data_0_0_1.snappy.parquet": b"bbbbbb"}
 
 
 def streaming_session(files: dict[str, bytes], copy_result: dict[str, bytes] | None = None):
@@ -351,7 +354,7 @@ def streaming_session(files: dict[str, bytes], copy_result: dict[str, bytes] | N
         if query.startswith("LIST"):
             listed = lists.pop(0) if len(lists) > 1 else lists[0]
             result.collect.return_value = [
-                {"name": f"temp_export_x/{name}", "size": len(data), "md5": str(hash(data))}
+                {"name": f"temp_export_abcdefgh/{name}", "size": len(data), "md5": str(hash(data))}
                 for name, data in listed.items()
             ]
         elif query.startswith("SELECT column1, GET_PRESIGNED_URL"):
@@ -370,22 +373,29 @@ def streaming_session(files: dict[str, bytes], copy_result: dict[str, bytes] | N
     return session, df
 
 
-def fake_requests_get(contents: dict[str, bytes]):
+def fake_requests_get(contents: dict[str, bytes] | None):
+    """Serves ``contents`` by relative path, or raises an HTTPError carrying the presigned URL if None."""
+
     def get(url, stream, timeout):
+        if contents is None:
+            response = SimpleNamespace(status_code=403)
+            msg = f"403 Client Error: Forbidden for url: {url}"
+            raise requests.HTTPError(msg, response=response)
         response = mock.MagicMock()
         response.__enter__.return_value = response
-        response.raw = io.BytesIO(contents[url.rsplit("/", 1)[1].split("?")[0]])
+        response.raw = io.BytesIO(contents[url.removeprefix("https://bucket/").split("?")[0]])
         return response
 
     return get
 
 
-def test_streaming_save(fsi_modules, job_config, mocker):
+def test_streaming_save(fsi_modules, job_config, mocker, caplog):
+    caplog.set_level("INFO")
     written = {}
     output = mock.MagicMock()
     output.filesystem.side_effect = lambda: FakeFilesystem(written)
-    session, df = streaming_session(PARQUET)
-    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(PARQUET))
+    session, df = streaming_session(FILES)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
     mocker.patch.object(fsi_modules.impl.time, "sleep")
     mocker.patch.object(
         fsi_modules.impl,
@@ -396,33 +406,51 @@ def test_streaming_save(fsi_modules, job_config, mocker):
     commit.reset_mock()
 
     fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
-    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4)
+    # a partial copy_options dict must not drop DETAILED_OUTPUT, which streaming needs
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4, copy_options={"MAX_FILE_SIZE": 1})
 
-    assert df.write.copy_into_location.call_args.kwargs["block"] is False
-    assert {name: buf.getvalue() for name, buf in written.items() if name.endswith(".parquet")} == PARQUET
+    copy_kwargs = df.write.copy_into_location.call_args.kwargs
+    assert copy_kwargs["block"] is False
+    assert (copy_kwargs["MAX_FILE_SIZE"], copy_kwargs["DETAILED_OUTPUT"], copy_kwargs["OVERWRITE"]) == (1, True, True)
+    assert {name: buf.getvalue() for name, buf in written.items() if name.endswith(".parquet")} == {
+        name.rsplit("/", 1)[1]: data for name, data in FILES.items()
+    }
     commit.assert_called_once()
     session.file.get.assert_not_called()
+    # run measures: 2 files of 4 + 6 bytes, 1 row each
+    assert "FSI run completed in" in caplog.text
+    assert "(streaming=True): 0.0 MB uploaded at" in caplog.text
+    assert ", 2 rows at " in caplog.text
 
 
 @pytest.mark.parametrize(
     ("contents", "copy_result", "match"),
     [
-        ({**PARQUET, "b.parquet": b"encrypted!!!!!"}, None, "Invalid stream for b.parquet"),
-        (PARQUET, {**PARQUET, "c.parquet": b"PAR1PAR1"}, "do not match the COPY INTO result"),
+        (
+            {**FILES, "ABCDEFGH/data_0_0_1.snappy.parquet": b"bb"},
+            None,
+            "Unexpected size for ABCDEFGH/data_0_0_1.snappy.parquet: received 2 of 6 bytes",
+        ),
+        (FILES, {**FILES, "ABCDEFGH/data_0_0_2.snappy.parquet": b"c"}, "do not match the COPY INTO result"),
+        (None, None, r"failed: HTTPError \(HTTP status 403\)$"),
     ],
 )
 def test_streaming_check_fails_before_commit(fsi_modules, job_config, mocker, contents, copy_result, match):
     output = mock.MagicMock()
     output.filesystem.side_effect = lambda: FakeFilesystem({})
-    session, df = streaming_session(PARQUET, copy_result)
+    session, df = streaming_session(FILES, copy_result)
     mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(contents))
     mocker.patch.object(fsi_modules.impl.time, "sleep")
     commit = fsi_modules.container_ops.io.commit_dataset_upload
     commit.reset_mock()
 
     fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
-    with pytest.raises(RuntimeError, match=match):
+    with pytest.raises(RuntimeError, match=match) as raised:
         fsi.save_snowpark_dataframe_to_foundry_output(df, save_session_id=False)
+    # the presigned URL is a credential: neither the message nor a chained exception may carry it
+    assert "sig" not in str(raised.value)
+    if contents is None:
+        assert raised.value.__suppress_context__ is True
     commit.assert_not_called()
 
 
