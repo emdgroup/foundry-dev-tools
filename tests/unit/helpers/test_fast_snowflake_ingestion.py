@@ -111,12 +111,16 @@ def job_config(fsi_modules, mocker):
 def session_mock() -> mock.MagicMock:
     session = mock.MagicMock()
     session.get_session_stage.return_value = "@SESSION_STAGE"
+    session.get_current_database.return_value = "CUR_DB"
+    session.get_current_schema.return_value = "CUR_SCHEMA"
     return session
 
 
 def test_session_stage_and_query_tag(fsi_modules, job_config):
     session = session_mock()
-    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), custom_tags={"team": "it's"})
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(
+        session, mock.MagicMock(), custom_tags={"team": "it's"}, enable_streaming=False
+    )
 
     tags = json.loads(session.query_tag)
     assert tags["team"] == "it's"
@@ -153,7 +157,43 @@ def test_shared_db_stage(fsi_modules, job_config):
     assert info["fully_qualified_stage_name"].startswith("DB.SCHEMA.TEMP_EXPORT_")
     assert info["temporary_stage_name"] == info["fully_qualified_stage_name"]
     assert info["remote_file_path"].startswith("@DB.SCHEMA.TEMP_EXPORT_")
+    assert info["is_streaming"] is True
+    session.sql.assert_called_once_with(
+        f"CREATE OR REPLACE TEMPORARY STAGE {info['fully_qualified_stage_name']} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE');"
+    )
+
+
+def test_shared_db_stage_without_streaming(fsi_modules, job_config):
+    session = session_mock()
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(
+        session, mock.MagicMock(), use_shared_db=True, db_name="DB", schema_name="SCHEMA", enable_streaming=False
+    )
+
+    info = fsi.get_database_and_staging_info()
+    assert info["is_streaming"] is False
     session.sql.assert_called_once_with(f"CREATE OR REPLACE TEMPORARY STAGE {info['fully_qualified_stage_name']};")
+
+
+def test_streaming_stage_in_current_schema(fsi_modules, job_config):
+    session = session_mock()
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+
+    info = fsi.get_database_and_staging_info()
+    assert info["is_streaming"] is True
+    assert info["fully_qualified_stage_name"].startswith("CUR_DB.CUR_SCHEMA.TEMP_EXPORT_")
+    assert "SNOWFLAKE_SSE" in session.sql.call_args.args[0]
+    session.get_session_stage.assert_not_called()
+
+
+def test_streaming_stage_refused_uses_session_stage(fsi_modules, job_config):
+    session = session_mock()
+    session.sql.return_value.collect.side_effect = FakeSnowparkSQLException("Insufficient privileges")
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+
+    info = fsi.get_database_and_staging_info()
+    assert info["is_streaming"] is False
+    assert info["fully_qualified_stage_name"] is None
+    assert info["remote_file_path"].startswith("@SESSION_STAGE/")
 
 
 @pytest.mark.parametrize(
@@ -174,7 +214,7 @@ def test_no_fallback_configured_raises_original_error(fsi_modules, job_config):
     session = session_mock()
     session.get_session_stage.side_effect = FakeSnowflakeError("no stage")
     with pytest.raises(FakeSnowflakeError, match="no stage"):
-        fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+        fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), enable_streaming=False)
 
 
 @pytest.mark.parametrize("use_shared_db", [False, True])
@@ -193,6 +233,7 @@ def test_fallback_stage(fsi_modules, job_config, use_shared_db):
         schema_name="SCHEMA" if use_shared_db else None,
         fallback_db_name="FALLBACK_DB",
         fallback_schema_name="STAGING",
+        enable_streaming=False,
     )
 
     info = fsi.get_database_and_staging_info()
@@ -212,6 +253,7 @@ def test_fallback_disabled(fsi_modules, job_config):
             fallback_db_name="FALLBACK_DB",
             fallback_schema_name="STAGING",
             enable_automatic_stage_fallback=False,
+            enable_streaming=False,
         )
 
 
@@ -261,7 +303,7 @@ def test_save_snowpark_dataframe_to_foundry_output(fsi_modules, job_config, mock
     commit.reset_mock()
     df = mock.MagicMock()
 
-    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output, enable_streaming=False)
     assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4, column_descriptions={"a": "b"})
 
     df.write.copy_into_location.assert_called_once()
@@ -287,11 +329,101 @@ def test_temp_dir_removed_on_failure(fsi_modules, job_config):
         raise FakeSnowflakeError(msg)
 
     session.file.get.side_effect = fake_get
-    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), enable_streaming=False)
     with pytest.raises(FakeSnowflakeError):
         fsi.save_snowpark_dataframe_to_foundry_output(mock.MagicMock(), save_session_id=False)
     assert not Path(created[0]).exists()
     assert fsi._temp_dir is None
+
+
+PARQUET = {"a.parquet": b"PAR1aaaaPAR1", "b.parquet": b"PAR1bbbbbbPAR1"}
+
+
+def streaming_session(files: dict[str, bytes], copy_result: dict[str, bytes] | None = None):
+    """Session whose stage lists one more of ``files`` per LIST, and a COPY job done after the second poll."""
+    session = session_mock()
+    session.session_id = 1234
+    copy_result = files if copy_result is None else copy_result
+    lists = [dict(list(files.items())[: i + 1]) for i in range(len(files))]
+
+    def sql(query):
+        result = mock.MagicMock()
+        if query.startswith("LIST"):
+            listed = lists.pop(0) if len(lists) > 1 else lists[0]
+            result.collect.return_value = [
+                {"name": f"temp_export_x/{name}", "size": len(data), "md5": str(hash(data))}
+                for name, data in listed.items()
+            ]
+        elif query.startswith("SELECT column1, GET_PRESIGNED_URL"):
+            names = [part.strip("()'") for part in query.split("FROM VALUES ")[1].split(",")]
+            result.collect.return_value = [(name, f"https://bucket/{name}?sig") for name in names]
+        return result
+
+    session.sql.side_effect = sql
+    job = mock.MagicMock()
+    job.is_done.side_effect = [False] * (len(files) - 1) + [True]
+    job.result.return_value = [
+        SimpleNamespace(FILE_NAME=name, FILE_SIZE=len(data), ROW_COUNT=1) for name, data in copy_result.items()
+    ]
+    df = mock.MagicMock()
+    df.write.copy_into_location.return_value = job
+    return session, df
+
+
+def fake_requests_get(contents: dict[str, bytes]):
+    def get(url, stream, timeout):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.raw = io.BytesIO(contents[url.rsplit("/", 1)[1].split("?")[0]])
+        return response
+
+    return get
+
+
+def test_streaming_save(fsi_modules, job_config, mocker):
+    written = {}
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem(written)
+    session, df = streaming_session(PARQUET)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(PARQUET))
+    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+    commit = fsi_modules.container_ops.io.commit_dataset_upload
+    commit.reset_mock()
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4)
+
+    assert df.write.copy_into_location.call_args.kwargs["block"] is False
+    assert {name: buf.getvalue() for name, buf in written.items() if name.endswith(".parquet")} == PARQUET
+    commit.assert_called_once()
+    session.file.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("contents", "copy_result", "match"),
+    [
+        ({**PARQUET, "b.parquet": b"encrypted!!!!!"}, None, "Invalid stream for b.parquet"),
+        (PARQUET, {**PARQUET, "c.parquet": b"PAR1PAR1"}, "do not match the COPY INTO result"),
+    ],
+)
+def test_streaming_check_fails_before_commit(fsi_modules, job_config, mocker, contents, copy_result, match):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    session, df = streaming_session(PARQUET, copy_result)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(contents))
+    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    commit = fsi_modules.container_ops.io.commit_dataset_upload
+    commit.reset_mock()
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    with pytest.raises(RuntimeError, match=match):
+        fsi.save_snowpark_dataframe_to_foundry_output(df, save_session_id=False)
+    commit.assert_not_called()
 
 
 def test_get_files_before_download_raises(fsi_modules, job_config):

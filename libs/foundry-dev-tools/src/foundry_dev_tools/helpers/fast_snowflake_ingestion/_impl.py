@@ -8,9 +8,12 @@ import secrets
 import shutil
 import string
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import requests
 
 from foundry_dev_tools._optional.snowflake import snowflake_errors, snowpark_exceptions
 from foundry_dev_tools.helpers.fast_snowflake_ingestion.utils import (
@@ -28,6 +31,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 QUERY_TAG_MAX_LENGTH = 2000
+# a presigned URL is a bearer credential for the (plaintext) file: keep it short-lived and never log it
+PRESIGNED_URL_EXPIRY_SECONDS = 900
+STREAM_CHUNK_SIZE = 8 * 1024 * 1024
+PARQUET_MAGIC = b"PAR1"
 
 
 def _get_bucket_accelerate_config_patch(self: SnowflakeS3RestClient, bucket_name: str) -> bool:  # noqa: ARG001
@@ -104,7 +111,13 @@ def _random_table_name() -> str:
 
 
 class FastSnowflakeIngestion:
-    """Unloads a Snowpark DataFrame to a Snowflake stage and uploads the files to a Foundry output."""
+    """Unloads a Snowpark DataFrame to a Snowflake stage and uploads the files to a Foundry output.
+
+    By default (``enable_streaming=True``) the temporary stage is created with server-side encryption
+    (``SNOWFLAKE_SSE``) and the files are streamed into the output via presigned URLs while ``COPY INTO``
+    is still running, without touching the local disk. If the role cannot create such a stage,
+    the session stage is used and the files are downloaded with ``GET`` and uploaded afterwards.
+    """
 
     def __init__(
         self,
@@ -122,6 +135,8 @@ class FastSnowflakeIngestion:
         fallback_schema_name: str | None = None,
         # Snowflake connector workaround
         enable_s3_monkeypatch: bool = True,
+        # Stream the unloaded files instead of downloading them first
+        enable_streaming: bool = True,
     ):
         """Initializes a FastSnowflakeIngestion instance with connection and staging info.
 
@@ -140,25 +155,46 @@ class FastSnowflakeIngestion:
             fallback_schema_name: The schema within ``fallback_db_name`` used for the fallback stage.
             enable_s3_monkeypatch: Whether to call :py:func:`disable_s3_transfer_acceleration`
                 before any stage operation. Defaults to True.
+            enable_streaming: Whether to create the temporary stage with ``SNOWFLAKE_SSE`` encryption
+                (in ``db_name.schema_name``, or in the session's current schema when use_shared_db=False)
+                and stream the files into the output while ``COPY INTO`` runs. Needs the privilege to create
+                a stage in that schema, otherwise the session stage (``GET`` to local disk) is used.
+                With SSE the files are encrypted at rest by the cloud provider instead of client-side by
+                Snowflake, and anyone holding a presigned URL can read the file until the URL expires
+                (``PRESIGNED_URL_EXPIRY_SECONDS``). Set to False to keep client-side encrypted stages.
+                Defaults to True.
 
         Raises:
             ValueError: If use_shared_db=True but db_name or schema_name are not provided,
                 or if only one of fallback_db_name and fallback_schema_name is provided.
 
         Examples:
-            # Using session stage (non-shared database):
+            # Default: streaming via an SSE stage in the session's current schema,
+            # or the session stage (no streaming) if the role cannot create one there:
             >>> fsi = FastSnowflakeIngestion(
             ...     snowpark_session=session,
             ...     output=out,
             ... )
+            >>> fsi.get_database_and_staging_info()["is_streaming"]
+            True
 
-            # Using shared database with custom stage:
+            # Streaming via an SSE stage in a writable DB/schema of your choice,
+            # e.g. when the session's database is a read-only share:
             >>> fsi = FastSnowflakeIngestion(
             ...     snowpark_session=session,
             ...     output=out,
             ...     db_name="SHARED_DB",
             ...     schema_name="EXPORT_SCHEMA",
             ...     use_shared_db=True,
+            ... )
+            >>> fsi.save_snowpark_dataframe_to_foundry_output(df, poll_interval=5)
+            True
+
+            # Without streaming (client-side encrypted stage, files downloaded to local disk first):
+            >>> fsi = FastSnowflakeIngestion(
+            ...     snowpark_session=session,
+            ...     output=out,
+            ...     enable_streaming=False,
             ... )
 
             # With a fallback stage:
@@ -199,6 +235,8 @@ class FastSnowflakeIngestion:
         self._table_name = _random_table_name()
         self._provisioned_vcpus = provisioned_vcpus
         self._temp_dir: str | None = None
+        self._enable_streaming = enable_streaming
+        self._is_streaming = False
 
         # Save telemetry job data & custom tags as session tags
         custom_tags = custom_tags or {}
@@ -226,10 +264,13 @@ class FastSnowflakeIngestion:
 
         Strategy order:
             1. If use_shared_db=True, try the user-provided DB/schema.
-            2. If use_shared_db=False, try the session's default stage.
+            2. If use_shared_db=False:
+               a. with enable_streaming=True, try an SSE stage in the session's current schema,
+               b. then the session's default stage (``GET`` to disk, no streaming).
             3. If the above fails, enable_automatic_stage_fallback=True and the fallback
                DB/schema are provided, try the fallback shared database.
 
+        Stages created in a DB/schema use ``SNOWFLAKE_SSE`` encryption when enable_streaming=True.
         Each strategy is attempted with a local try/except around the stage
         creation call. On snowflake.connector.errors.Error or SnowparkSQLException the next strategy is tried.
 
@@ -249,7 +290,11 @@ class FastSnowflakeIngestion:
             else:
                 return
         else:
-            # Strategy 2: session default stage
+            # Strategy 2a: SSE stage in the session's current schema, enables streaming
+            if self._enable_streaming and self._try_streaming_stage_in_current_schema():
+                return
+
+            # Strategy 2b: session default stage
             try:
                 self._setup_session_stage()
             except (snowflake_errors.Error, snowpark_exceptions.SnowparkSQLException) as e:
@@ -268,12 +313,29 @@ class FastSnowflakeIngestion:
         self._schema_name = self._fallback_schema_name
         self._setup_shared_database_stage(self._fallback_db_name, self._fallback_schema_name)
 
+    def _try_streaming_stage_in_current_schema(self) -> bool:
+        """Creates an SSE stage in the session's current schema, returns False if there is none or it fails."""
+        db_name = self._snowpark_session.get_current_database()
+        schema_name = self._snowpark_session.get_current_schema()
+        if not db_name or not schema_name:
+            return False
+        try:
+            self._create_temporary_stage(db_name, schema_name)
+        except (snowflake_errors.Error, snowpark_exceptions.SnowparkSQLException) as e:
+            logger.warning(
+                "SSE stage setup failed for '%s.%s', using the session stage without streaming: %s",
+                db_name,
+                schema_name,
+                e,
+            )
+            return False
+        return True
+
     def _setup_shared_database_stage(self, db_name: str, schema_name: str) -> None:
         """Set up temporary stage configuration for shared database environments.
 
-        Switches the session to the given database and schema, then creates a
-        fully qualified temporary stage in the format:
-            DB.SCHEMA.TEMP_EXPORT_<table_name>
+        Switches the session to the given database and schema, then creates the temporary stage
+        via :py:meth:`_create_temporary_stage`.
 
         NOTE: Make sure the role has the privilege to create temporary stages in the schema.
 
@@ -287,10 +349,28 @@ class FastSnowflakeIngestion:
         """
         self._snowpark_session.use_database(db_name)
         self._snowpark_session.use_schema(schema_name)
-        self._fully_qualified_stage_name = f"{db_name}.{schema_name}.TEMP_EXPORT_{self._table_name}"
-        self._snowpark_session.sql(f"CREATE OR REPLACE TEMPORARY STAGE {self._fully_qualified_stage_name};").collect()
-        self._temporary_stage_name = self._fully_qualified_stage_name
-        self._remote_file_path = f"@{self._fully_qualified_stage_name}/{self._table_name}"
+        self._create_temporary_stage(db_name, schema_name)
+
+    def _create_temporary_stage(self, db_name: str, schema_name: str) -> None:
+        """Creates the temporary stage ``DB.SCHEMA.TEMP_EXPORT_<table_name>``.
+
+        With enable_streaming=True the stage uses ``SNOWFLAKE_SSE`` encryption, so presigned URLs
+        serve plaintext files and the files can be streamed into the output.
+
+        Raises:
+            snowflake.snowpark.exceptions.SnowparkSQLException: If the stage cannot be created
+                (e.g. insufficient privileges).
+        """
+        fully_qualified_stage_name = f"{db_name}.{schema_name}.TEMP_EXPORT_{self._table_name}"
+        # SNOWFLAKE_FULL (the default) is client-side encrypted: its presigned URLs serve ciphertext
+        encryption = " ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')" if self._enable_streaming else ""
+        self._snowpark_session.sql(
+            f"CREATE OR REPLACE TEMPORARY STAGE {fully_qualified_stage_name}{encryption};"
+        ).collect()
+        self._fully_qualified_stage_name = fully_qualified_stage_name
+        self._temporary_stage_name = fully_qualified_stage_name
+        self._remote_file_path = f"@{fully_qualified_stage_name}/{self._table_name}"
+        self._is_streaming = self._enable_streaming
 
     def _setup_session_stage(self) -> None:
         """Set up temporary stage configuration for non-shared database environments.
@@ -304,6 +384,7 @@ class FastSnowflakeIngestion:
         self._fully_qualified_stage_name = None
         self._temporary_stage_name = self._snowpark_session.get_session_stage()
         self._remote_file_path = f"{self._temporary_stage_name}/{self._table_name}"
+        self._is_streaming = False
 
     def save_snowpark_dataframe_to_foundry_output(
         self, df: snow.DataFrame, save_session_id: bool = True, **kwargs
@@ -327,10 +408,14 @@ class FastSnowflakeIngestion:
                 copy_options (dict): Additional COPY options.
                     See: https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#copy-options-copyoptions
 
-            For upload_temp_folder_to_output_dataset():
+            For upload_temp_folder_to_output_dataset() (no streaming):
                 output (Output): Will be used from the class object.
                 path_files (list): List of file paths. Default: None (uses all files).
                 cpu_cores (int): Number of CPU cores to use for upload. Default: provisioned_vcpus.
+
+            For stream_stage_files_to_output_dataset() (streaming):
+                cpu_cores (int): Number of CPU cores, N-1 parallel streams. Default: provisioned_vcpus.
+                poll_interval (float): Seconds between stage listings while COPY INTO runs. Default: 2.
 
             For commit_dataset_upload():
                 column_descriptions (dict): Column descriptions to add to the final dataset.
@@ -375,22 +460,29 @@ class FastSnowflakeIngestion:
             self.save_session_id_to_output()
 
         try:
-            # 1. Write df to temp stage
+            # 1. Write df to temp stage, without waiting for COPY INTO when streaming
             write_kwargs = filter_kwargs_for_function(self.write_df_into_location_parquet, kwargs)
-            write_kwargs.update({"df": df, "remote_file_path": self._remote_file_path})
-            self.write_df_into_location_parquet(**write_kwargs)
+            write_kwargs.update({"df": df, "remote_file_path": self._remote_file_path, "block": not self._is_streaming})
+            copy_result = self.write_df_into_location_parquet(**write_kwargs)
 
-            # 2. Sync the files from Snowflake to Foundry's tempdir
-            download_kwargs = filter_kwargs_for_function(self.download_snowflake_files_to_foundry_tmp_folder, kwargs)
-            self.download_snowflake_files_to_foundry_tmp_folder(**download_kwargs)
+            if self._is_streaming:
+                # 2. Stream the files into the output while COPY INTO runs
+                stream_kwargs = filter_kwargs_for_function(self.stream_stage_files_to_output_dataset, kwargs)
+                self.stream_stage_files_to_output_dataset(copy_result, **stream_kwargs)
+            else:
+                # 2. Sync the files from Snowflake to Foundry's tempdir
+                download_kwargs = filter_kwargs_for_function(
+                    self.download_snowflake_files_to_foundry_tmp_folder, kwargs
+                )
+                self.download_snowflake_files_to_foundry_tmp_folder(**download_kwargs)
 
-            # 3. Extract output components using utils function
+                # 3. Upload files
+                upload_kwargs = filter_kwargs_for_function(self.upload_temp_folder_to_output_dataset, kwargs)
+                upload_kwargs.update({"output": self._output})
+                self.upload_temp_folder_to_output_dataset(**upload_kwargs)
+
+            # 4. Extract output components using utils function
             dataset_rid, transaction_rid, branch_id, _ = get_output_foundry_path_components(self._output)
-
-            # 4. Upload files
-            upload_kwargs = filter_kwargs_for_function(self.upload_temp_folder_to_output_dataset, kwargs)
-            upload_kwargs.update({"output": self._output})
-            self.upload_temp_folder_to_output_dataset(**upload_kwargs)
 
             # 5. Commit transaction
             commit_kwargs = filter_kwargs_for_function(self.commit_dataset_upload, kwargs)
@@ -426,6 +518,7 @@ class FastSnowflakeIngestion:
                 - temporary_stage_name: Name of the temporary stage, dropped by Snowflake at session end
                 - remote_file_path: Complete path for file operations
                 - is_using_fallback: Whether the fallback stage is currently active
+                - is_streaming: Whether the stage is SSE encrypted and the files are streamed
         """
         return {
             "use_shared_db": self._use_shared_db,
@@ -435,6 +528,7 @@ class FastSnowflakeIngestion:
             "temporary_stage_name": self._temporary_stage_name,
             "remote_file_path": self._remote_file_path,
             "is_using_fallback": self._is_using_fallback,
+            "is_streaming": self._is_streaming,
         }
 
     def get_snowpark_session(self) -> snow.Session:
@@ -449,7 +543,8 @@ class FastSnowflakeIngestion:
         format_type_options: dict[str, str] | None = None,
         copy_options: dict[str, Any] | None = None,
         explain_df: bool = False,
-    ) -> list[snow.Row]:
+        block: bool = True,
+    ) -> list[snow.Row] | snow.AsyncJob:
         """Writes a Snowpark DataFrame to a specified remote Snowflake stage location as Parquet.
 
         ``TIMESTAMP_TZ`` and ``TIMESTAMP_LTZ`` columns cannot be unloaded to Parquet, as Parquet has no type
@@ -465,9 +560,10 @@ class FastSnowflakeIngestion:
             copy_options: Additional COPY options. Defaults to standard
                 options with 200MB max file size.
             explain_df: Whether to print the DataFrame's execution plan. Defaults to False.
+            block: Whether to wait for ``COPY INTO`` to finish. Defaults to True.
 
         Returns:
-            A list of Row objects containing unloading results.
+            A list of Row objects containing unloading results, or an AsyncJob when block=False.
         """
         if explain_df:
             df.explain()
@@ -489,8 +585,97 @@ class FastSnowflakeIngestion:
             file_format_type="parquet",
             format_type_options=format_type_options,
             header=header,
+            block=block,
             **copy_options,
         )
+
+    def stream_stage_files_to_output_dataset(
+        self, copy_job: snow.AsyncJob, cpu_cores: int | None = None, poll_interval: float = 2.0
+    ) -> None:
+        """Streams each unloaded file from the SSE stage into the output while ``COPY INTO`` is still running.
+
+        Polls ``LIST`` on the stage and streams every new file via a presigned URL in a thread pool.
+        A file listed in an S3/Azure/GCS backed stage is complete (objects only become visible once fully
+        written), every stream is still checked: byte count equals the listed size and the file starts and
+        ends with the Parquet magic bytes. Before returning, the streamed files must equal the ``COPY INTO``
+        result and their md5 must not have changed since they were streamed, so a failed or inconsistent
+        unload raises before anything is committed.
+
+        Args:
+            copy_job: the AsyncJob of :py:meth:`write_df_into_location_parquet` with block=False
+            cpu_cores: amount of cores provisioned for the transform, N-1 or 1 parallel streams.
+                Defaults to provisioned_vcpus.
+            poll_interval: seconds between stage listings while ``COPY INTO`` runs. Defaults to 2.
+
+        Raises:
+            RuntimeError: If a stream or the final comparison fails.
+            SnowparkSQLException: If ``COPY INTO`` failed.
+        """
+        cpu_cores = cpu_cores or self._provisioned_vcpus
+        seen: dict[str, tuple[int, str]] = {}
+        futures = []
+        with ThreadPoolExecutor(max_workers=max(1, cpu_cores - 1)) as pool:
+            while True:
+                done = copy_job.is_done()  # checked before LIST, so the last LIST sees every file
+                listed = self._list_stage_files()
+                new = [name for name in listed if name not in seen]
+                if new:
+                    urls = self._presign(new)
+                    futures += [
+                        pool.submit(self._stream_file, self._output, name, urls[name], listed[name][0]) for name in new
+                    ]
+                    seen.update({name: listed[name] for name in new})
+                if done:
+                    break
+                time.sleep(poll_interval)
+            rows = copy_job.result()  # raises if COPY INTO failed
+            for future in futures:
+                future.result()
+
+        copied = {row.FILE_NAME: row.FILE_SIZE for row in rows}
+        if copied != {name: size for name, (size, _) in seen.items()}:
+            msg = f"Streamed files do not match the COPY INTO result: streamed={len(seen)}, copied={len(copied)}"
+            raise RuntimeError(msg)
+        if listed != seen:  # the last LIST ran after COPY INTO finished: a changed md5 means a rewritten file
+            msg = "Stage files changed after they were streamed"
+            raise RuntimeError(msg)
+        logger.info("Streamed %d files (%d rows) into the output.", len(rows), sum(row.ROW_COUNT for row in rows))
+
+    def _list_stage_files(self) -> dict[str, tuple[int, str]]:
+        """{path relative to the stage: (size, md5)} of all files in the temporary stage."""
+        rows = self._snowpark_session.sql(f"LIST @{self._fully_qualified_stage_name}").collect()
+        # LIST prefixes each name with the stage name
+        return {row["name"].split("/", 1)[1]: (row["size"], row["md5"]) for row in rows}
+
+    def _presign(self, names: list[str]) -> dict[str, str]:
+        """{path relative to the stage: presigned URL}, in one query. The names come from LIST."""
+        values = ",".join(f"('{name}')" for name in names)
+        # names come from LIST on our own stage, not from user input; table functions take no bind parameters
+        query = (
+            f"SELECT column1, GET_PRESIGNED_URL(@{self._fully_qualified_stage_name}, column1, "  # noqa: S608
+            f"{PRESIGNED_URL_EXPIRY_SECONDS}) FROM VALUES {values}"
+        )
+        return dict(self._snowpark_session.sql(query).collect())
+
+    @staticmethod
+    def _stream_file(output: Output, name: str, url: str, size: int) -> None:
+        """Streams one file from a presigned URL into the output and checks it is a complete Parquet file."""
+        # each thread should have its own filesystem which should not be created inside of the context manager
+        fs = output.filesystem()
+        written, head, tail = 0, b"", b""
+        with requests.get(url, stream=True, timeout=(30, 600)) as response:
+            response.raise_for_status()
+            response.raw.decode_content = False  # the stored bytes, no transparent decompression
+            with fs.open(name.rsplit("/", 1)[-1], "wb") as dst:
+                while chunk := response.raw.read(STREAM_CHUNK_SIZE):
+                    head = head or chunk[:4]
+                    tail = (tail + chunk[-4:])[-4:]
+                    written += len(chunk)
+                    dst.write(chunk)
+        if (written, head, tail) != (size, PARQUET_MAGIC, PARQUET_MAGIC):
+            # no Parquet magic bytes = client-side encrypted (not SSE) or truncated file
+            msg = f"Invalid stream for {name}: {written} of {size} bytes, head={head!r}, tail={tail!r}"
+            raise RuntimeError(msg)
 
     def download_snowflake_files_to_foundry_tmp_folder(self) -> list[snow.GetResult]:
         """Downloads files from the Snowflake stage to a temporary local directory.

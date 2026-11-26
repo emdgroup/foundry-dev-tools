@@ -15,6 +15,7 @@ Add it to the dependencies of your lightweight transforms repository next to `fo
 - [Limitations](#limitations)
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
+- [Streaming (default)](#streaming-default)
 - [Shared vs non-shared database](#shared-vs-non-shared-database)
 - [Stage fallback](#stage-fallback)
 - [S3 regional endpoint workaround](#s3-regional-endpoint-workaround)
@@ -30,6 +31,15 @@ Add it to the dependencies of your lightweight transforms repository next to `fo
 - [Snowflake permissions: shared vs non-shared database](#snowflake-permissions-shared-vs-non-shared-database)
 
 ## Process overview
+
+With [streaming](#streaming-default) (the default, if the role can create a stage):
+
+1. Unloads a Snowpark DataFrame to Parquet files in an `SNOWFLAKE_SSE` encrypted temporary stage, without waiting for `COPY INTO` to finish.
+2. Streams every file into the Foundry output via a presigned URL as soon as it appears in the stage, in parallel.
+3. Verifies the streamed files against the `COPY INTO` result.
+4. Commits the dataset transaction.
+
+Without streaming (session stage, or `enable_streaming=False`):
 
 1. Unloads a Snowpark DataFrame to Parquet files in a Snowflake stage.
 2. Downloads the files to a local temporary directory.
@@ -57,6 +67,7 @@ The recommended approach is `save_snowpark_dataframe_to_foundry_output`, which r
 
 - A Snowpark session (e.g., via `transforms.tables.TableInput.snowpark().session`).
 - A Foundry transform Output.
+- For streaming: permission to create a temporary stage in the session's current schema, or in the shared database schema.
 - If using a shared database stage:
   - Database name
   - Schema name
@@ -93,14 +104,58 @@ def run_sync(ctx: LightweightContext, output: Output, virtual_table: TableInput)
     fsi.save_snowpark_dataframe_to_foundry_output(df)
 ```
 
+## Streaming (default)
+
+With `enable_streaming=True` (the default) FSI creates its temporary stage with `ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')`
+and streams the unloaded files into the output instead of downloading them first:
+
+- `COPY INTO` runs without blocking, FSI polls `LIST` on the stage (every `poll_interval` seconds, default 2).
+- Every new file gets a presigned URL (`GET_PRESIGNED_URL`) and is streamed into the output by a thread pool of
+  `max(1, cpu_cores - 1)` workers, while `COPY INTO` is still writing the next files.
+- Nothing is written to the local disk.
+
+The default stage encryption (`SNOWFLAKE_FULL`) is client-side, so its presigned URLs serve encrypted bytes,
+which is why streaming needs its own `SNOWFLAKE_SSE` stage, and therefore the privilege to create a stage:
+
+- `use_shared_db=True`: the stage is created in `db_name.schema_name`.
+- `use_shared_db=False`: the stage is created in the session's current database and schema
+  (for a virtual table, the schema the table lives in). If that fails, e.g. because the role may not create stages there
+  or the database is a read-only share, FSI logs a warning and uses the session stage without streaming.
+
+Before the transaction is committed, every streamed file must have the listed size and start and end with the Parquet
+magic bytes, the streamed files must equal the `COPY INTO` result, and no file may have changed (md5) after it was streamed.
+Any failure raises, so a partial or inconsistent unload is never committed.
+
+Check which mode is active via `get_database_and_staging_info()`:
+
+```python
+info = fsi.get_database_and_staging_info()
+print(info["is_streaming"])  # True if the files are streamed
+```
+
+```python
+fsi.save_snowpark_dataframe_to_foundry_output(
+    df,
+    cpu_cores=8,  # parallel streams will be max(1, cpu_cores - 1)
+    poll_interval=5,  # seconds between stage listings while COPY INTO runs
+)
+```
+
+Security considerations:
+
+- With `SNOWFLAKE_SSE` the unloaded files are encrypted at rest by the cloud provider instead of client-side by Snowflake.
+- A presigned URL is a bearer credential: anyone holding it can read the file until it expires
+  (`PRESIGNED_URL_EXPIRY_SECONDS`, 900 seconds). **FSI never logs the URLs**.
+- Pass `enable_streaming=False` to keep the client-side encrypted stage and the download to local disk.
+
 ## Shared vs non-shared database
 
 - Non-shared database:
-  - Uses the session's default stage via `get_session_stage()`.
-  - Simpler setup, no additional permissions required.
+  - With streaming, tries an `SNOWFLAKE_SSE` stage in the session's current schema first.
+  - Otherwise uses the session's default stage via `get_session_stage()`, without streaming.
 - Shared database (`use_shared_db=True`, `db_name` and `schema_name` required):
   - Switches the session context to the provided database and schema.
-  - Creates a temporary stage at `DB.SCHEMA.TEMP_EXPORT_<random_name>`.
+  - Creates a temporary stage at `DB.SCHEMA.TEMP_EXPORT_<random_name>` (`SNOWFLAKE_SSE` encrypted with streaming).
   - Uses a fully qualified stage path.
 
 ## Stage fallback
@@ -112,12 +167,15 @@ The stage is resolved during object initialization, so by the time the pipeline 
 The strategies are tried in order:
 
 1. If `use_shared_db=True`, try the user-provided DB/schema.
-2. If `use_shared_db=False`, try the session's default stage.
+2. If `use_shared_db=False`:
+   1. with `enable_streaming=True`, try an `SNOWFLAKE_SSE` stage in the session's current schema,
+   2. then try the session's default stage (no streaming).
 3. If the above fails, `enable_automatic_stage_fallback=True` (the default) and the fallback DB/schema are provided, try `fallback_db_name.fallback_schema_name`.
 
-Each strategy catches `snowflake.connector.errors.Error`.
+Stages created in a DB/schema (1, 2.1 and 3) are `SNOWFLAKE_SSE` encrypted and streamed when `enable_streaming=True`.
+Each strategy catches `snowflake.connector.errors.Error` and `snowflake.snowpark.exceptions.SnowparkSQLException`.
 A new random stage name is generated for the fallback to avoid collisions with the failed attempt.
-If all attempted strategies fail, the `snowflake.connector.errors.Error` from the last attempt is raised during initialization.
+If all attempted strategies fail, the error from the last attempt is raised during initialization.
 
 ```python
 # Fallback stage configured
@@ -160,7 +218,8 @@ This works around [snowflake-connector-python#2317](https://github.com/snowflake
 
 ### Problem
 
-Downloading the unloaded files (`session.file.get`) talks directly to the S3 bucket behind the internal stage.
+Downloading the unloaded files (`session.file.get`, used without streaming) talks directly to the S3 bucket behind the internal stage.
+Streaming does not use the connector for the transfer: the presigned URLs point to the regional bucket endpoint.
 Unless the Snowflake server tells the connector to use the regional endpoint (`useS3RegionalUrl` in the stage info),
 the connector uses the **global** bucket endpoint `https://<bucket>.s3.amazonaws.com`.
 Connector versions before 4.0.0 additionally call `https://<bucket>.s3.amazonaws.com/?accelerate`
@@ -400,7 +459,7 @@ def run_sync(ctx: LightweightContext, output: Output, virtual_table: TableInput)
 
     fsi.save_snowpark_dataframe_to_foundry_output(
         df,
-        cpu_cores=2,  # parallel upload threads will be max(1, cpu_cores - 1)
+        cpu_cores=2,  # parallel upload/stream threads will be max(1, cpu_cores - 1)
         copy_options={
             "MAX_FILE_SIZE": 200 * 1024 * 1024,  # 200 MB
             "OVERWRITE": True,
@@ -415,8 +474,8 @@ def run_sync(ctx: LightweightContext, output: Output, virtual_table: TableInput)
 ## Snowflake permissions: shared vs non-shared database
 
 The key difference between the two modes are the permissions required for the temporary stage.
-Non-shared database mode uses the session's built-in `get_session_stage()`, which does not require additional permissions.
-Shared database mode creates a temporary stage via `CREATE OR REPLACE TEMPORARY STAGE ...`, so the role used by your Foundry source needs the privilege to create stages in that schema.
+Non-shared database mode uses the session's built-in `get_session_stage()` when streaming is not possible.
+Shared database mode, and streaming in either mode, create a temporary stage via `CREATE OR REPLACE TEMPORARY STAGE ...`, so the role used by your Foundry source needs the privilege to create stages in that schema.
 
 - Granting object privileges typically requires SECURITYADMIN or ACCOUNTADMIN, or the object owner role.
 - To operate on schema objects, the grantee must have USAGE on both the parent database and schema.
