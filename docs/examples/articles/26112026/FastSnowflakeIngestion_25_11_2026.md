@@ -1,12 +1,14 @@
-![Snowflake to Foundry, 598M rows: Fast Snowflake Ingestion up to 18x faster](Cover_1920_1080.png)
-
 # From Snowflake to Foundry in minutes, not hours. Meet our Fast Snowflake Ingestion library
+
+![Snowflake to Foundry, 598M rows: Fast Snowflake Ingestion up to 18x faster](Cover_1920_1080.png)
 
 `FastSnowflakeIngestion` (FSI) is a small Python library Nicolas Renkamp and I have written which syncs data from Snowflake into Palantir Foundry from inside a single Lightweight container. In a head-to-head test on 598M rows (X-Small warehouse) it was **17.9x faster than a Data Connection sync** and **2x faster than a Spark transform** with the same compute, but it can be even faster. It is now part of Merck Group's open-source [foundry-dev-tools library](https://github.com/emdgroup/foundry-dev-tools/blob/main/docs/examples/fast-snowflake-ingestion.md).
 
 **EDIT (26 November 2026):** we have tested a new **streaming mode** on the same 598M-row benchmark: **2m 33s, roughly 18x faster** than the Data Connection sync and 2.3x faster than the current FSI. It is not released yet - it is in review ([PR #125](https://github.com/emdgroup/foundry-dev-tools/pull/125)) and will come with the **next foundry-dev-tools release**. Details in [the benchmark](#benchmark-a-598m-row-head-to-head) below. The log line of the test run:
 
 `INFO  [2026-11-26T13:09:02.391106855Z] transforms-container-ops: foundry_dev_tools.helpers.fast_snowflake_ingestion._impl - INFO - FSI run completed in 113.8 s (streaming=True): 23993.8 MB uploaded at 210.9 MB/s, 598134690 rows at 5256723 rows/s`
+
+![build](lineitem_async_fsi.png)
 
 At Merck we are leveraging this library to ingest the data from Snowflake to Foundry at a large scale already.
 
