@@ -391,6 +391,17 @@ def fake_requests_get(contents: dict[str, bytes] | None):
     return get
 
 
+def fake_clock(mocker, impl):
+    """Replaces ``time`` in the implementation by a clock that only advances when the code sleeps."""
+    now = [0.0]
+    clock = SimpleNamespace(
+        monotonic=lambda: now[0],
+        perf_counter=lambda: now[0],
+        sleep=lambda seconds: now.__setitem__(0, now[0] + seconds),
+    )
+    mocker.patch.object(impl, "time", clock)
+
+
 def test_streaming_save(fsi_modules, job_config, mocker, caplog):
     caplog.set_level("INFO")
     written = {}
@@ -398,7 +409,7 @@ def test_streaming_save(fsi_modules, job_config, mocker, caplog):
     output.filesystem.side_effect = lambda: FakeFilesystem(written)
     session, df = streaming_session(FILES)
     mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
-    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    fake_clock(mocker, fsi_modules.impl)
     mocker.patch.object(
         fsi_modules.impl,
         "get_output_foundry_path_components",
@@ -431,7 +442,7 @@ def test_streaming_presigns_only_for_free_workers(fsi_modules, job_config, mocke
     # both files are listed in one poll, but cpu_cores=2 gives a single worker
     session, df = streaming_session(FILES, all_at_once=True)
     mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
-    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    fake_clock(mocker, fsi_modules.impl)
     mocker.patch.object(
         fsi_modules.impl,
         "get_output_foundry_path_components",
@@ -450,12 +461,35 @@ def test_streaming_presigns_only_for_free_workers(fsi_modules, job_config, mocke
     assert presigned == [f"('{name}')" for name in FILES]
 
 
+def test_streaming_lists_on_its_own_clock(fsi_modules, job_config, mocker):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    # both files are listed in the first poll, a single worker streams them one after the other
+    session, df = streaming_session(FILES, all_at_once=True)
+    df.write.copy_into_location.return_value.is_done.side_effect = [False, True]
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    fake_clock(mocker, fsi_modules.impl)
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=2, save_session_id=False, poll_interval=60)
+
+    queries = [call.args[0].split()[0] for call in session.sql.call_args_list]
+    queries = [query for query in queries if query in ("LIST", "SELECT")]
+    # the finished first stream hands the second file to the worker without another LIST
+    assert queries == ["LIST", "SELECT", "SELECT", "LIST"]
+
+
 def test_run_measures_never_fail_a_committed_run(fsi_modules, job_config, mocker, caplog):
     output = mock.MagicMock()
     output.filesystem.side_effect = lambda: FakeFilesystem({})
     session, df = streaming_session(FILES)
     mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
-    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    fake_clock(mocker, fsi_modules.impl)
     mocker.patch.object(
         fsi_modules.impl,
         "get_output_foundry_path_components",
@@ -506,7 +540,7 @@ def test_streaming_check_fails_before_commit(fsi_modules, job_config, mocker, co
     output.filesystem.side_effect = lambda: FakeFilesystem({})
     session, df = streaming_session(FILES, copy_result)
     mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(contents))
-    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    fake_clock(mocker, fsi_modules.impl)
     commit = fsi_modules.container_ops.io.commit_dataset_upload
     commit.reset_mock()
 

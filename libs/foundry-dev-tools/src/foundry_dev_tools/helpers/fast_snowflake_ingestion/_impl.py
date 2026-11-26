@@ -633,7 +633,8 @@ class FastSnowflakeIngestion:
     ) -> list[snow.Row]:
         """Streams each unloaded file from the SSE stage into the output while ``COPY INTO`` is still running.
 
-        Polls ``LIST`` on the stage and streams every new file via a presigned URL in a thread pool.
+        Polls ``LIST`` on the stage every ``poll_interval`` seconds, however fast the streams finish, and
+        streams every new file via a presigned URL in a thread pool.
         A file is presigned only when a worker is free to start it, so its URL cannot expire in a queue
         (the expiry is checked when the GET starts) and the presign queries stay in the main thread.
         A file listed in an S3/Azure/GCS backed stage is complete (objects only become visible once fully
@@ -659,11 +660,13 @@ class FastSnowflakeIngestion:
         pending: list[str] = []  # listed, not yet handed to a worker
         running: set[Future] = set()
         copy_done = False
+        next_list = 0.0  # LIST keeps its own clock: a finished stream wakes the loop only to refill the workers
         with ThreadPoolExecutor(max_workers=workers) as pool:
             while True:
-                if not copy_done:
+                if not copy_done and (now := time.monotonic()) >= next_list:
                     copy_done = copy_job.is_done()  # checked before LIST, so the last LIST sees every file
                     listed = self._list_stage_files()
+                    next_list = now + poll_interval
                     new = [name for name in listed if name not in seen]
                     seen.update({name: listed[name] for name in new})
                     pending += new
@@ -681,10 +684,11 @@ class FastSnowflakeIngestion:
                     }
                 if copy_done and not pending:
                     break
-                if running:  # wake up as soon as a worker is free, at the latest after poll_interval
-                    wait(running, timeout=poll_interval, return_when=FIRST_COMPLETED)
+                timeout = poll_interval if copy_done else max(0.0, next_list - time.monotonic())
+                if running:  # wake up as soon as a worker is free, at the latest for the next LIST
+                    wait(running, timeout=timeout, return_when=FIRST_COMPLETED)
                 else:
-                    time.sleep(poll_interval)
+                    time.sleep(timeout)
             rows = copy_job.result()  # raises if COPY INTO failed
             for future in running:
                 future.result()
