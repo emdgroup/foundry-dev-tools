@@ -77,6 +77,8 @@ myst_enable_extensions = [
     "attrs_block",
 ]
 myst_fence_as_directive = ["mermaid"]
+# GitHub-style anchors for headings, so in-page links like (#benchmark-a-598m-row-head-to-head) resolve
+myst_heading_anchors = 3
 
 napoleon_google_docstring = True
 

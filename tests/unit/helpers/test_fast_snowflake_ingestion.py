@@ -10,6 +10,7 @@ from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 import pytest
+import requests
 
 # snowflake-snowpark-python is an optional dependency and not installed in the dev environment,
 # so the snowflake modules used at runtime are replaced by fakes.
@@ -111,12 +112,16 @@ def job_config(fsi_modules, mocker):
 def session_mock() -> mock.MagicMock:
     session = mock.MagicMock()
     session.get_session_stage.return_value = "@SESSION_STAGE"
+    session.get_current_database.return_value = "CUR_DB"
+    session.get_current_schema.return_value = "CUR_SCHEMA"
     return session
 
 
 def test_session_stage_and_query_tag(fsi_modules, job_config):
     session = session_mock()
-    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), custom_tags={"team": "it's"})
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(
+        session, mock.MagicMock(), custom_tags={"team": "it's"}, enable_streaming=False
+    )
 
     tags = json.loads(session.query_tag)
     assert tags["team"] == "it's"
@@ -153,7 +158,44 @@ def test_shared_db_stage(fsi_modules, job_config):
     assert info["fully_qualified_stage_name"].startswith("DB.SCHEMA.TEMP_EXPORT_")
     assert info["temporary_stage_name"] == info["fully_qualified_stage_name"]
     assert info["remote_file_path"].startswith("@DB.SCHEMA.TEMP_EXPORT_")
+    assert info["is_streaming"] is True
+    session.sql.assert_called_once_with(
+        f"CREATE OR REPLACE TEMPORARY STAGE {info['fully_qualified_stage_name']} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE');"
+    )
+
+
+def test_shared_db_stage_without_streaming(fsi_modules, job_config):
+    session = session_mock()
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(
+        session, mock.MagicMock(), use_shared_db=True, db_name="DB", schema_name="SCHEMA", enable_streaming=False
+    )
+
+    info = fsi.get_database_and_staging_info()
+    assert info["is_streaming"] is False
     session.sql.assert_called_once_with(f"CREATE OR REPLACE TEMPORARY STAGE {info['fully_qualified_stage_name']};")
+
+
+def test_streaming_stage_in_current_schema(fsi_modules, job_config):
+    session = session_mock()
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+
+    info = fsi.get_database_and_staging_info()
+    assert info["is_streaming"] is True
+    assert info["fully_qualified_stage_name"].startswith("CUR_DB.CUR_SCHEMA.TEMP_EXPORT_")
+    assert (info["db_name"], info["schema_name"]) == ("CUR_DB", "CUR_SCHEMA")
+    assert "SNOWFLAKE_SSE" in session.sql.call_args.args[0]
+    session.get_session_stage.assert_not_called()
+
+
+def test_streaming_stage_refused_uses_session_stage(fsi_modules, job_config):
+    session = session_mock()
+    session.sql.return_value.collect.side_effect = FakeSnowparkSQLException("Insufficient privileges")
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+
+    info = fsi.get_database_and_staging_info()
+    assert info["is_streaming"] is False
+    assert info["fully_qualified_stage_name"] is None
+    assert info["remote_file_path"].startswith("@SESSION_STAGE/")
 
 
 @pytest.mark.parametrize(
@@ -174,7 +216,7 @@ def test_no_fallback_configured_raises_original_error(fsi_modules, job_config):
     session = session_mock()
     session.get_session_stage.side_effect = FakeSnowflakeError("no stage")
     with pytest.raises(FakeSnowflakeError, match="no stage"):
-        fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+        fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), enable_streaming=False)
 
 
 @pytest.mark.parametrize("use_shared_db", [False, True])
@@ -193,6 +235,7 @@ def test_fallback_stage(fsi_modules, job_config, use_shared_db):
         schema_name="SCHEMA" if use_shared_db else None,
         fallback_db_name="FALLBACK_DB",
         fallback_schema_name="STAGING",
+        enable_streaming=False,
     )
 
     info = fsi.get_database_and_staging_info()
@@ -212,6 +255,7 @@ def test_fallback_disabled(fsi_modules, job_config):
             fallback_db_name="FALLBACK_DB",
             fallback_schema_name="STAGING",
             enable_automatic_stage_fallback=False,
+            enable_streaming=False,
         )
 
 
@@ -261,7 +305,7 @@ def test_save_snowpark_dataframe_to_foundry_output(fsi_modules, job_config, mock
     commit.reset_mock()
     df = mock.MagicMock()
 
-    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output, enable_streaming=False)
     assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4, column_descriptions={"a": "b"})
 
     df.write.copy_into_location.assert_called_once()
@@ -287,11 +331,227 @@ def test_temp_dir_removed_on_failure(fsi_modules, job_config):
         raise FakeSnowflakeError(msg)
 
     session.file.get.side_effect = fake_get
-    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock())
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, mock.MagicMock(), enable_streaming=False)
     with pytest.raises(FakeSnowflakeError):
         fsi.save_snowpark_dataframe_to_foundry_output(mock.MagicMock(), save_session_id=False)
     assert not Path(created[0]).exists()
     assert fsi._temp_dir is None
+
+
+# paths relative to the stage, as COPY INTO reports them; LIST prefixes them with the stage name
+FILES = {"ABCDEFGH/data_0_0_0.snappy.parquet": b"aaaa", "ABCDEFGH/data_0_0_1.snappy.parquet": b"bbbbbb"}
+
+
+def streaming_session(
+    files: dict[str, bytes], copy_result: dict[str, bytes] | None = None, *, all_at_once: bool = False
+):
+    """Session whose stage lists one more of ``files`` per LIST (or all in the first), COPY done at the last LIST."""
+    session = session_mock()
+    session.session_id = 1234
+    copy_result = files if copy_result is None else copy_result
+    lists = [files] if all_at_once else [dict(list(files.items())[: i + 1]) for i in range(len(files))]
+
+    def sql(query):
+        result = mock.MagicMock()
+        if query.startswith("LIST"):
+            listed = lists.pop(0) if len(lists) > 1 else lists[0]
+            result.collect.return_value = [
+                {"name": f"temp_export_abcdefgh/{name}", "size": len(data), "md5": str(hash(data))}
+                for name, data in listed.items()
+            ]
+        elif query.startswith("SELECT column1, GET_PRESIGNED_URL"):
+            names = [part.strip("()'") for part in query.split("FROM VALUES ")[1].split(",")]
+            result.collect.return_value = [(name, f"https://bucket/{name}?sig") for name in names]
+        return result
+
+    session.sql.side_effect = sql
+    job = mock.MagicMock()
+    job.is_done.side_effect = [False] * (len(lists) - 1) + [True]
+    job.result.return_value = [
+        SimpleNamespace(FILE_NAME=name, FILE_SIZE=len(data), ROW_COUNT=1) for name, data in copy_result.items()
+    ]
+    df = mock.MagicMock()
+    df.write.copy_into_location.return_value = job
+    return session, df
+
+
+def fake_requests_get(contents: dict[str, bytes] | None):
+    """Serves ``contents`` by relative path, or raises an HTTPError carrying the presigned URL if None."""
+
+    def get(url, stream, timeout):
+        if contents is None:
+            response = SimpleNamespace(status_code=403)
+            msg = f"403 Client Error: Forbidden for url: {url}"
+            raise requests.HTTPError(msg, response=response)
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.raw = io.BytesIO(contents[url.removeprefix("https://bucket/").split("?")[0]])
+        return response
+
+    return get
+
+
+def fake_clock(mocker, impl):
+    """Replaces ``time`` in the implementation by a clock that only advances when the code sleeps."""
+    now = [0.0]
+    clock = SimpleNamespace(
+        monotonic=lambda: now[0],
+        perf_counter=lambda: now[0],
+        sleep=lambda seconds: now.__setitem__(0, now[0] + seconds),
+    )
+    mocker.patch.object(impl, "time", clock)
+
+
+def test_streaming_save(fsi_modules, job_config, mocker, caplog):
+    caplog.set_level("INFO")
+    written = {}
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem(written)
+    session, df = streaming_session(FILES)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    fake_clock(mocker, fsi_modules.impl)
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+    commit = fsi_modules.container_ops.io.commit_dataset_upload
+    commit.reset_mock()
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    # a partial copy_options dict must not drop DETAILED_OUTPUT, which streaming needs
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=4, copy_options={"MAX_FILE_SIZE": 1})
+
+    copy_kwargs = df.write.copy_into_location.call_args.kwargs
+    assert copy_kwargs["block"] is False
+    assert (copy_kwargs["MAX_FILE_SIZE"], copy_kwargs["DETAILED_OUTPUT"], copy_kwargs["OVERWRITE"]) == (1, True, True)
+    assert {name: buf.getvalue() for name, buf in written.items() if name.endswith(".parquet")} == {
+        name.rsplit("/", 1)[1]: data for name, data in FILES.items()
+    }
+    commit.assert_called_once()
+    session.file.get.assert_not_called()
+    # run measures: 2 files of 4 + 6 bytes, 1 row each
+    assert "FSI run completed in" in caplog.text
+    assert "(streaming=True): 0.0 MB uploaded at" in caplog.text
+    assert ", 2 rows at " in caplog.text
+
+
+def test_streaming_presigns_only_for_free_workers(fsi_modules, job_config, mocker):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    # both files are listed in one poll, but cpu_cores=2 gives a single worker
+    session, df = streaming_session(FILES, all_at_once=True)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    fake_clock(mocker, fsi_modules.impl)
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=2, save_session_id=False)
+
+    presigned = [
+        call.args[0].split("FROM VALUES ")[1]
+        for call in session.sql.call_args_list
+        if call.args[0].startswith("SELECT column1, GET_PRESIGNED_URL")
+    ]
+    # one URL per presign, each minted only when the worker was free to start it
+    assert presigned == [f"('{name}')" for name in FILES]
+
+
+def test_streaming_lists_on_its_own_clock(fsi_modules, job_config, mocker):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    # both files are listed in the first poll, a single worker streams them one after the other
+    session, df = streaming_session(FILES, all_at_once=True)
+    df.write.copy_into_location.return_value.is_done.side_effect = [False, True]
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    fake_clock(mocker, fsi_modules.impl)
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=2, save_session_id=False, poll_interval=60)
+
+    queries = [call.args[0].split()[0] for call in session.sql.call_args_list]
+    queries = [query for query in queries if query in ("LIST", "SELECT")]
+    # the finished first stream hands the second file to the worker without another LIST
+    assert queries == ["LIST", "SELECT", "SELECT", "LIST"]
+
+
+def test_run_measures_never_fail_a_committed_run(fsi_modules, job_config, mocker, caplog):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    session, df = streaming_session(FILES)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    fake_clock(mocker, fsi_modules.impl)
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+    commit = fsi_modules.container_ops.io.commit_dataset_upload
+    commit.reset_mock()
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    mocker.patch.object(fsi, "_log_run_measures", side_effect=TypeError("boom"))
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, save_session_id=False)
+    commit.assert_called_once()
+    assert "Failed to log the FSI run measures: boom" in caplog.text
+
+    # a summary row (DETAILED_OUTPUT=FALSE) with NULL measures counts as 0
+    mocker.stopall()
+    caplog.set_level("INFO")
+    fsi._log_run_measures([SimpleNamespace(rows_unloaded=None, output_bytes=None)], 1.0)
+    assert "0.0 MB uploaded at 0.0 MB/s, 0 rows at 0 rows/s" in caplog.text
+
+
+def test_stream_file_keeps_output_write_errors(fsi_modules, mocker):
+    # only failures of the presigned URL transfer are scrubbed, a failed write to the output stays diagnosable
+    output = mock.MagicMock()
+    output.filesystem.return_value.open.return_value.__enter__.return_value.write.side_effect = requests.HTTPError(
+        "500 Server Error for url: https://foundry/output"
+    )
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    name = next(iter(FILES))
+    with pytest.raises(requests.HTTPError, match="https://foundry/output"):
+        fsi_modules.pkg.FastSnowflakeIngestion._stream_file(output, name, f"https://bucket/{name}?sig", 4)
+
+
+@pytest.mark.parametrize(
+    ("contents", "copy_result", "match"),
+    [
+        (
+            {**FILES, "ABCDEFGH/data_0_0_1.snappy.parquet": b"bb"},
+            None,
+            "Unexpected size for ABCDEFGH/data_0_0_1.snappy.parquet: received 2 of 6 bytes",
+        ),
+        (FILES, {**FILES, "ABCDEFGH/data_0_0_2.snappy.parquet": b"c"}, "do not match the COPY INTO result"),
+        (None, None, r"failed: HTTPError \(HTTP status 403\)$"),
+    ],
+)
+def test_streaming_check_fails_before_commit(fsi_modules, job_config, mocker, contents, copy_result, match):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    session, df = streaming_session(FILES, copy_result)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(contents))
+    fake_clock(mocker, fsi_modules.impl)
+    commit = fsi_modules.container_ops.io.commit_dataset_upload
+    commit.reset_mock()
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    with pytest.raises(RuntimeError, match=match) as raised:
+        fsi.save_snowpark_dataframe_to_foundry_output(df, save_session_id=False)
+    # the presigned URL is a credential: neither the message nor a chained exception may carry it
+    assert "sig" not in str(raised.value)
+    if contents is None:
+        assert raised.value.__suppress_context__ is True
+    commit.assert_not_called()
 
 
 def test_get_files_before_download_raises(fsi_modules, job_config):
