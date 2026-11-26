@@ -342,12 +342,14 @@ def test_temp_dir_removed_on_failure(fsi_modules, job_config):
 FILES = {"ABCDEFGH/data_0_0_0.snappy.parquet": b"aaaa", "ABCDEFGH/data_0_0_1.snappy.parquet": b"bbbbbb"}
 
 
-def streaming_session(files: dict[str, bytes], copy_result: dict[str, bytes] | None = None):
-    """Session whose stage lists one more of ``files`` per LIST, and a COPY job done after the second poll."""
+def streaming_session(
+    files: dict[str, bytes], copy_result: dict[str, bytes] | None = None, *, all_at_once: bool = False
+):
+    """Session whose stage lists one more of ``files`` per LIST (or all in the first), COPY done at the last LIST."""
     session = session_mock()
     session.session_id = 1234
     copy_result = files if copy_result is None else copy_result
-    lists = [dict(list(files.items())[: i + 1]) for i in range(len(files))]
+    lists = [files] if all_at_once else [dict(list(files.items())[: i + 1]) for i in range(len(files))]
 
     def sql(query):
         result = mock.MagicMock()
@@ -364,7 +366,7 @@ def streaming_session(files: dict[str, bytes], copy_result: dict[str, bytes] | N
 
     session.sql.side_effect = sql
     job = mock.MagicMock()
-    job.is_done.side_effect = [False] * (len(files) - 1) + [True]
+    job.is_done.side_effect = [False] * (len(lists) - 1) + [True]
     job.result.return_value = [
         SimpleNamespace(FILE_NAME=name, FILE_SIZE=len(data), ROW_COUNT=1) for name, data in copy_result.items()
     ]
@@ -421,6 +423,70 @@ def test_streaming_save(fsi_modules, job_config, mocker, caplog):
     assert "FSI run completed in" in caplog.text
     assert "(streaming=True): 0.0 MB uploaded at" in caplog.text
     assert ", 2 rows at " in caplog.text
+
+
+def test_streaming_presigns_only_for_free_workers(fsi_modules, job_config, mocker):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    # both files are listed in one poll, but cpu_cores=2 gives a single worker
+    session, df = streaming_session(FILES, all_at_once=True)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, cpu_cores=2, save_session_id=False)
+
+    presigned = [
+        call.args[0].split("FROM VALUES ")[1]
+        for call in session.sql.call_args_list
+        if call.args[0].startswith("SELECT column1, GET_PRESIGNED_URL")
+    ]
+    # one URL per presign, each minted only when the worker was free to start it
+    assert presigned == [f"('{name}')" for name in FILES]
+
+
+def test_run_measures_never_fail_a_committed_run(fsi_modules, job_config, mocker, caplog):
+    output = mock.MagicMock()
+    output.filesystem.side_effect = lambda: FakeFilesystem({})
+    session, df = streaming_session(FILES)
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    mocker.patch.object(fsi_modules.impl.time, "sleep")
+    mocker.patch.object(
+        fsi_modules.impl,
+        "get_output_foundry_path_components",
+        return_value=("ri.foundry.main.dataset.out", "ri.foundry.main.transaction.1", "master", ""),
+    )
+    commit = fsi_modules.container_ops.io.commit_dataset_upload
+    commit.reset_mock()
+
+    fsi = fsi_modules.pkg.FastSnowflakeIngestion(session, output)
+    mocker.patch.object(fsi, "_log_run_measures", side_effect=TypeError("boom"))
+    assert fsi.save_snowpark_dataframe_to_foundry_output(df, save_session_id=False)
+    commit.assert_called_once()
+    assert "Failed to log the FSI run measures: boom" in caplog.text
+
+    # a summary row (DETAILED_OUTPUT=FALSE) with NULL measures counts as 0
+    mocker.stopall()
+    caplog.set_level("INFO")
+    fsi._log_run_measures([SimpleNamespace(rows_unloaded=None, output_bytes=None)], 1.0)
+    assert "0.0 MB uploaded at 0.0 MB/s, 0 rows at 0 rows/s" in caplog.text
+
+
+def test_stream_file_keeps_output_write_errors(fsi_modules, mocker):
+    # only failures of the presigned URL transfer are scrubbed, a failed write to the output stays diagnosable
+    output = mock.MagicMock()
+    output.filesystem.return_value.open.return_value.__enter__.return_value.write.side_effect = requests.HTTPError(
+        "500 Server Error for url: https://foundry/output"
+    )
+    mocker.patch.object(fsi_modules.impl.requests, "get", side_effect=fake_requests_get(FILES))
+    name = next(iter(FILES))
+    with pytest.raises(requests.HTTPError, match="https://foundry/output"):
+        fsi_modules.pkg.FastSnowflakeIngestion._stream_file(output, name, f"https://bucket/{name}?sig", 4)
 
 
 @pytest.mark.parametrize(

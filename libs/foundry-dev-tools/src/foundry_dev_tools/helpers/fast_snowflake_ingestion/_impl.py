@@ -9,7 +9,7 @@ import shutil
 import string
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -24,6 +24,8 @@ from foundry_dev_tools.helpers.fast_snowflake_ingestion.utils import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import snowflake.snowpark as snow
     from snowflake.connector.s3_storage_client import SnowflakeS3RestClient
 
@@ -262,7 +264,7 @@ class FastSnowflakeIngestion:
         self._fallback_schema_name = fallback_schema_name
         self._is_using_fallback = False
 
-        # Resolve a working stage (session stage / user shared DB -> fallback DB)
+        # Resolve a working stage (user shared DB / SSE stage in the current schema -> session stage -> fallback DB)
         self._resolve_stage()
 
     def _can_fallback(self) -> bool:
@@ -514,7 +516,6 @@ class FastSnowflakeIngestion:
                 }
             )
             self.commit_dataset_upload(**commit_kwargs)
-            self._log_run_measures(copy_result, time.perf_counter() - start)
 
         except Exception:
             logger.exception("Error in save_snowpark_dataframe_to_foundry_output")
@@ -522,13 +523,19 @@ class FastSnowflakeIngestion:
         finally:
             self.cleanup_temp_dir()
 
+        try:
+            self._log_run_measures(copy_result, time.perf_counter() - start)
+        except Exception as e:  # noqa: BLE001
+            # the transaction is committed: the measures are only telemetry and must never fail the run
+            logger.warning("Failed to log the FSI run measures: %s", e)
+
         return True
 
     def _log_run_measures(self, copy_rows: list[snow.Row], seconds: float) -> None:
         """Logs total time, MB uploaded, average ingestion speed (MB/s) and rows/s of a completed run."""
         # DETAILED_OUTPUT=TRUE returns one row per file, FALSE a single summary row
-        rows = sum(getattr(row, "ROW_COUNT", None) or getattr(row, "rows_unloaded", 0) for row in copy_rows)
-        size = sum(getattr(row, "FILE_SIZE", None) or getattr(row, "output_bytes", 0) for row in copy_rows)
+        rows = sum(getattr(row, "ROW_COUNT", None) or getattr(row, "rows_unloaded", None) or 0 for row in copy_rows)
+        size = sum(getattr(row, "FILE_SIZE", None) or getattr(row, "output_bytes", None) or 0 for row in copy_rows)
         megabytes = size / 1024**2
         seconds = max(seconds, 1e-9)
         logger.info(
@@ -607,7 +614,7 @@ class FastSnowflakeIngestion:
             df.explain()
 
         if copy_options is None:
-            copy_options = DEFAULT_COPY_OPTIONS
+            copy_options = DEFAULT_COPY_OPTIONS.copy()
 
         if format_type_options is None:
             format_type_options = {"COMPRESSION": "AUTO"}
@@ -627,6 +634,8 @@ class FastSnowflakeIngestion:
         """Streams each unloaded file from the SSE stage into the output while ``COPY INTO`` is still running.
 
         Polls ``LIST`` on the stage and streams every new file via a presigned URL in a thread pool.
+        A file is presigned only when a worker is free to start it, so its URL cannot expire in a queue
+        (the expiry is checked when the GET starts) and the presign queries stay in the main thread.
         A file listed in an S3/Azure/GCS backed stage is complete (objects only become visible once fully
         written), every stream is still checked against the listed size. Before returning, the streamed files
         must equal the ``COPY INTO`` result and their md5 must not have changed since they were streamed,
@@ -645,25 +654,39 @@ class FastSnowflakeIngestion:
             RuntimeError: If a stream or the final comparison fails.
             SnowparkSQLException: If ``COPY INTO`` failed.
         """
-        cpu_cores = cpu_cores or self._provisioned_vcpus
-        seen: dict[str, tuple[int, str]] = {}
-        futures = []
-        with ThreadPoolExecutor(max_workers=max(1, cpu_cores - 1)) as pool:
+        workers = max(1, (cpu_cores or self._provisioned_vcpus) - 1)
+        seen: dict[str, tuple[int, str]] = {}  # every listed file: (size, md5)
+        pending: list[str] = []  # listed, not yet handed to a worker
+        running: set[Future] = set()
+        copy_done = False
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             while True:
-                done = copy_job.is_done()  # checked before LIST, so the last LIST sees every file
-                listed = self._list_stage_files()
-                new = [name for name in listed if name not in seen]
-                if new:
-                    urls = self._presign(new)
-                    futures += [
-                        pool.submit(self._stream_file, self._output, name, urls[name], listed[name][0]) for name in new
-                    ]
+                if not copy_done:
+                    copy_done = copy_job.is_done()  # checked before LIST, so the last LIST sees every file
+                    listed = self._list_stage_files()
+                    new = [name for name in listed if name not in seen]
                     seen.update({name: listed[name] for name in new})
-                if done:
+                    pending += new
+                for future in [future for future in running if future.done()]:
+                    future.result()  # a failed stream stops the run right away
+                    running.remove(future)
+                # presign only what a free worker starts now: S3 checks the expiry when the GET starts,
+                # so a URL never waits in a queue, however long the backlog
+                free = workers - len(running)
+                batch, pending = pending[:free], pending[free:]
+                if batch:
+                    urls = self._presign(batch)
+                    running |= {
+                        pool.submit(self._stream_file, self._output, name, urls[name], seen[name][0]) for name in batch
+                    }
+                if copy_done and not pending:
                     break
-                time.sleep(poll_interval)
+                if running:  # wake up as soon as a worker is free, at the latest after poll_interval
+                    wait(running, timeout=poll_interval, return_when=FIRST_COMPLETED)
+                else:
+                    time.sleep(poll_interval)
             rows = copy_job.result()  # raises if COPY INTO failed
-            for future in futures:
+            for future in running:
                 future.result()
 
         copied = {row.FILE_NAME: row.FILE_SIZE for row in rows}
@@ -700,19 +723,25 @@ class FastSnowflakeIngestion:
         """Streams one file from a presigned URL into the output and checks that all ``size`` bytes arrived."""
         # each thread should have its own filesystem which should not be created inside of the context manager
         fs = output.filesystem()
-        try:
-            with requests.get(url, stream=True, timeout=(30, 600)) as response:
-                response.raise_for_status()
-                response.raw.decode_content = False  # the stored bytes, no transparent decompression
-                with fs.open(name.rsplit("/", 1)[-1], "wb") as dst:
-                    shutil.copyfileobj(response.raw, dst, STREAM_CHUNK_SIZE)
-                # bytes read from the wire, holds also where urllib3 does not enforce Content-Length (1.x)
-                received = response.raw.tell()
-        except (requests.RequestException, urllib3.exceptions.HTTPError) as e:
-            # the exception text may contain the presigned URL, a live credential: keep it out of the job log
-            status = getattr(getattr(e, "response", None), "status_code", None)
-            msg = f"Streaming {name} failed: {type(e).__name__} (HTTP status {status})"
-            raise RuntimeError(msg) from None
+
+        def transfer(call: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            # only the calls on the presigned URL go through here, a failed write to the output keeps its own error
+            try:
+                return call(*args, **kwargs)
+            except (requests.RequestException, urllib3.exceptions.HTTPError) as e:
+                # the exception text may contain the presigned URL, a live credential: keep it out of the job log
+                status = getattr(getattr(e, "response", None), "status_code", None)
+                msg = f"Streaming {name} failed: {type(e).__name__} (HTTP status {status})"
+                raise RuntimeError(msg) from None
+
+        with transfer(requests.get, url, stream=True, timeout=(30, 600)) as response:
+            transfer(response.raise_for_status)
+            response.raw.decode_content = False  # the stored bytes, no transparent decompression
+            with fs.open(name.rsplit("/", 1)[-1], "wb") as dst:
+                while chunk := transfer(response.raw.read, STREAM_CHUNK_SIZE):
+                    dst.write(chunk)
+            # bytes read from the wire, holds also where urllib3 does not enforce Content-Length (1.x)
+            received = response.raw.tell()
         if received != size:
             msg = f"Unexpected size for {name}: received {received} of {size} bytes"
             raise RuntimeError(msg)

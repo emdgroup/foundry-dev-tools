@@ -28,6 +28,7 @@ classifiers = [
 ]
 dependencies = [
   "requests",
+  "urllib3",
   "palantir-oauth-client",
   "platformdirs",
   "tomli; python_version <\"3.11\"",
