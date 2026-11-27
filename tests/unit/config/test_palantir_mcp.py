@@ -66,8 +66,11 @@ def test_read_palantir_mcp_credentials_skips_invalid_entries(isolated_palantir_m
 def test_read_palantir_mcp_credentials_fails_for_token_without_an_expiry(isolated_palantir_mcp_config: Path):
     write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": "not-a-jwt"})
 
-    with pytest.raises(TokenProviderConfigError, match="no decodable expiry"):
+    with pytest.raises(TokenProviderConfigError, match="no decodable expiry") as exc_info:
         read_palantir_mcp_credentials()
+
+    assert "https://foundry-dev-tools.test" in str(exc_info.value)
+    assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
 
 
 def test_read_palantir_mcp_credentials_tolerates_missing_or_broken_file(isolated_palantir_mcp_config: Path):

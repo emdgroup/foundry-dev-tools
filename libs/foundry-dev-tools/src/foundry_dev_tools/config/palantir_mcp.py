@@ -131,9 +131,15 @@ def read_palantir_mcp_credentials() -> list[PalantirMCPCredential]:
             host = host_from_origin(origin)
         except ValueError:
             continue
-        credentials.append(
-            PalantirMCPCredential(host=host, token=token, expires_at=token_expiry(token)),
-        )
+        try:
+            expires_at = token_expiry(token)
+        except TokenProviderConfigError as exc:
+            msg = (
+                f"The Palantir MCP token for {host.url} has no decodable expiry, "
+                f"so Foundry DevTools cannot tell when to refresh it. {REAUTHORIZE_HINT}"
+            )
+            raise TokenProviderConfigError(msg) from exc
+        credentials.append(PalantirMCPCredential(host=host, token=token, expires_at=expires_at))
     return credentials
 
 
