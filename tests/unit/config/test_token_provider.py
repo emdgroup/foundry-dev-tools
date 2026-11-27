@@ -18,7 +18,7 @@ from foundry_dev_tools.config.token_provider import (
     JWTTokenProvider,
 )
 from foundry_dev_tools.errors.config import FoundryConfigError, TokenProviderConfigError
-from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvider
+from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockOAuthTokenProvider, make_jwt
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -219,3 +219,27 @@ def test_token_provider_pass_host_as_string():
     tp = JWTTokenProvider(host="example.com", jwt="eyJ...")
     assert tp.host.domain == "example.com"
     assert tp.host.scheme == "https"
+
+
+def test_cached_token_provider_refresh_if_possible_drops_the_cache():
+    with mock.patch.object(
+        CachedTokenProvider,
+        "_request_token",
+        side_effect=[("first", time.time() + 3600), ("second", time.time() + 3600)],
+    ) as request_token:
+        provider = CachedTokenProvider(TEST_HOST)
+
+        assert provider.token == "first"  # noqa: S105
+        provider.refresh_if_possible()
+        assert provider.token == "second"  # noqa: S105
+
+        assert request_token.call_count == 2
+
+
+def test_jwt_token_provider_refresh_if_possible_keeps_the_token():
+    provider = JWTTokenProvider(TEST_HOST, make_jwt(time.time() + 3600))
+
+    token = provider.token
+    provider.refresh_if_possible()
+
+    assert provider.token == token

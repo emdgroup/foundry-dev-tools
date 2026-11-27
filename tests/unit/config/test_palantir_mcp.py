@@ -428,6 +428,21 @@ def test_provider_refreshes_from_disk_when_the_token_is_about_to_expire(isolated
         assert provider.token == second
 
 
+def test_provider_refresh_if_possible_rereads_the_config(isolated_palantir_mcp_config: Path):
+    first = make_jwt(time.time() + 3600)
+    second = make_jwt(time.time() + 7200)
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": first})
+
+    provider = PalantirMCPTokenProvider("foundry-dev-tools.test")
+    assert provider.token == first
+
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": second})
+    assert provider.token == first
+
+    provider.refresh_if_possible()
+    assert provider.token == second
+
+
 def test_provider_fails_for_token_without_an_expiry(isolated_palantir_mcp_config: Path):
     write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": "opaque-token"})
 

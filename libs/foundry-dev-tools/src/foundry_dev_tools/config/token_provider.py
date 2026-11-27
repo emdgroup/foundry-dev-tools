@@ -62,6 +62,15 @@ class TokenProvider:
         """
         return None
 
+    def refresh_if_possible(self) -> None:
+        """Refresh the current token when the provider supports it.
+
+        Providers with a fixed token do nothing, so callers can request a
+        refresh without checking the provider type. A provider may do this
+        lazily: drop its cache here and fetch the new token on the next
+        :attr:`token` access.
+        """
+
     def requests_auth_handler(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
         """Sets bearer authentication header on PreparedRequest object.
 
@@ -126,6 +135,10 @@ class CachedTokenProvider(TokenProvider):
     def token_expires_at(self) -> float | None:
         """Return the expiry of the cached token without triggering a refresh."""
         return token_expiry(self._cached) if self._cached else None
+
+    def refresh_if_possible(self) -> None:
+        """Drop the cached token so the next access requests a new one."""
+        self.invalidate_cache()
 
 
 DEFAULT_OAUTH_SCOPES = [
@@ -364,6 +377,10 @@ class PalantirMCPTokenProvider(TokenProvider):
     def token_expires_at(self) -> float | None:
         """Return the cached MCP token's expiry, even if it has already expired."""
         return self._credential.expires_at
+
+    def refresh_if_possible(self) -> None:
+        """Re-read the Palantir MCP config on the next token access."""
+        self._credential_stale_after = 0
 
     @property
     def token(self) -> Token:
