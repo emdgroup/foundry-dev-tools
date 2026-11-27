@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING
 from foundry_dev_tools.errors.handling import raise_foundry_api_error
 from foundry_dev_tools.utils.misc import parse_iso
 
+# STS caps a role session at the web identity token's expiry. Assuming a role
+# with a token that expires inside this margin returns credentials that expire
+# almost immediately, so renew the token first.
+TOKEN_RENEWAL_MARGIN_SECONDS = 900
+
 if TYPE_CHECKING:
     import aiobotocore
     import boto3
@@ -163,6 +168,11 @@ class S3Client:
             or (t < 900)  # less than 15 minutes, recommended by the boto library.
         ):
             from foundry_dev_tools.utils.s3 import parse_s3_credentials_response
+
+            token_provider = self.context.token_provider
+            expires_at = token_provider.token_expires_at()
+            if expires_at is not None and expires_at - time.time() < TOKEN_RENEWAL_MARGIN_SECONDS:
+                token_provider.refresh_if_possible()
 
             self._credentials = parse_s3_credentials_response(
                 self.api_assume_role_with_webidentity(expiration_duration).text,

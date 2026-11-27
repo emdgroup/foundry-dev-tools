@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning].
 
 ## [Unreleased]
 
+## [2.1.27] - 2026-11-27
+
 ## Changed
 - add `FastSnowflakeIngestion` streaming mode (default) (#125)
+
+## Fixed
+- fix S3 credential renewal to refresh an expiring OAuth token before `AssumeRoleWithWebIdentity`, so renewed credentials no longer inherit the old token's expiry and `ExpiredToken` errors stop after the token ages out
 
 ## [2.1.26] - 2026-11-20
 
@@ -411,6 +416,7 @@ and this project adheres to [Semantic Versioning].
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
+[2.1.27]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.26...v2.1.27
 [2.1.26]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.25...v2.1.26
 [2.1.25]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.24...v2.1.25
 [2.1.24]: https://github.com/emdgroup/foundry-dev-tools/compare/v2.1.23...v2.1.24

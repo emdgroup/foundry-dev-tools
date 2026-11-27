@@ -49,7 +49,6 @@ def test_read_palantir_mcp_credentials_skips_invalid_entries(isolated_palantir_m
             {
                 "hosts": {
                     "https://foundry.example.com": {"token": make_jwt(time.time() + 3600)},
-                    "foundry-bare.example.com": {"token": "not-a-jwt"},
                     "https://invalid.example.com": {"token": ""},
                     "https://wrong.example.com": "not-an-object",
                 },
@@ -59,11 +58,28 @@ def test_read_palantir_mcp_credentials_skips_invalid_entries(isolated_palantir_m
 
     credentials = read_palantir_mcp_credentials()
 
-    assert len(credentials) == 2
+    assert len(credentials) == 1
     assert credentials[0].host == Host("foundry.example.com")
     assert credentials[0].expires_at is not None
-    assert credentials[1].host == Host("foundry-bare.example.com")
-    assert credentials[1].expires_at is None
+
+
+def test_read_palantir_mcp_credentials_keeps_valid_hosts_when_another_is_malformed(
+    isolated_palantir_mcp_config: Path,
+):
+    write_mcp_config(
+        isolated_palantir_mcp_config,
+        {
+            "https://valid.example.com": make_jwt(time.time() + 3600),
+            "https://broken.example.com": "not-a-jwt",
+        },
+    )
+
+    credentials = read_palantir_mcp_credentials()
+
+    assert [credential.host.domain for credential in credentials] == ["valid.example.com"]
+    with pytest.raises(TokenProviderConfigError, match="No Palantir MCP token found") as exc_info:
+        select_palantir_mcp_credential(credentials, host="https://broken.example.com")
+    assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
 
 
 def test_read_palantir_mcp_credentials_tolerates_missing_or_broken_file(isolated_palantir_mcp_config: Path):
@@ -428,11 +444,27 @@ def test_provider_refreshes_from_disk_when_the_token_is_about_to_expire(isolated
         assert provider.token == second
 
 
-def test_provider_fails_for_token_without_an_expiry(isolated_palantir_mcp_config: Path):
+def test_provider_refresh_if_possible_rereads_the_config(isolated_palantir_mcp_config: Path):
+    first = make_jwt(time.time() + 3600)
+    second = make_jwt(time.time() + 7200)
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": first})
+
+    provider = PalantirMCPTokenProvider("foundry-dev-tools.test")
+    assert provider.token == first
+
+    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": second})
+    assert provider.token == first
+
+    provider.refresh_if_possible()
+    assert provider.token == second
+
+
+def test_provider_fails_for_host_whose_cached_token_has_no_expiry(isolated_palantir_mcp_config: Path):
     write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": "opaque-token"})
 
-    with pytest.raises(TokenProviderConfigError, match="no decodable expiry"):
+    with pytest.raises(TokenProviderConfigError, match="No Palantir MCP token found") as exc_info:
         PalantirMCPTokenProvider("foundry-dev-tools.test")
+    assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
 
 
 def test_provider_fails_when_the_cache_file_becomes_unreadable(isolated_palantir_mcp_config: Path):
@@ -473,7 +505,8 @@ def test_jwt_provider_reports_token_expiry():
     provider = JWTTokenProvider("foundry-dev-tools.test", make_jwt(expires_at))
 
     assert provider.token_expires_at() == pytest.approx(expires_at)
-    assert JWTTokenProvider("foundry-dev-tools.test", "opaque").token_expires_at() is None
+    with pytest.raises(TokenProviderConfigError, match="no decodable expiry"):
+        JWTTokenProvider("foundry-dev-tools.test", "opaque").token_expires_at()
 
 
 def test_mcp_provider_reports_expiry_without_refreshing(isolated_palantir_mcp_config: Path):
