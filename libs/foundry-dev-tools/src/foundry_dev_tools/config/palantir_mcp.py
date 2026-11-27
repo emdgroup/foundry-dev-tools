@@ -105,8 +105,7 @@ def read_palantir_mcp_credentials() -> list[PalantirMCPCredential]:
     """Read all usable host/token pairs from the Palantir MCP config.
 
     A missing, unreadable, or malformed file is treated as an empty cache. Invalid
-    host entries are skipped, but a token without a decodable ``exp`` is an error:
-    nothing can renew or reason about a token whose lifetime is unknown.
+    host entries are skipped so that one bad entry cannot break the others.
     """
     path = palantir_mcp_config_path()
     try:
@@ -133,12 +132,8 @@ def read_palantir_mcp_credentials() -> list[PalantirMCPCredential]:
             continue
         try:
             expires_at = token_expiry(token)
-        except TokenProviderConfigError as exc:
-            msg = (
-                f"The Palantir MCP token for {host.url} has no decodable expiry, "
-                f"so Foundry DevTools cannot tell when to refresh it. {REAUTHORIZE_HINT}"
-            )
-            raise TokenProviderConfigError(msg) from exc
+        except TokenProviderConfigError:
+            continue
         credentials.append(PalantirMCPCredential(host=host, token=token, expires_at=expires_at))
     return credentials
 

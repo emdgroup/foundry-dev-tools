@@ -63,13 +63,22 @@ def test_read_palantir_mcp_credentials_skips_invalid_entries(isolated_palantir_m
     assert credentials[0].expires_at is not None
 
 
-def test_read_palantir_mcp_credentials_fails_for_token_without_an_expiry(isolated_palantir_mcp_config: Path):
-    write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": "not-a-jwt"})
+def test_read_palantir_mcp_credentials_keeps_valid_hosts_when_another_is_malformed(
+    isolated_palantir_mcp_config: Path,
+):
+    write_mcp_config(
+        isolated_palantir_mcp_config,
+        {
+            "https://valid.example.com": make_jwt(time.time() + 3600),
+            "https://broken.example.com": "not-a-jwt",
+        },
+    )
 
-    with pytest.raises(TokenProviderConfigError, match="no decodable expiry") as exc_info:
-        read_palantir_mcp_credentials()
+    credentials = read_palantir_mcp_credentials()
 
-    assert "https://foundry-dev-tools.test" in str(exc_info.value)
+    assert [credential.host.domain for credential in credentials] == ["valid.example.com"]
+    with pytest.raises(TokenProviderConfigError, match="No Palantir MCP token found") as exc_info:
+        select_palantir_mcp_credential(credentials, host="https://broken.example.com")
     assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
 
 
@@ -450,11 +459,12 @@ def test_provider_refresh_if_possible_rereads_the_config(isolated_palantir_mcp_c
     assert provider.token == second
 
 
-def test_provider_fails_for_token_without_an_expiry(isolated_palantir_mcp_config: Path):
+def test_provider_fails_for_host_whose_cached_token_has_no_expiry(isolated_palantir_mcp_config: Path):
     write_mcp_config(isolated_palantir_mcp_config, {"https://foundry-dev-tools.test": "opaque-token"})
 
-    with pytest.raises(TokenProviderConfigError, match="no decodable expiry"):
+    with pytest.raises(TokenProviderConfigError, match="No Palantir MCP token found") as exc_info:
         PalantirMCPTokenProvider("foundry-dev-tools.test")
+    assert "Re-authorize the Palantir MCP token" in str(exc_info.value)
 
 
 def test_provider_fails_when_the_cache_file_becomes_unreadable(isolated_palantir_mcp_config: Path):
