@@ -185,7 +185,8 @@ def _s3_context(provider: CachedTokenProvider) -> FoundryMockContext:
 
 def test_get_credentials_renews_a_token_near_expiry(mocker: MockerFixture) -> None:
     with freeze_time("0s"):
-        provider = _CachedProvider(make_jwt(600), 600)
+        now = time.time()
+        provider = _CachedProvider(make_jwt(now + 600), now + 600)
         context = _s3_context(provider)
         refresh = mocker.spy(provider, "refresh_if_possible")
 
@@ -198,7 +199,8 @@ def test_get_credentials_renews_a_token_near_expiry(mocker: MockerFixture) -> No
 
 def test_get_credentials_keeps_a_token_with_enough_lifetime(mocker: MockerFixture) -> None:
     with freeze_time("0s"):
-        provider = _CachedProvider(make_jwt(3600), 3600)
+        now = time.time()
+        provider = _CachedProvider(make_jwt(now + 3600), now + 3600)
         context = _s3_context(provider)
         refresh = mocker.spy(provider, "refresh_if_possible")
 
