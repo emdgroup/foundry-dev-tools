@@ -243,3 +243,29 @@ def test_jwt_token_provider_refresh_if_possible_keeps_the_token():
     provider.refresh_if_possible()
 
     assert provider.token == token
+
+
+def test_cached_token_provider_fails_for_token_without_an_expiry():
+    with mock.patch.object(CachedTokenProvider, "_request_token", return_value=("opaque", time.time() + 3600)):
+        provider = CachedTokenProvider(TEST_HOST)
+
+        assert provider.token == "opaque"  # noqa: S105
+        with pytest.raises(TokenProviderConfigError, match="no decodable expiry"):
+            provider.token_expires_at()
+
+
+def test_app_service_token_provider_refresh_if_possible_keeps_the_header_token():
+    from argparse import Namespace
+
+    with mock.patch.dict(
+        sys.modules,
+        {
+            "streamlit.web.server.websocket_headers": None,
+            "flask": Namespace(request=Namespace(headers={"X-Foundry-AccessToken": "bla"})),
+        },
+    ):
+        provider = AppServiceTokenProvider(TEST_HOST)
+
+        assert provider.token == "bla"  # noqa: S105
+        provider.refresh_if_possible()
+        assert provider.token == "bla"  # noqa: S105

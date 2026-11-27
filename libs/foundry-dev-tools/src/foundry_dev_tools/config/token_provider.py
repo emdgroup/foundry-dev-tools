@@ -133,8 +133,10 @@ class CachedTokenProvider(TokenProvider):
         return self._cached
 
     def token_expires_at(self) -> float | None:
-        """Return the expiry of the cached token without triggering a refresh."""
-        return token_expiry(self._cached) if self._cached else None
+        """Return the expiry decoded from the cached token."""
+        if self._cached is None:
+            return None
+        return token_expiry(self._cached)
 
     def refresh_if_possible(self) -> None:
         """Drop the cached token so the next access requests a new one."""
@@ -305,6 +307,9 @@ class AppServiceTokenProvider(CachedTokenProvider):
             return
         msg = "Could not get Foundry token from flask/dash/streamlit headers."
         raise TokenProviderConfigError(msg)
+
+    def refresh_if_possible(self) -> None:
+        """The hosting page owns the header token; invalidating it would fail later requests."""
 
     def _request_token(self) -> tuple[Token, float]:
         msg = "Token is expired. Please refresh the web page."

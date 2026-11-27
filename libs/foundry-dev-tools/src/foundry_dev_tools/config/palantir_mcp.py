@@ -64,20 +64,25 @@ def palantir_mcp_config_path() -> Path:
     return Path.home().joinpath(PALANTIR_MCP_CONFIG_DIR, PALANTIR_MCP_CONFIG_FILE)
 
 
-def token_expiry(token: str) -> float | None:
-    """Return the JWT ``exp`` claim as a Unix timestamp, if it can be decoded."""
+def token_expiry(token: str) -> float:
+    """Return the JWT ``exp`` claim as a Unix timestamp.
+
+    Foundry tokens always carry an ``exp`` claim. A token without one cannot be
+    renewed or reasoned about, so fail instead of guessing.
+    """
+    no_expiry = "The token has no decodable expiry: Foundry tokens must be JWTs with an 'exp' claim."
     parts = token.split(".")
     if len(parts) != 3:
-        return None
+        raise TokenProviderConfigError(no_expiry)
     try:
         payload = parts[1] + "=" * (-len(parts[1]) % 4)
         claims = json.loads(base64.urlsafe_b64decode(payload))
-    except (TypeError, ValueError):
-        return None
+    except (TypeError, ValueError) as exc:
+        raise TokenProviderConfigError(no_expiry) from exc
     exp = claims.get("exp") if isinstance(claims, dict) else None
-    if isinstance(exp, int | float):
-        return float(exp)
-    return None
+    if not isinstance(exp, int | float):
+        raise TokenProviderConfigError(no_expiry)
+    return float(exp)
 
 
 def host_from_origin(origin: str) -> Host:
@@ -100,7 +105,8 @@ def read_palantir_mcp_credentials() -> list[PalantirMCPCredential]:
     """Read all usable host/token pairs from the Palantir MCP config.
 
     A missing, unreadable, or malformed file is treated as an empty cache. Invalid
-    host entries are skipped so that one bad entry cannot break the others.
+    host entries are skipped, but a token without a decodable ``exp`` is an error:
+    nothing can renew or reason about a token whose lifetime is unknown.
     """
     path = palantir_mcp_config_path()
     try:
