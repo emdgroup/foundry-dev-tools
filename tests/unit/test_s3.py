@@ -14,7 +14,7 @@ from freezegun import freeze_time
 
 from foundry_dev_tools.config.token_provider import CachedTokenProvider
 from foundry_dev_tools.utils.s3 import parse_s3_credentials_response
-from tests.unit.mocks import TEST_HOST, FoundryMockContext, make_jwt
+from tests.unit.mocks import TEST_HOST, FoundryMockContext, MockTokenProvider, make_jwt
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -77,57 +77,68 @@ def mock_generate_credentials() -> list[dict]:
     ]
 
 
-def test_s3_credentials_provider(test_context_mock, mocker: MockerFixture):
+def _jwt_context(test_context_mock: FoundryMockContext) -> FoundryMockContext:
+    """Return a context whose token is a JWT: the S3 client needs its expiry."""
+    return FoundryMockContext(
+        config=test_context_mock.config,
+        token_provider=MockTokenProvider(jwt=make_jwt(time.time() + 3600)),
+        mock_adapter=test_context_mock.mock_adapter,
+    )
+
+
+def test_s3_credentials_provider(test_context_mock):
     with freeze_time("0s"):
-        test_context_mock.mock_adapter.register_uri(
+        context = _jwt_context(test_context_mock)
+        context.mock_adapter.register_uri(
             "POST",
             TEST_HOST.url + "/io/s3",
             response_list=mock_generate_credentials(),
         )
-        assert test_context_mock.s3._get_boto3_session().get_credentials().access_key == "key1"
+        assert context.s3._get_boto3_session().get_credentials().access_key == "key1"
     with freeze_time("1s"):
-        assert test_context_mock.s3._get_boto3_session().get_credentials().access_key == "key1"
+        assert context.s3._get_boto3_session().get_credentials().access_key == "key1"
     # botocore checks with >= we need to be a bit above the expiry time
     with freeze_time("2.1s"):
-        assert test_context_mock.s3._get_boto3_session().get_credentials().access_key == "key2"
+        assert context.s3._get_boto3_session().get_credentials().access_key == "key2"
     with freeze_time("3s"):
-        assert test_context_mock.s3._get_boto3_session().get_credentials().access_key == "key2"
+        assert context.s3._get_boto3_session().get_credentials().access_key == "key2"
     with freeze_time("4.1s"):
-        assert test_context_mock.s3._get_boto3_session().get_credentials().access_key == "key3"
+        assert context.s3._get_boto3_session().get_credentials().access_key == "key3"
     with freeze_time("5s"):
-        assert test_context_mock.s3._get_boto3_session().get_credentials().access_key == "key3"
+        assert context.s3._get_boto3_session().get_credentials().access_key == "key3"
 
 
-async def test_async_s3_credentials_provider(test_context_mock, mocker: MockerFixture):
+async def test_async_s3_credentials_provider(test_context_mock):
     with freeze_time("0s"):
-        test_context_mock.mock_adapter.register_uri(
+        context = _jwt_context(test_context_mock)
+        context.mock_adapter.register_uri(
             "POST",
             TEST_HOST.url + "/io/s3",
             response_list=mock_generate_credentials(),
         )
         assert (
-            await (await test_context_mock.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
+            await (await context.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
         ).access_key == "key1"
     with freeze_time("1s"):
         assert (
-            await (await test_context_mock.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
+            await (await context.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
         ).access_key == "key1"
     # botocore checks with >= we need to be a bit above the expiry time
     with freeze_time("2.1s"):
         assert (
-            await (await test_context_mock.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
+            await (await context.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
         ).access_key == "key2"
     with freeze_time("3s"):
         assert (
-            await (await test_context_mock.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
+            await (await context.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
         ).access_key == "key2"
     with freeze_time("4.1s"):
         assert (
-            await (await test_context_mock.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
+            await (await context.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
         ).access_key == "key3"
     with freeze_time("5s"):
         assert (
-            await (await test_context_mock.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
+            await (await context.s3._get_aiobotocore_session().get_credentials()).get_frozen_credentials()
         ).access_key == "key3"
 
 
